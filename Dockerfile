@@ -10,4 +10,4 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY src/ ./src/
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
-ENTRYPOINT ["python", "-m", "yahoo_finance_mcp.server"]
+ENTRYPOINT ["python", "-m", "yfinance_mcp.server"]

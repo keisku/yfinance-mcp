@@ -8,8 +8,8 @@ import pytest
 
 import pandas as pd
 
-from yahoo_finance_mcp.errors import CalculationError
-from yahoo_finance_mcp.indicators import (
+from yfinance_mcp.errors import CalculationError
+from yfinance_mcp.indicators import (
     calculate_fibonacci_levels,
     calculate_pivot_points,
     calculate_sma,

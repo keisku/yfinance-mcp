@@ -14,7 +14,7 @@ import pandas as pd
 import pandas_ta as ta
 import pytest
 
-from yahoo_finance_mcp import indicators
+from yfinance_mcp import indicators
 
 pytestmark = pytest.mark.crosscheck
 

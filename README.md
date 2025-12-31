@@ -102,8 +102,8 @@ docker run -i yfinance-mcp
 ```bash
 uv run pytest                            # Run all tests
 uv run pytest -m "not crosscheck"        # Skip pandas-ta crosscheck tests
-uv run mypy src/yahoo_finance_mcp        # Type check
-uv run ruff check src/yahoo_finance_mcp  # Lint
+uv run mypy src/yfinance_mcp        # Type check
+uv run ruff check src/yfinance_mcp  # Lint
 uv run pip-audit                         # Security scan
 ```
 

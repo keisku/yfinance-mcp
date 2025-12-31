@@ -19,7 +19,7 @@ def pytest_configure(config: pytest.Config) -> None:
 @pytest.fixture(autouse=True)
 def reset_circuit_breaker():
     """Reset circuit breaker state before each test to prevent test pollution."""
-    from yahoo_finance_mcp.server import reset_circuit_breaker_for_testing
+    from yfinance_mcp.server import reset_circuit_breaker_for_testing
 
     reset_circuit_breaker_for_testing()
     yield

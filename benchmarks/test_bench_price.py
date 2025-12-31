@@ -22,7 +22,7 @@ os.environ["YFINANCE_CACHE_DB"] = _benchmark_db_path
 # Ensure cache is ENABLED for benchmarks (opposite of tests)
 os.environ.pop("YFINANCE_CACHE_DISABLED", None)
 
-from yahoo_finance_mcp import prices  # noqa: E402 - must import after env setup
+from yfinance_mcp import prices  # noqa: E402 - must import after env setup
 
 # Global stocks across different exchanges
 SYMBOLS = [

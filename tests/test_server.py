@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from yahoo_finance_mcp.server import (
+from yfinance_mcp.server import (
     TOOLS,
     call_tool,
     list_tools,
@@ -95,8 +95,8 @@ class TestSummaryTool:
         df = pd.DataFrame({"Close": [150] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -113,8 +113,8 @@ class TestSummaryTool:
         df = pd.DataFrame({"Close": [150] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -128,8 +128,8 @@ class TestSummaryTool:
         df = pd.DataFrame({"Close": [150] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -142,8 +142,8 @@ class TestSummaryTool:
         df = pd.DataFrame({"Close": [150] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -172,7 +172,7 @@ class TestPriceTool:
 
     def test_returns_bars_with_hint(self, call) -> None:
         """Price should return bars dict with navigation hint."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call("price", {"symbol": "AAPL"})
 
         assert "bars" in parsed
@@ -182,14 +182,14 @@ class TestPriceTool:
 
     def test_limit_restricts_bars(self, call) -> None:
         """Limit parameter should control number of bars."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call("price", {"symbol": "AAPL", "limit": 5})
 
         assert len(parsed["bars"]) == 5
 
     def test_detailed_format(self, call) -> None:
         """format=detailed should use full column names."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call("price", {"symbol": "AAPL", "format": "detailed"})
 
         first_bar = list(parsed["bars"].values())[0]
@@ -197,7 +197,7 @@ class TestPriceTool:
 
     def test_start_and_end_date_range(self, call) -> None:
         """start/end should fetch specific date range."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call(
                 "price",
                 {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-31"},
@@ -208,7 +208,7 @@ class TestPriceTool:
 
     def test_start_only_defaults_end_to_today(self, call) -> None:
         """start without end should fetch from start to today."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call("price", {"symbol": "AAPL", "start": "2024-01-01"})
 
         assert "bars" in parsed
@@ -216,7 +216,7 @@ class TestPriceTool:
 
     def test_end_only_computes_start_from_period(self, call) -> None:
         """end without start should compute start = end - period."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call(
                 "price",
                 {"symbol": "AAPL", "end": "2024-06-30", "period": "3mo"},
@@ -233,7 +233,7 @@ class TestPriceTool:
         df.index = pd.date_range("2024-01-15 09:30", periods=len(df), freq="5min")
         mock.history.return_value = df
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call(
                 "price",
                 {
@@ -273,7 +273,7 @@ class TestTechnicalsTool:
 
     def test_rsi_with_signal(self, call) -> None:
         """RSI should include overbought/oversold signal."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": ["rsi"]})
 
         assert "rsi" in parsed
@@ -282,7 +282,7 @@ class TestTechnicalsTool:
 
     def test_macd_with_trend(self, call) -> None:
         """MACD should include bullish/bearish trend."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": ["macd"]})
 
         assert "macd" in parsed
@@ -291,7 +291,7 @@ class TestTechnicalsTool:
 
     def test_sma_with_position(self, call) -> None:
         """SMA should show price position (above/below)."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": ["sma_20"]})
 
         assert "sma_20" in parsed
@@ -299,7 +299,7 @@ class TestTechnicalsTool:
 
     def test_bollinger_bands(self, call) -> None:
         """BB should return bands and %B signal."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": ["bb"]})
 
         assert "bb_upper" in parsed
@@ -309,7 +309,7 @@ class TestTechnicalsTool:
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
         indicators = ["rsi", "macd", "sma_20", "ema_12", "bb", "stoch", "atr", "obv"]
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         assert "_hint" in parsed
@@ -319,7 +319,7 @@ class TestTechnicalsTool:
 
     def test_empty_indicators_error(self, call) -> None:
         """Empty indicators should return validation error."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": []})
 
         assert parsed["err"] == "VALIDATION_ERROR"
@@ -352,7 +352,7 @@ class TestFundamentalsTool:
 
     def test_pe_eps_margins(self, call) -> None:
         """Basic metrics should be returned."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_fundamentals()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_fundamentals()):
             parsed = call("fundamentals", {"symbol": "AAPL", "metrics": ["pe", "eps", "margins"]})
 
         assert "pe" in parsed
@@ -362,7 +362,7 @@ class TestFundamentalsTool:
 
     def test_growth_metrics(self, call) -> None:
         """Growth option should return growth rates."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_fundamentals()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_fundamentals()):
             parsed = call("fundamentals", {"symbol": "AAPL", "metrics": ["growth"]})
 
         assert "growth_rev" in parsed
@@ -370,7 +370,7 @@ class TestFundamentalsTool:
 
     def test_valuation_metrics(self, call) -> None:
         """Valuation option should return ratios."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_fundamentals()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_fundamentals()):
             parsed = call("fundamentals", {"symbol": "AAPL", "metrics": ["valuation"]})
 
         assert "pb" in parsed
@@ -379,7 +379,7 @@ class TestFundamentalsTool:
 
     def test_dividends_metrics(self, call) -> None:
         """Dividends option should return yield, rate, payout."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_fundamentals()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_fundamentals()):
             parsed = call("fundamentals", {"symbol": "AAPL", "metrics": ["dividends"]})
 
         assert "div_yield" in parsed
@@ -388,7 +388,7 @@ class TestFundamentalsTool:
 
     def test_empty_metrics_error(self, call) -> None:
         """Empty metrics should return validation error."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_fundamentals()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_fundamentals()):
             parsed = call("fundamentals", {"symbol": "AAPL", "metrics": []})
 
         assert parsed["err"] == "VALIDATION_ERROR"
@@ -410,7 +410,7 @@ class TestFinancialsTool:
 
     def test_income_statement(self, call) -> None:
         """Income statement should return data with hint."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_financials()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials()):
             parsed = call("financials", {"symbol": "AAPL", "statement": "income"})
 
         assert "_hint" in parsed
@@ -418,14 +418,14 @@ class TestFinancialsTool:
 
     def test_balance_sheet(self, call) -> None:
         """Balance sheet should work."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_financials()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials()):
             parsed = call("financials", {"symbol": "AAPL", "statement": "balance"})
 
         assert len(parsed) > 1
 
     def test_cashflow(self, call) -> None:
         """Cash flow should work."""
-        with patch("yahoo_finance_mcp.server._ticker", return_value=self._mock_financials()):
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials()):
             parsed = call("financials", {"symbol": "AAPL", "statement": "cashflow"})
 
         assert len(parsed) > 1
@@ -444,7 +444,7 @@ class TestPeersTool:
 
     def test_compares_multiple_symbols(self, call) -> None:
         """Peers should compare symbols on metrics."""
-        with patch("yahoo_finance_mcp.server._ticker", side_effect=self._mock_peer):
+        with patch("yfinance_mcp.server._ticker", side_effect=self._mock_peer):
             parsed = call("peers", {"symbols": ["AAPL", "MSFT"], "metrics": ["price", "pe"]})
 
         assert "AAPL" in parsed
@@ -454,7 +454,7 @@ class TestPeersTool:
 
     def test_all_metric_options(self, call) -> None:
         """All metric options should work."""
-        with patch("yahoo_finance_mcp.server._ticker", side_effect=self._mock_peer):
+        with patch("yfinance_mcp.server._ticker", side_effect=self._mock_peer):
             parsed = call(
                 "peers",
                 {
@@ -525,7 +525,7 @@ class TestErrorHandling:
 
     def test_network_error_wrapped(self, call) -> None:
         """Network errors should be wrapped cleanly."""
-        with patch("yahoo_finance_mcp.server._ticker") as mock:
+        with patch("yfinance_mcp.server._ticker") as mock:
             mock.side_effect = ConnectionError("Network failed")
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -563,7 +563,7 @@ class TestCircuitBreaker:
         mock.info = {"regularMarketPrice": 150.0}
         mock.history.return_value = pd.DataFrame()
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("summary", {"symbol": "AAPL"})
 
         assert "err" not in parsed
@@ -621,7 +621,7 @@ class TestEdgeCases:
         )
         mock.history.return_value = df
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("price", {"symbol": "AAPL", "limit": -10})
 
         assert "bars" in parsed
@@ -653,7 +653,7 @@ class TestEdgeCases:
         )
         mock.history.return_value = df
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         if expected_unknown:
@@ -670,7 +670,7 @@ class TestEdgeCases:
         ).T
         mock.get_cashflow.return_value = df
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("financials", {"symbol": "AAPL", "statement": "invalid"})
 
         # Should not error, falls back to cashflow
@@ -733,8 +733,8 @@ class TestDataEdgeCases:
         df = pd.DataFrame({"Close": [price] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             result = self._call("summary", {"symbol": "TEST"})
 
@@ -747,7 +747,7 @@ class TestDataEdgeCases:
         """Peers tool should preserve any price value."""
         mock = self._mock_ticker(price)
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             result = self._call("peers", {"symbols": ["TEST"], "metrics": ["price"]})
 
         assert "TEST" in result
@@ -780,8 +780,8 @@ class TestDataEdgeCases:
         df = pd.DataFrame({"Close": [100.0] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             result = self._call("summary", {"symbol": "TEST"})
 
@@ -811,8 +811,8 @@ class TestDataEdgeCases:
         df = pd.DataFrame({"Close": [50.0] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
         with (
-            patch("yahoo_finance_mcp.server._ticker", return_value=mock),
-            patch("yahoo_finance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.prices.get_history", return_value=df),
         ):
             result = self._call("summary", {"symbol": "TEST"})
 
@@ -840,7 +840,7 @@ class TestDataEdgeCases:
         )
         mock.history.return_value = df
 
-        with patch("yahoo_finance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             result = self._call("price", {"symbol": "TEST", "limit": 5})
 
         bars = result["bars"]
