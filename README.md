@@ -111,8 +111,9 @@ uv run pip-audit                         # Security scan
 
 ```bash
 # Logging
-MCP_DEBUG=1                          # Enable debug logging (default: WARNING level)
+MCP_LOG_LEVEL=DEBUG                  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: WARNING)
 MCP_LOG_FILE=/tmp/yfinance-mcp.log   # Log file path (default: /tmp/yfinance-mcp.log)
+MCP_LOG_CONSOLE=1                    # Enable console logging to stderr (default: disabled)
 
 # Cache
 YFINANCE_CACHE_DISABLED=1            # Disable DuckDB cache (always fetch from API)
@@ -125,8 +126,8 @@ YFINANCE_INTRADAY_TTL_MINUTES=30     # Intraday data cache TTL in minutes (defau
 The server provides structured logging for debugging and monitoring:
 
 ```bash
-# Enable debug mode
-MCP_DEBUG=1 uv run yfinance-mcp
+# Enable debug logging
+MCP_LOG_LEVEL=DEBUG uv run yfinance-mcp
 
 # View logs
 tail -f /tmp/yfinance-mcp.log
