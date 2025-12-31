@@ -34,28 +34,11 @@ uv run yfinance-mcp
 {
   "mcpServers": {
     "yfinance": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/yfinance-mcp", "yfinance-mcp"]
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "ghcr.io/keisku/yfinance-mcp:latest"]
     }
   }
 }
-```
-
-## Recommended Workflow
-
-```python
-# 1. Get complete overview with Quality Score
-summary(symbol="SHOP")
-
-# 2. Compare with peers
-peers(symbols=["SHOP", "META"], metrics=["price", "pe", "market_cap"])
-
-# 3. Get technicals for trading signals
-technicals(symbol="SHOP", indicators=["rsi", "macd"])
-
-# 4. Get price history (period-based or date range)
-price(symbol="SHOP", period="ytd")
-price(symbol="SHOP", start="2020-01-01", end="2024-12-31")
 ```
 
 ## Tools
@@ -84,17 +67,6 @@ price(symbol="SHOP", start="2020-01-01", end="2024-12-31")
 ```bash
 docker build -t yfinance-mcp .
 docker run -i yfinance-mcp
-```
-
-```json
-{
-  "mcpServers": {
-    "yfinance": {
-      "command": "docker",
-      "args": ["run", "-i", "yfinance-mcp"]
-    }
-  }
-}
 ```
 
 ## Development
