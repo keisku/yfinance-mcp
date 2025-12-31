@@ -31,9 +31,7 @@ from .errors import (
     ValidationError,
 )
 
-_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "request_id", default=None
-)
+_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
 
 _stats_lock = threading.Lock()
 _debug_stats: dict[str, int | float] = {
@@ -234,7 +232,9 @@ def _record_fail() -> None:
     if _cb["fails"] >= _cb["threshold"]:
         _cb["open"] = True
         _cb["opened_at"] = datetime.now()
-        logger.warning("circuit_breaker_opened fails=%d threshold=%d", _cb["fails"], _cb["threshold"])
+        logger.warning(
+            "circuit_breaker_opened fails=%d threshold=%d", _cb["fails"], _cb["threshold"]
+        )
 
 
 def _reset_cb() -> None:
