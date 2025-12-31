@@ -42,13 +42,6 @@ class DuckDBCacheBackend:
     def _init_db(self) -> None:
         """Initialize database schema."""
         conn = self._get_conn()
-        # migrate from old schema without interval column
-        try:
-            conn.execute("SELECT interval FROM prices LIMIT 1")
-        except Exception:
-            conn.execute("DROP TABLE IF EXISTS prices")
-            logger.info("duckdb_schema_migrated dropping old table without interval")
-
         conn.execute("""
             CREATE TABLE IF NOT EXISTS prices (
                 symbol VARCHAR NOT NULL,
