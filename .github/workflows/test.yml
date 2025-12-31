@@ -81,4 +81,3 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           summary-always: true
           auto-push: true
-          skip-fetch-gh-pages: true
