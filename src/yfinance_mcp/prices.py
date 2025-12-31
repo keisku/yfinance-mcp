@@ -6,9 +6,9 @@ from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from dateutil.relativedelta import relativedelta
 import pandas as pd
 import yfinance as yf
+from dateutil.relativedelta import relativedelta
 
 if TYPE_CHECKING:
     from .cache import CachedPriceFetcher

@@ -489,7 +489,7 @@ TOOLS = [
                 },
                 "start": {
                     "type": "string",
-                    "description": "Start date (YYYY-MM-DD) or datetime (YYYY-MM-DD HH:MM for intraday).",
+                    "description": "Start date (YYYY-MM-DD) or datetime (YYYY-MM-DD HH:MM).",
                 },
                 "end": {
                     "type": "string",

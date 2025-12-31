@@ -4,9 +4,8 @@ Note: Accuracy tests are in test_indicators_crosscheck.py (validates against pan
 This file covers error handling and functions not available in pandas-ta.
 """
 
-import pytest
-
 import pandas as pd
+import pytest
 
 from yfinance_mcp.errors import CalculationError
 from yfinance_mcp.indicators import (

@@ -5,13 +5,12 @@ import os
 import time
 from datetime import date, timedelta
 from pathlib import Path
-
-from dateutil.relativedelta import relativedelta
 from typing import Protocol
 
 import holidays
 import pandas as pd
 import yfinance as yf
+from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger("yfinance_mcp.cache")
 
@@ -326,7 +325,7 @@ class CachedPriceFetcher:
         elapsed_ms = (time.time() - start_time) * 1000
         source = "cache" if not (fetch_early or fetch_late) else "cache+api"
         logger.debug(
-            "cache_fetch_complete symbol=%s bars=%d elapsed_ms=%.1f source=%s fetch_early=%s fetch_late=%s",
+            "cache_fetch_complete symbol=%s bars=%d ms=%.1f src=%s early=%s late=%s",
             symbol,
             len(df),
             elapsed_ms,

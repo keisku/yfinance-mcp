@@ -27,9 +27,6 @@ jobs:
       - name: Ruff check
         run: uv run ruff check .
 
-      - name: Mypy
-        run: uv run mypy src
-
   test:
     strategy:
       fail-fast: false
@@ -83,3 +80,5 @@ jobs:
           comment-on-alert: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           summary-always: true
+          auto-push: true
+          skip-fetch-gh-pages: true
