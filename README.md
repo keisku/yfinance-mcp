@@ -30,10 +30,11 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 ## Development
 
 ```bash
-uv sync                    # Install dependencies
-uv run pytest              # Run tests
-uv run ruff check .        # Lint
-uv run pip-audit           # Security scan
+uv sync                                # Install dependencies
+uv run pytest                          # Run tests
+uv run pytest benchmarks/ --benchmark-only  # Run benchmarks
+uv run ruff check .                    # Lint
+uv run pip-audit                       # Security scan
 ```
 
 ### Cache
