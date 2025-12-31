@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767204322719,
+  "lastUpdate": 1767204803222,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -609,6 +609,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.000004592893474412542",
             "extra": "mean: 41.01223147951225 usec\nrounds: 9530"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "17146b03a5479596e7c966fdf46d1ee311c60608",
+          "message": "update readme",
+          "timestamp": "2026-01-01T03:06:27+09:00",
+          "tree_id": "86d62f6a731b75a34537106c2303a96415e8c5da",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/17146b03a5479596e7c966fdf46d1ee311c60608"
+        },
+        "date": 1767204802929,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 279.0748614596941,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00027568283617753414",
+            "extra": "mean: 3.5832679259232627 msec\nrounds: 189"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 272.77583126136926,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00033963519764149976",
+            "extra": "mean: 3.6660139403692873 msec\nrounds: 218"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 288.3310802076665,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007475286365091633",
+            "extra": "mean: 3.4682351943459016 msec\nrounds: 283"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 75.6566559902663,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003829862689722327",
+            "extra": "mean: 13.217607716215426 msec\nrounds: 74"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 41.2776934121676,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00033803254556546785",
+            "extra": "mean: 24.226159878042647 msec\nrounds: 41"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 310.90646314017204,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000052303908347782446",
+            "extra": "mean: 3.2164014536717764 msec\nrounds: 313"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 304.8294711710658,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002154177671044451",
+            "extra": "mean: 3.2805227006374813 msec\nrounds: 314"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 42.99797293325675,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004845487800397482",
+            "extra": "mean: 23.256910309521846 msec\nrounds: 42"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 22901.157921009344,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005035168442503438",
+            "extra": "mean: 43.66591433713523 usec\nrounds: 7798"
           }
         ]
       }
