@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767202230475,
+  "lastUpdate": 1767202877367,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -87,6 +87,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.000006331910355765241",
             "extra": "mean: 42.51770395397633 usec\nrounds: 10218"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "21fad2101be107be1a68b9ce46d5ea5318ab98cc",
+          "message": "ci: Run Docker build only after tests pass\n\n- Add workflow_run trigger to wait for Test workflow on main\n- Skip Docker build if Test workflow fails\n- Remove coverage threshold (cache modules intentionally untested)\n- Fix coverage module path for accurate reporting",
+          "timestamp": "2026-01-01T02:40:21+09:00",
+          "tree_id": "cfa9b37757a2319d5f7ec9d134f57f811fdd3c10",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/21fad2101be107be1a68b9ce46d5ea5318ab98cc"
+        },
+        "date": 1767202877005,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 287.7221160213747,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009343601367948223",
+            "extra": "mean: 3.4755757180852602 msec\nrounds: 188"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 290.0051231518045,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008923131252107331",
+            "extra": "mean: 3.4482149457633726 msec\nrounds: 295"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 289.1043335265785,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006993614872864605",
+            "extra": "mean: 3.458958874125856 msec\nrounds: 286"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 76.27806034814685,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017172110309441802",
+            "extra": "mean: 13.109929584415484 msec\nrounds: 77"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 41.043503856695736,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002929755000557673",
+            "extra": "mean: 24.364391585365645 msec\nrounds: 41"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 307.06898120421346,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007016736774720425",
+            "extra": "mean: 3.2565972508143344 msec\nrounds: 307"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 313.0024670786255,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001394701814838496",
+            "extra": "mean: 3.1948629968747255 msec\nrounds: 320"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 43.83408858837152,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00027899930633307695",
+            "extra": "mean: 22.813295136362978 msec\nrounds: 44"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 26893.278311393835,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000022498245282502865",
+            "extra": "mean: 37.18401261538767 usec\nrounds: 8878"
           }
         ]
       }
