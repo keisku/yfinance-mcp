@@ -1,6 +1,6 @@
 # Yahoo Finance MCP
 
-A Python MCP server for Yahoo Finance data, optimized for AI agents.
+MCP server providing real-time stock data, technicals, and fundamentals via Yahoo Finance.
 
 ## Usage
 
@@ -35,6 +35,20 @@ uv run pytest              # Run tests
 uv run ruff check .        # Lint
 uv run pip-audit           # Security scan
 ```
+
+### Cache
+
+DuckDB-based local cache to reduce Yahoo Finance API calls and speed up repeated queries.
+
+- Location: `~/.cache/yfinance-mcp/market.duckdb`
+- Disable: `YFINANCE_CACHE_DISABLED=1`
+- Custom path: `YFINANCE_CACHE_DB=/path/to/cache.db`
+
+### Yahoo Finance API Constraints
+
+- Intraday data (1m-1h): max 60 days history
+- Financial statements: max 4 years annual / 5 quarters
+- Rate limiting: HTTP 429 handled by circuit breaker
 
 ## License
 
