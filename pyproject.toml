@@ -1,0 +1,57 @@
+[project]
+name = "yfinance-mcp"
+version = "0.1.0"
+description = "Yahoo Finance MCP server providing market data and technical analysis tools"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=1.25.0",
+    "yfinance>=1.0",
+    "pandas>=2.3.3",
+    "numpy>=2.2.0",
+    "duckdb>=1.4.3",
+    "holidays>=0.87",
+]
+
+[project.scripts]
+yfinance-mcp = "yahoo_finance_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yahoo_finance_mcp"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "mypy>=1.19.1",
+    "ruff>=0.14.10",
+    "pip-audit>=2.10.0",
+    "pytest-benchmark>=5.2.3",
+    "pandas-ta>=0.4.71b0",
+    "hypothesis>=6.148.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m not slow')",
+    "crosscheck: cross-validation tests against pandas-ta (may be slow)",
+]

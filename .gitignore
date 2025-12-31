@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Testing/Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.benchmarks/
+
+# Benchmark results
+benchmarks/results/*.txt
+
+# Cache database
+*.duckdb
+*.duckdb.wal
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local

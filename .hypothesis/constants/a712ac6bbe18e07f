@@ -1,0 +1,4 @@
+# file: /Users/keisukeumegaki/Workspace/yfinance-mcp/src/yahoo_finance_mcp/cache.py
+# hypothesis_version: 6.148.8
+
+[1.0, 1000, '.', '.AX', '.BO', '.DE', '.HK', '.KS', '.L', '.NS', '.PA', '.SA', '.SI', '.T', '.TO', '.V', '1', '1d', '1mo', '1wk', '1y', '2y', '3mo', '5d', '5y', '6mo', 'Close', 'High', 'Low', 'Open', 'Volume', 'c', 'cache', 'cache+api', 'date', 'h', 'hits', 'l', 'last', 'max', 'misses', 'o', 'true', 'v', 'yes', 'yf-mcp.cache', 'ytd']

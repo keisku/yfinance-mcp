@@ -1,0 +1,69 @@
+"""Tests for technical indicators - error handling and unique functions.
+
+Note: Accuracy tests are in test_indicators_crosscheck.py (validates against pandas-ta).
+This file covers error handling and functions not available in pandas-ta.
+"""
+
+import pytest
+
+import pandas as pd
+
+from yahoo_finance_mcp.errors import CalculationError
+from yahoo_finance_mcp.indicators import (
+    calculate_fibonacci_levels,
+    calculate_pivot_points,
+    calculate_sma,
+)
+
+
+class TestErrorHandling:
+    """Test CalculationError is raised for insufficient data."""
+
+    def test_sma_insufficient_data(self) -> None:
+        """SMA should raise CalculationError when data < period."""
+        prices = pd.Series([1, 2, 3, 4, 5])
+        with pytest.raises(CalculationError):
+            calculate_sma(prices, 10)
+
+
+class TestFibonacci:
+    """Test Fibonacci retracement levels (not in pandas-ta)."""
+
+    def test_uptrend_levels(self) -> None:
+        """Uptrend retracements from high to low."""
+        levels = calculate_fibonacci_levels(100, 80, is_uptrend=True)
+        assert levels["level_0"] == 100
+        assert levels["level_100"] == 80
+        assert levels["level_500"] == 90  # 50% retracement
+
+    def test_downtrend_levels(self) -> None:
+        """Downtrend retracements from low to high."""
+        levels = calculate_fibonacci_levels(100, 80, is_uptrend=False)
+        assert levels["level_0"] == 80
+        assert levels["level_100"] == 100
+
+
+class TestPivotPoints:
+    """Test pivot point calculations (not in pandas-ta)."""
+
+    def test_standard_method(self) -> None:
+        """Standard pivot = (H + L + C) / 3."""
+        pivots = calculate_pivot_points(105, 95, 102, method="standard")
+        assert "pivot" in pivots
+        assert "r1" in pivots
+        assert "s1" in pivots
+        expected_pivot = (105 + 95 + 102) / 3
+        assert abs(pivots["pivot"] - expected_pivot) < 0.01
+
+    def test_all_methods(self) -> None:
+        """All pivot methods should return valid structure."""
+        for method in ["standard", "fibonacci", "camarilla", "woodie"]:
+            pivots = calculate_pivot_points(105, 95, 102, method=method)
+            assert "pivot" in pivots
+            assert "r1" in pivots and "r2" in pivots and "r3" in pivots
+            assert "s1" in pivots and "s2" in pivots and "s3" in pivots
+
+    def test_invalid_method(self) -> None:
+        """Invalid method should raise CalculationError."""
+        with pytest.raises(CalculationError):
+            calculate_pivot_points(105, 95, 102, method="invalid")

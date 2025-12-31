@@ -1,0 +1,4 @@
+# file: /Users/keisukeumegaki/Workspace/yfinance-mcp/src/yahoo_finance_mcp/errors.py
+# hypothesis_version: 6.148.8
+
+['CALCULATION_ERROR', 'DATA_UNAVAILABLE', 'INTERNAL_ERROR', 'RATE_LIMIT_EXCEEDED', 'SYMBOL_NOT_FOUND', 'VALIDATION_ERROR', 'code', 'details', 'error', 'message', 'suggestion', 'symbol', 'use search tool']
