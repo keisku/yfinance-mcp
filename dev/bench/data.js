@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767202877367,
+  "lastUpdate": 1767203111420,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -174,6 +174,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0000022498245282502865",
             "extra": "mean: 37.18401261538767 usec\nrounds: 8878"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "c424f34410f49ea006b8bac37399dfbead7cdc11",
+          "message": "docs: Simplify README and use ghcr.io Docker image\n\n- Update Cursor/Claude config to use ghcr.io/keisku/yfinance-mcp\n- Remove redundant workflow example section\n- Remove duplicate Docker config block",
+          "timestamp": "2026-01-01T02:44:10+09:00",
+          "tree_id": "fe505fa4916e658b2d7035d84bf688b26551851c",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/c424f34410f49ea006b8bac37399dfbead7cdc11"
+        },
+        "date": 1767203110639,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 290.18686460726946,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008793321065516738",
+            "extra": "mean: 3.446055359374626 msec\nrounds: 192"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 290.77499019540113,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000858098669538027",
+            "extra": "mean: 3.439085319297918 msec\nrounds: 285"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 283.36448798044836,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00016376250063129358",
+            "extra": "mean: 3.529023721804541 msec\nrounds: 266"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 74.45687517017555,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00044868050087397757",
+            "extra": "mean: 13.430593181817548 msec\nrounds: 77"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 41.30914436346952,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00023738050045330343",
+            "extra": "mean: 24.20771515384665 msec\nrounds: 39"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 305.81092616032174,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006663604008898465",
+            "extra": "mean: 3.269994347670066 msec\nrounds: 279"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 316.7846304145749,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006499448329397463",
+            "extra": "mean: 3.1567188051115473 msec\nrounds: 313"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 44.324177694086046,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004470790023663005",
+            "extra": "mean: 22.56105024444537 msec\nrounds: 45"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 23368.496154107506,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000008219914629762605",
+            "extra": "mean: 42.79265526567608 usec\nrounds: 8128"
           }
         ]
       }
