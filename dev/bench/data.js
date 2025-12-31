@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767203111420,
+  "lastUpdate": 1767203178539,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -261,6 +261,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.000008219914629762605",
             "extra": "mean: 42.79265526567608 usec\nrounds: 8128"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "ca84235391e29ffe9a80ebd5b55e180ea07d391d",
+          "message": "uv run pip-audit on the ci",
+          "timestamp": "2026-01-01T02:45:17+09:00",
+          "tree_id": "d1389eaf43a3f42899c8711c3ee857c26bc01636",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/ca84235391e29ffe9a80ebd5b55e180ea07d391d"
+        },
+        "date": 1767203177736,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 287.09763393372305,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002640953931463398",
+            "extra": "mean: 3.4831356368156334 msec\nrounds: 201"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 286.7608533347649,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00025424242235110847",
+            "extra": "mean: 3.487226336408614 msec\nrounds: 217"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 291.9430402137644,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012632257269042782",
+            "extra": "mean: 3.425325704862795 msec\nrounds: 288"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 75.69722784815573,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007800038624326143",
+            "extra": "mean: 13.210523402599923 msec\nrounds: 77"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 41.7947771120886,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020709973681287328",
+            "extra": "mean: 23.92643457143268 msec\nrounds: 42"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 311.2935745201058,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000054537238616803274",
+            "extra": "mean: 3.2124016743410557 msec\nrounds: 304"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 319.54479555727755,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004837368786834006",
+            "extra": "mean: 3.1294516884746213 msec\nrounds: 321"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 44.55085891204346,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002125349651768853",
+            "extra": "mean: 22.446256355557477 msec\nrounds: 45"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 23956.754189569572,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000004914624683517161",
+            "extra": "mean: 41.741881729344854 usec\nrounds: 9901"
           }
         ]
       }
