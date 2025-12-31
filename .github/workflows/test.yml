@@ -27,6 +27,9 @@ jobs:
       - name: Ruff check
         run: uv run ruff check .
 
+      - name: Security audit
+        run: uv run pip-audit
+
   test:
     strategy:
       fail-fast: false
