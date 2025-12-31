@@ -1,4 +1,0 @@
-# file: /Users/keisukeumegaki/Workspace/yfinance-mcp/src/yahoo_finance_mcp/prices.py
-# hypothesis_version: 6.148.8
-
-['1', '10y', '15m', '1d', '1h', '1m', '1mo', '1wk', '1y', '2y', '30', '30m', '3mo', '5d', '5m', '5y', '6mo', 'Close', 'High', 'Low', 'Open', 'Volume', 'c', 'entries', 'h', 'hits', 'l', 'max', 'misses', 'o', 'true', 'v', 'yes', 'yf-mcp.prices', 'ytd']

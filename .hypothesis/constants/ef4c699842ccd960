@@ -1,4 +1,0 @@
-# file: /Users/keisukeumegaki/Workspace/yfinance-mcp/src/yahoo_finance_mcp/indicators.py
-# hypothesis_version: 6.148.8
-
-[0.0, 0.236, 0.272, 0.382, 0.5, 0.618, 0.786, 1.0, 1.1, 1.618, 2.0, 100, 'available', 'bandwidth', 'camarilla', 'close_len', 'd', 'ext_1272', 'ext_1618', 'ext_200', 'ext_2618', 'fibonacci', 'histogram', 'k', 'level_0', 'level_100', 'level_236', 'level_382', 'level_500', 'level_618', 'level_786', 'lower', 'macd', 'middle', 'percent_b', 'pivot', 'r1', 'r2', 'r3', 'required', 's1', 's2', 's3', 'signal', 'standard', 'upper', 'valid_methods', 'volume_len', 'woodie', 'yf-mcp.indicators']
