@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767203590794,
+  "lastUpdate": 1767204322719,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -522,6 +522,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00000840856596271547",
             "extra": "mean: 42.72523033830473 usec\nrounds: 8570"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "52ef96c36fadda867fb8d0dfe1c29d373a10e387",
+          "message": "docs: Add cache and API constraints to README\n\n- Improve project description\n- Document DuckDB cache location and env vars\n- List Yahoo Finance API limitations",
+          "timestamp": "2026-01-01T03:04:21+09:00",
+          "tree_id": "5b8659bc7f75ca0bbdbfa1dd6795cbacc5ba9ec9",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/52ef96c36fadda867fb8d0dfe1c29d373a10e387"
+        },
+        "date": 1767204322457,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 288.9868306046782,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008482978655827322",
+            "extra": "mean: 3.460365297296049 msec\nrounds: 185"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 291.4266673760813,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008214908948007448",
+            "extra": "mean: 3.431394968084772 msec\nrounds: 282"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 290.3907469153358,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007487411933713813",
+            "extra": "mean: 3.4436358961931828 msec\nrounds: 289"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 75.83497822181752,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00023740924256871647",
+            "extra": "mean: 13.186527159999931 msec\nrounds: 75"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 40.05815815078191,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007634280405887693",
+            "extra": "mean: 24.963703928571185 msec\nrounds: 42"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 299.15764828616994,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001432075049650828",
+            "extra": "mean: 3.342719150684773 msec\nrounds: 292"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 315.47326445920163,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006026653105643447",
+            "extra": "mean: 3.169840720779444 msec\nrounds: 308"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 42.946497167935206,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0018581205667823333",
+            "extra": "mean: 23.284786093023246 msec\nrounds: 43"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 24382.969761095592,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000004592893474412542",
+            "extra": "mean: 41.01223147951225 usec\nrounds: 9530"
           }
         ]
       }
