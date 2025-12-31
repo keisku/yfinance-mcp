@@ -7,7 +7,7 @@ import pandas as pd
 
 from .errors import CalculationError
 
-logger = logging.getLogger("yf-mcp.indicators")
+logger = logging.getLogger("yfinance_mcp.indicators")
 
 
 def calculate_sma(prices: pd.Series, period: int) -> pd.Series:

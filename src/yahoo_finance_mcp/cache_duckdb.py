@@ -8,7 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-logger = logging.getLogger("yf-mcp.cache.duckdb")
+logger = logging.getLogger("yfinance_mcp.cache.duckdb")
 
 
 def get_cache_path() -> Path:

@@ -13,7 +13,7 @@ import holidays
 import pandas as pd
 import yfinance as yf
 
-logger = logging.getLogger("yf-mcp.cache")
+logger = logging.getLogger("yfinance_mcp.cache")
 
 _cache_stats = {"hits": 0, "misses": 0}
 

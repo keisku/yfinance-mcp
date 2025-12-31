@@ -1,5 +1,6 @@
 """Yahoo Finance MCP Server"""
 
+import contextvars
 import json
 import logging
 import os
@@ -8,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -19,7 +21,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from . import indicators, prices
+from . import LOGGER_NAME, indicators, prices
 from .cache import get_cache_stats
 from .errors import (
     CalculationError,
@@ -27,6 +29,10 @@ from .errors import (
     MCPError,
     SymbolNotFoundError,
     ValidationError,
+)
+
+_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "request_id", default=None
 )
 
 _stats_lock = threading.Lock()
@@ -82,8 +88,14 @@ def _get_default_log_path() -> str:
 def _get_log_level() -> int:
     """Determine log level from environment."""
     level_str = os.environ.get("MCP_LOG_LEVEL", "").upper()
-    if level_str in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+    valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+    if level_str in valid_levels:
         return getattr(logging, level_str)
+    if level_str:
+        sys.stderr.write(
+            f"[yfinance-mcp] Invalid MCP_LOG_LEVEL='{level_str}', "
+            f"expected one of {valid_levels}. Using WARNING.\n"
+        )
     if os.environ.get("MCP_DEBUG"):
         return logging.DEBUG
     return logging.WARNING
@@ -93,20 +105,20 @@ class NDJSONFormatter(logging.Formatter):
     """Formatter that outputs NDJSON for structured analysis."""
 
     def format(self, record: logging.LogRecord) -> str:
-        entry = {
+        entry: dict[str, Any] = {
             "ts": int(record.created * 1000),
             "level": record.levelname,
             "logger": record.name,
             "loc": f"{record.filename}:{record.lineno}",
             "msg": record.getMessage(),
         }
-        # stats are expensive to serialize, only include at DEBUG
-        if record.levelno <= logging.DEBUG:
+        req_id = _request_id.get()
+        if req_id:
+            entry["request_id"] = req_id
+        if record.levelno <= logging.INFO:
             entry["stats"] = _get_stats_snapshot()
         if hasattr(record, "data"):
             entry["data"] = record.data
-        if hasattr(record, "request_id"):
-            entry["request_id"] = record.request_id
         return json.dumps(entry)
 
 
@@ -149,7 +161,6 @@ def _configure_logging() -> logging.Logger:
         file_handler.setFormatter(NDJSONFormatter())
         handlers.append(file_handler)
 
-    # stderr avoids interfering with MCP protocol on stdout
     if enable_console:
         console_handler = logging.StreamHandler(sys.stderr)
         if hasattr(sys.stderr, "isatty") and sys.stderr.isatty():
@@ -166,16 +177,19 @@ def _configure_logging() -> logging.Logger:
         logging.root.addHandler(handler)
     logging.root.setLevel(log_level)
 
-    # MCP library adds handlers dynamically, so we reconfigure them here
+    app_logger = logging.getLogger(LOGGER_NAME)
+    app_logger.setLevel(log_level)
+
+    mcp_log_level = max(log_level, logging.WARNING)
     for name in ("mcp", "mcp.server", "mcp.server.lowlevel", "mcp.server.lowlevel.server"):
         mcp_logger = logging.getLogger(name)
         mcp_logger.handlers.clear()
         mcp_logger.propagate = False
         for handler in handlers:
             mcp_logger.addHandler(handler)
-        mcp_logger.setLevel(logging.WARNING)
+        mcp_logger.setLevel(mcp_log_level)
 
-    return logging.getLogger("yfinance-mcp")
+    return app_logger
 
 
 logger = _configure_logging()
@@ -220,7 +234,7 @@ def _record_fail() -> None:
     if _cb["fails"] >= _cb["threshold"]:
         _cb["open"] = True
         _cb["opened_at"] = datetime.now()
-        logger.warning(f"Circuit breaker opened after {_cb['fails']} failures")
+        logger.warning("circuit_breaker_opened fails=%d threshold=%d", _cb["fails"], _cb["threshold"])
 
 
 def _reset_cb() -> None:
@@ -633,6 +647,9 @@ async def list_tools() -> list[Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    req_id = uuid.uuid4().hex[:12]
+    _request_id.set(req_id)
+
     start_time = time.time()
     _update_stats(increment={"calls": 1})
     stats = _get_stats_snapshot()
@@ -674,18 +691,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         )
         return [TextContent(type="text", text=_err(e))]
     except Exception as e:
-        import traceback
-
         elapsed_ms = (time.time() - start_time) * 1000
-        tb_str = traceback.format_exc()
         logger.error(
-            "tool_call_exception name=%s elapsed_ms=%.1f error=%s\n%s",
+            "tool_call_exception name=%s elapsed_ms=%.1f error=%s",
             name,
             elapsed_ms,
             e,
-            tb_str,
+            exc_info=True,
         )
         return [TextContent(type="text", text=_err(e))]
+    finally:
+        _request_id.set(None)
 
 
 def _summarize_args(args: dict) -> str:
@@ -835,6 +851,8 @@ def _handle_summary(args: dict) -> str:
         else "fair"
         if peg
         else None,
+        "sector": _safe_get(info, "sector"),
+        "industry": _safe_get(info, "industry"),
         "trend": trend,
         "sma50": round(sma50, price_decimals) if sma50 else None,
         "quality_score": quality_score,

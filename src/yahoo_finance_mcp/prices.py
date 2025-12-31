@@ -13,7 +13,7 @@ import yfinance as yf
 if TYPE_CHECKING:
     from .cache import CachedPriceFetcher
 
-logger = logging.getLogger("yf-mcp.prices")
+logger = logging.getLogger("yfinance_mcp.prices")
 
 _PERIOD_DELTAS = {
     "1d": relativedelta(days=1),

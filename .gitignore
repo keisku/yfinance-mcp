@@ -26,6 +26,7 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 .benchmarks/
+.hypothesis/**
 
 # Benchmark results
 benchmarks/results/*.txt
