@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767203307016,
+  "lastUpdate": 1767203590794,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -435,6 +435,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0000024182974373331352",
             "extra": "mean: 37.435979919133345 usec\nrounds: 9163"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "79531860d01f4dceef01111444805aec8098e3d6",
+          "message": "docs: Simplify README to essential information only",
+          "timestamp": "2026-01-01T02:52:08+09:00",
+          "tree_id": "eecaf6794364d300ebeba0eac1b7665beecac3c5",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/79531860d01f4dceef01111444805aec8098e3d6"
+        },
+        "date": 1767203590493,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 282.60632890663237,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001674927349225954",
+            "extra": "mean: 3.5384911720444188 msec\nrounds: 186"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 285.8492737234546,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001336745688400108",
+            "extra": "mean: 3.4983471777768163 msec\nrounds: 270"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 286.3510961356831,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001283393425244867",
+            "extra": "mean: 3.4922164206634125 msec\nrounds: 271"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 75.75592091451746,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004924374640975079",
+            "extra": "mean: 13.20028834615309 msec\nrounds: 78"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 40.52225448205888,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009137195150014588",
+            "extra": "mean: 24.677797738098388 msec\nrounds: 42"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 300.35439256478776,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017125881346863819",
+            "extra": "mean: 3.3294002843134565 msec\nrounds: 306"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 311.2107162318138,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011954890074153378",
+            "extra": "mean: 3.2132569601334766 msec\nrounds: 301"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 43.08649587775108,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008998326967221606",
+            "extra": "mean: 23.209128048781015 msec\nrounds: 41"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 23405.374109907683,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00000840856596271547",
+            "extra": "mean: 42.72523033830473 usec\nrounds: 8570"
           }
         ]
       }
