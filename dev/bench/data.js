@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767204803222,
+  "lastUpdate": 1767232061314,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -696,6 +696,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.000005035168442503438",
             "extra": "mean: 43.66591433713523 usec\nrounds: 7798"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "225fd1b0e218bba663094ddd1dc39c4d5e40a720",
+          "message": "refactor(tools): Remove peers tool and improve quality_details readability\n\nConsolidate peer comparison into summary tool by updating its description\nto indicate it can be called multiple times for comparison. The peers tool\nwas redundant since summary provides richer data per symbol.\n\nQuality score details now use self-documenting names (e.g., \"ROA>0\",\n\"GrossMargin>20%\") instead of cryptic abbreviations (e.g., \"roa+\",\n\"margin+\"), making the output immediately understandable without a legend.",
+          "timestamp": "2026-01-01T10:46:28+09:00",
+          "tree_id": "c6d97881a1ab673857b6ceef5dbde8e6f7e0283f",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/225fd1b0e218bba663094ddd1dc39c4d5e40a720"
+        },
+        "date": 1767232060366,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 280.9045912597243,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012772398908691526",
+            "extra": "mean: 3.559927573684263 msec\nrounds: 190"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 17.653155226460868,
+            "unit": "iter/sec",
+            "range": "stddev: 0.010422867326622842",
+            "extra": "mean: 56.64709719999905 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 19.15994585946708,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007643274890189808",
+            "extra": "mean: 52.192214285714805 msec\nrounds: 7"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 71.97775114628674,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006978834942310357",
+            "extra": "mean: 13.89318204687462 msec\nrounds: 64"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 8.669465082144447,
+            "unit": "iter/sec",
+            "range": "stddev: 0.017315553337518358",
+            "extra": "mean: 115.34737040000209 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 289.4429158454244,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008755722394255871",
+            "extra": "mean: 3.4549126796872276 msec\nrounds: 256"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 265.3183307020803,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00024437613095379076",
+            "extra": "mean: 3.769057333331697 msec\nrounds: 6"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 41.10823925672464,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00043575908843804576",
+            "extra": "mean: 24.32602364102511 msec\nrounds: 39"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 26391.198549665245,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000004678723524736028",
+            "extra": "mean: 37.891420433903875 usec\nrounds: 8251"
           }
         ]
       }
