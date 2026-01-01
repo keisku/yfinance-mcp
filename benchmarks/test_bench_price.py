@@ -1,150 +1,232 @@
 """Benchmark tests for price data fetching.
 
+These benchmarks are designed to be deterministic and network-independent.
+They use pre-seeded fixture data instead of making API calls.
+
 Run with pytest-benchmark:
-    uv run pytest benchmarks/test_bench_price.py --benchmark-only
-    uv run pytest benchmarks/test_bench_price.py --benchmark-json=benchmark-results.json
+    uv run pytest benchmarks/ --benchmark-only
+    uv run pytest benchmarks/ --benchmark-json=benchmark-results.json
 
 For CI integration with github-action-benchmark:
     https://github.com/benchmark-action/github-action-benchmark/tree/master/examples/pytest
 """
 
-import os
-import tempfile
-
 import pytest
-import yfinance as yf
 
-# Use isolated database to avoid DuckDB lock conflicts with running MCP server
-_benchmark_dir = tempfile.mkdtemp(prefix="yfinance-mcp-bench-")
-_benchmark_db_path = os.path.join(_benchmark_dir, "benchmark.duckdb")
-os.environ["YFINANCE_CACHE_DB"] = _benchmark_db_path
-
-# Ensure cache is ENABLED for benchmarks (opposite of tests)
-os.environ.pop("YFINANCE_CACHE_DISABLED", None)
-
-from yfinance_mcp import prices  # noqa: E402 - must import after env setup
-
-# Global stocks across different exchanges
-SYMBOLS = [
-    "AAPL",  # NYSE (US)
-    "7203.T",  # Toyota - Tokyo
-    "SAP.DE",  # SAP - Germany/XETRA
-    "MC.PA",  # LVMH - Paris
-    "HSBA.L",  # HSBC - London
-    "0700.HK",  # Tencent - Hong Kong
-    "RY.TO",  # Royal Bank - Toronto
-]
-
-PERIODS = ["5d", "1mo", "3mo", "1y"]
+from yfinance_mcp import prices
 
 
-@pytest.fixture(scope="module")
-def _primed_cache():
-    """Prime cache with data for all symbols and intervals."""
-    prices.clear()
-    # Prime the cache with 2y data for all intervals
-    for symbol in SYMBOLS:
-        prices.get_history(symbol, "2y", "1d")
-        prices.get_history(symbol, "2y", "1wk")
-        prices.get_history(symbol, "2y", "1mo")
-    yield
-    prices.clear()
-    # Cleanup temp database directory
-    import shutil
+class TestCacheHitDaily:
+    """Benchmark daily data cache hit performance."""
 
-    try:
-        shutil.rmtree(_benchmark_dir)
-    except OSError:
-        pass
-
-
-class TestCacheHit:
-    """Benchmark cache hit performance via public prices.get_history() API."""
-
-    def test_cache_hit_us(self, benchmark, _primed_cache):
-        """Cache hit for US stock (AAPL)."""
+    def test_cache_hit_us_stock(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for US stock (AAPL) - daily data."""
         benchmark(prices.get_history, "AAPL", "1y", "1d")
 
-    def test_cache_hit_japan(self, benchmark, _primed_cache):
-        """Cache hit for Japan stock (Toyota)."""
-        benchmark(prices.get_history, "7203.T", "1y", "1d")
+    def test_cache_hit_msft_stock(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for MSFT - daily data."""
+        benchmark(prices.get_history, "MSFT", "1y", "1d")
 
-    def test_cache_hit_europe(self, benchmark, _primed_cache):
-        """Cache hit for European stock (SAP)."""
-        benchmark(prices.get_history, "SAP.DE", "1y", "1d")
+    def test_cache_hit_googl_stock(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for GOOGL - daily data."""
+        benchmark(prices.get_history, "GOOGL", "1y", "1d")
 
-    def test_cache_hit_varied_periods(self, benchmark, _primed_cache):
-        """Cache hit with varied periods."""
+    def test_cache_hit_varied_periods(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hits with varied periods (5d, 1mo, 3mo, 1y)."""
 
         def fetch_all_periods():
-            for period in PERIODS:
+            for period in ["5d", "1mo", "3mo", "1y"]:
                 prices.get_history("AAPL", period, "1d")
 
         benchmark(fetch_all_periods)
 
+    def test_cache_hit_short_period(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for short period (5 days)."""
+        benchmark(prices.get_history, "AAPL", "5d", "1d")
 
-class TestPortfolio:
-    """Benchmark portfolio-style queries."""
+    def test_cache_hit_long_period(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for long period (5 years)."""
+        benchmark(prices.get_history, "AAPL", "5y", "1d")
 
-    def test_portfolio_scan(self, benchmark, _primed_cache):
-        """Scan all global stocks with 1y period."""
+
+class TestCacheHitWeeklyMonthly:
+    """Benchmark weekly/monthly cache hit performance."""
+
+    def test_cache_hit_weekly(self, benchmark, seeded_cache, benchmark_symbols):
+        """Weekly bars from cache."""
+        benchmark(prices.get_history, "AAPL", "1y", "1wk")
+
+    def test_cache_hit_monthly(self, benchmark, seeded_cache, benchmark_symbols):
+        """Monthly bars from cache."""
+        benchmark(prices.get_history, "AAPL", "1y", "1mo")
+
+    def test_cache_hit_weekly_long_period(self, benchmark, seeded_cache, benchmark_symbols):
+        """Weekly data for 5 years."""
+        benchmark(prices.get_history, "AAPL", "5y", "1wk")
+
+    def test_cache_hit_monthly_long_period(self, benchmark, seeded_cache, benchmark_symbols):
+        """Monthly data for 5 years."""
+        benchmark(prices.get_history, "AAPL", "5y", "1mo")
+
+
+class TestPortfolioScans:
+    """Benchmark portfolio-style queries (multiple symbols)."""
+
+    def test_portfolio_scan_daily(self, benchmark, seeded_cache, benchmark_symbols):
+        """Scan all global stocks with 1y daily data."""
 
         def scan_portfolio():
-            for symbol in SYMBOLS:
+            for symbol in benchmark_symbols:
                 prices.get_history(symbol, "1y", "1d")
 
         benchmark(scan_portfolio)
 
-
-class TestWeeklyMonthly:
-    """Benchmark weekly/monthly cache hit performance (directly cached from API)."""
-
-    def test_weekly_cache_hit(self, benchmark, _primed_cache):
-        """Weekly bars from DuckDB cache."""
-        benchmark(prices.get_history, "AAPL", "1y", "1wk")
-
-    def test_monthly_cache_hit(self, benchmark, _primed_cache):
-        """Monthly bars from DuckDB cache."""
-        benchmark(prices.get_history, "AAPL", "1y", "1mo")
-
-    def test_weekly_portfolio_scan(self, benchmark, _primed_cache):
-        """Weekly data for all stocks from cache."""
+    def test_portfolio_scan_weekly(self, benchmark, seeded_cache, benchmark_symbols):
+        """Scan all global stocks with 1y weekly data."""
 
         def scan_weekly():
-            for symbol in SYMBOLS:
+            for symbol in benchmark_symbols:
                 prices.get_history(symbol, "1y", "1wk")
 
         benchmark(scan_weekly)
 
+    def test_portfolio_scan_short_period(self, benchmark, seeded_cache, benchmark_symbols):
+        """Quick portfolio scan (5 days)."""
 
-class TestIntradayCache:
-    """Benchmark intraday TTL cache performance.
+        def scan_short():
+            for symbol in benchmark_symbols:
+                prices.get_history(symbol, "5d", "1d")
 
-    Note: First call hits API, subsequent calls hit cache.
-    """
+        benchmark(scan_short)
 
-    def test_intraday_cache_hit(self, benchmark, _primed_cache):
-        """Intraday cache hit after priming."""
-        # Prime the intraday cache first
-        prices.get_history("AAPL", "5d", "15m")
+    def test_portfolio_scan_long_period(self, benchmark, seeded_cache, benchmark_symbols):
+        """Deep portfolio analysis (5 years)."""
 
-        # Benchmark cache hits
-        benchmark(prices.get_history, "AAPL", "5d", "15m")
+        def scan_long():
+            for symbol in benchmark_symbols:
+                prices.get_history(symbol, "5y", "1d")
+
+        benchmark(scan_long)
 
 
-class TestBaseline:
-    """Baseline comparison - direct yfinance calls.
+class TestDateRangeQueries:
+    """Benchmark date-range based queries."""
 
-    Note: These are slow (network calls) and may be skipped in CI.
-    Run with: pytest benchmarks/ --benchmark-only -k "not baseline"
-    """
+    def test_date_range_1month(self, benchmark, seeded_cache, benchmark_symbols):
+        """Date range query for 1 month."""
+        benchmark(
+            prices.get_history,
+            "AAPL",
+            interval="1d",
+            start="2024-11-01",
+            end="2024-12-01",
+        )
 
-    @pytest.mark.slow
-    def test_baseline_single(self, benchmark):
-        """Direct yfinance call without cache."""
+    def test_date_range_1year(self, benchmark, seeded_cache, benchmark_symbols):
+        """Date range query for 1 year."""
+        benchmark(
+            prices.get_history,
+            "AAPL",
+            interval="1d",
+            start="2024-01-01",
+            end="2024-12-31",
+        )
 
-        def direct_fetch():
-            t = yf.Ticker("AAPL")
-            return t.history(period="1mo")
+    def test_date_range_multi_year(self, benchmark, seeded_cache, benchmark_symbols):
+        """Date range query for 3 years."""
+        benchmark(
+            prices.get_history,
+            "AAPL",
+            interval="1d",
+            start="2022-01-01",
+            end="2024-12-31",
+        )
 
-        benchmark(direct_fetch)
+
+class TestCacheOperations:
+    """Benchmark cache-specific operations."""
+
+    def test_cache_stats_retrieval(self, benchmark, seeded_cache):
+        """Benchmark retrieving cache statistics."""
+        from yfinance_mcp.cache import get_cache_stats
+
+        # Warm up
+        prices.get_history("AAPL", "1y", "1d")
+
+        benchmark(get_cache_stats)
+
+    def test_repeated_same_query(self, benchmark, seeded_cache):
+        """Repeated identical queries (best-case cache scenario)."""
+
+        def repeated_query():
+            for _ in range(10):
+                prices.get_history("AAPL", "1mo", "1d")
+
+        benchmark(repeated_query)
+
+
+class TestConcurrentAccess:
+    """Benchmark concurrent-like access patterns."""
+
+    def test_interleaved_symbols(self, benchmark, seeded_cache, benchmark_symbols):
+        """Interleaved queries across different symbols."""
+
+        def interleaved_access():
+            periods = ["5d", "1mo", "3mo"]
+            for period in periods:
+                for symbol in benchmark_symbols:
+                    prices.get_history(symbol, period, "1d")
+
+        benchmark(interleaved_access)
+
+    def test_mixed_intervals(self, benchmark, seeded_cache):
+        """Mixed intervals for same symbol."""
+
+        def mixed_intervals():
+            for interval in ["1d", "1wk", "1mo"]:
+                prices.get_history("AAPL", "1y", interval)
+
+        benchmark(mixed_intervals)
+
+
+class TestRealWorldPatterns:
+    """Benchmark real-world usage patterns."""
+
+    def test_typical_analysis_workflow(self, benchmark, seeded_cache):
+        """Typical analysis: compare multiple periods for decision making."""
+
+        def analysis_workflow():
+            # Short-term trend
+            prices.get_history("AAPL", "5d", "1d")
+            # Medium-term trend
+            prices.get_history("AAPL", "3mo", "1d")
+            # Long-term trend
+            prices.get_history("AAPL", "1y", "1d")
+            # Historical comparison
+            prices.get_history("AAPL", "5y", "1wk")
+
+        benchmark(analysis_workflow)
+
+    def test_multi_stock_comparison(self, benchmark, seeded_cache):
+        """Compare same period across multiple stocks."""
+
+        def stock_comparison():
+            symbols = ["AAPL", "MSFT", "GOOGL"]
+            for symbol in symbols:
+                prices.get_history(symbol, "1y", "1d")
+
+        benchmark(stock_comparison)
+
+    def test_dashboard_load(self, benchmark, seeded_cache, benchmark_symbols):
+        """Simulate dashboard loading multiple widgets."""
+
+        def dashboard_load():
+            # Widget 1: Recent price movement
+            prices.get_history("AAPL", "5d", "1d")
+            # Widget 2: Monthly trend
+            prices.get_history("AAPL", "1mo", "1d")
+            # Widget 3: Portfolio overview (3 stocks)
+            for symbol in ["AAPL", "MSFT", "GOOGL"]:
+                prices.get_history(symbol, "1mo", "1d")
+
+        benchmark(dashboard_load)

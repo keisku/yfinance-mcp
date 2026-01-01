@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-01-01T03:11:59.736879",
+  "period_start": "2023-01-01T00:00:00",
+  "period_end": "2024-12-31T00:00:00",
+  "symbols": {
+    "AAPL": {
+      "base_price": 150.0,
+      "volatility": 0.018
+    },
+    "MSFT": {
+      "base_price": 350.0,
+      "volatility": 0.016
+    },
+    "GOOGL": {
+      "base_price": 130.0,
+      "volatility": 0.02
+    }
+  },
+  "intervals": [
+    "1d",
+    "1wk",
+    "1mo"
+  ],
+  "note": "Deterministic synthetic data for benchmark testing"
+}
