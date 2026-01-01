@@ -96,63 +96,59 @@ def benchmark_symbols():
 
 @pytest.fixture(scope="session")
 def seeded_cache(benchmark_symbols):
-    """Pre-populate cache with real market data from fixture files.
+    """Pre-populate cache with deterministic synthetic data.
 
-    Uses pre-fetched real data committed to the repo. This provides:
-    - Real, accurate market data (fetched from Yahoo Finance)
-    - Network-independent benchmarks (no API calls during tests)
-    - Deterministic, repeatable results
-    - Fast benchmark execution
+    Generates fake market data on-the-fly for benchmark testing. This provides:
+    - Deterministic, repeatable results (using fixed random seeds)
+    - Network-independent benchmarks (no API calls)
+    - Fast benchmark execution (no file I/O)
+    - Clean repo (no large fixture files committed)
 
-    To update fixture data, run: python benchmarks/fetch_fixture_data.py
+    Data is generated using realistic OHLCV patterns with proper volatility.
     """
-    import json
-
     from yfinance_mcp.cache import CachedPriceFetcher
 
     fetcher = CachedPriceFetcher()
 
-    fixtures_dir = Path(__file__).parent / "fixtures"
+    # Symbol parameters for realistic price generation
+    symbol_params = {
+        "TEST.US": {"base_price": 150.0, "volatility": 0.018},
+        "1234.T": {"base_price": 2000.0, "volatility": 0.015},
+        "BENCH.DE": {"base_price": 120.0, "volatility": 0.017},
+        "MOCK.PA": {"base_price": 700.0, "volatility": 0.019},
+        "FAKE.L": {"base_price": 6.0, "volatility": 0.016},
+        "9999.HK": {"base_price": 350.0, "volatility": 0.022},
+        "DEMO.TO": {"base_price": 100.0, "volatility": 0.014},
+    }
 
-    # Load fixture data from JSON files
+    # Generate 2 years of data for each symbol and interval
+    end_date = datetime(2024, 12, 31)
+    start_date = datetime(2023, 1, 1)
+
     for symbol in benchmark_symbols:
-        for interval in ["1d", "1wk", "1mo"]:
-            fixture_file = fixtures_dir / f"{symbol}_{interval}.json"
+        params = symbol_params.get(symbol, {"base_price": 100.0, "volatility": 0.02})
 
-            if not fixture_file.exists():
-                # Generate synthetic data as fallback
-                print(f"Warning: Fixture file {fixture_file} not found, using synthetic data")
-                df = generate_ohlcv_data(
-                    symbol,
-                    datetime(2023, 1, 1),
-                    num_days=500,
-                    base_price=150.0,
-                )
-            else:
-                # Load real data from fixture file
-                with open(fixture_file) as f:
-                    records = json.load(f)
+        # Generate daily data
+        daily_df = generate_ohlcv_data(
+            symbol,
+            start_date,
+            num_days=730,  # ~2 years
+            base_price=params["base_price"],
+            volatility=params["volatility"],
+        )
+        fetcher.cache.store_prices(symbol, daily_df, interval="1d")
 
-                # Convert to DataFrame
-                data = []
-                dates = []
-                for record in records:
-                    dates.append(pd.Timestamp(record["date"]))
-                    data.append(
-                        {
-                            "o": record["o"],
-                            "h": record["h"],
-                            "l": record["l"],
-                            "c": record["c"],
-                            "v": record["v"],
-                        }
-                    )
+        # Generate weekly data (resample from daily)
+        weekly_df = daily_df.resample("W").agg(
+            {"o": "first", "h": "max", "l": "min", "c": "last", "v": "sum"}
+        )
+        fetcher.cache.store_prices(symbol, weekly_df, interval="1wk")
 
-                df = pd.DataFrame(data, index=pd.DatetimeIndex(dates))
-                df.index.name = "Date"
-
-            # Store in cache
-            fetcher.cache.store_prices(symbol, df, interval=interval)
+        # Generate monthly data (resample from daily)
+        monthly_df = daily_df.resample("ME").agg(
+            {"o": "first", "h": "max", "l": "min", "c": "last", "v": "sum"}
+        )
+        fetcher.cache.store_prices(symbol, monthly_df, interval="1mo")
 
     yield fetcher
 

@@ -13,10 +13,10 @@ These benchmarks are designed to be:
 
 ## Architecture
 
-The benchmarks use a **fixture-based approach**:
+The benchmarks use a **synthetic data generation approach**:
 
-1. **Fixture data**: Pre-generated market data stored in `fixtures/` directory
-2. **Cache seeding**: Before benchmarks run, data is loaded into DuckDB cache
+1. **Data generation**: Fake market data is generated on-the-fly using deterministic random seeds
+2. **Cache seeding**: Before benchmarks run, synthetic data is loaded into DuckDB cache
 3. **Benchmark execution**: Tests measure cache hit performance, not network performance
 
 This eliminates the flakiness caused by:
@@ -25,6 +25,7 @@ This eliminates the flakiness caused by:
 - Variable network latency
 - Market hours and holidays
 - Retry logic timing
+- Large fixture files in the repository
 
 ## Running Benchmarks
 
@@ -42,56 +43,30 @@ uv run pytest benchmarks/ --benchmark-only --benchmark-json=results.json
 uv run pytest benchmarks/ --benchmark-only --benchmark-compare=0001
 ```
 
-## Fixture Data
+## Data Generation
 
-Fixture data is stored in `benchmarks/fixtures/` as JSON files with timestamped OHLCV records.
+Benchmarks use **synthetic data generated on-the-fly** with deterministic random seeds. This approach:
 
-### Generating Fixture Data
+- **Deterministic**: Same data every run (using symbol name as random seed)
+- **Realistic**: Follows proper OHLCV patterns with volatility
+- **Fast**: No file I/O or network calls
+- **Clean**: No large fixture files in the repository
 
-**Option 1: Deterministic synthetic data (recommended for consistency)**
-```bash
-python benchmarks/generate_fixtures.py
-```
+### Using Real Market Data (Optional)
 
-This creates realistic market data using mathematical models. Data is:
-- Deterministic (same output every time)
-- Realistic (follows market patterns)
-- Fast to generate (no network calls)
+If you want to benchmark with actual historical market data instead of synthetic data:
 
-**Option 2: Real Yahoo Finance data (requires network access)**
 ```bash
 python benchmarks/fetch_fixture_data.py
 ```
 
-This fetches actual market data from Yahoo Finance. Use when:
-- You want to benchmark with real historical data
-- Network access is available and reliable
-- You're willing to accept some variation in fixture data updates
+This script:
+- Fetches real data from Yahoo Finance for real ticker symbols
+- Saves data as JSON files in `benchmarks/fixtures/`
+- Requires network access
+- Updates `conftest.py` to load from fixture files instead of generating
 
-### Fixture Format
-
-Each fixture file is a JSON array of OHLCV records:
-
-```json
-[
-  {
-    "date": "2023-01-03T00:00:00",
-    "o": 150.25,
-    "h": 152.30,
-    "l": 149.80,
-    "c": 151.75,
-    "v": 45678900
-  },
-  ...
-]
-```
-
-- `date`: ISO 8601 timestamp
-- `o`: Open price
-- `h`: High price
-- `l`: Low price
-- `c`: Close price
-- `v`: Volume
+**Note**: By default, benchmarks use synthetic data with fake symbols (TEST.US, 1234.T, etc.). Only use real data if you specifically need to benchmark against actual market patterns.
 
 ## Benchmark Categories
 
@@ -156,15 +131,12 @@ For tracking benchmark performance over time, use [github-action-benchmark](http
 
 ## Troubleshooting
 
-### "Fixture file not found" warnings
-Run `python benchmarks/generate_fixtures.py` to create fixture data.
-
 ### Benchmarks are slow
 - Check that `YFINANCE_CACHE_DB` is set to a fast storage location
-- Verify fixture data is properly cached (check setup output)
+- Verify synthetic data generation completes successfully
 - Ensure DuckDB has write permissions to temp directory
 
 ### Inconsistent results
-- Verify fixture data hasn't changed
 - Check that no other process is using the benchmark database
 - Ensure system load is consistent between runs
+- Verify numpy/pandas versions are consistent (affects random seed behavior)
