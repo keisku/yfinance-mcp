@@ -52,6 +52,6 @@ warn_unused_ignores = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m not slow')",
     "crosscheck: cross-validation tests against pandas-ta (may be slow)",
+    "benchmark: deterministic performance benchmarks",
 ]
