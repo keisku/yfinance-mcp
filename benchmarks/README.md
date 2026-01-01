@@ -1,6 +1,6 @@
 # Benchmarks
 
-This directory contains performance benchmarks for the yfinance-mcp server.
+Performance benchmarks for the yfinance-mcp server.
 
 ## Philosophy
 
@@ -9,23 +9,19 @@ These benchmarks are designed to be:
 - **Deterministic**: Same results every run, no flakiness
 - **Network-independent**: No API calls during benchmark execution
 - **Fast**: Quick setup and execution for rapid iteration
-- **Representative**: Use real market data patterns (or real data when available)
+- **Representative**: Realistic market data patterns for meaningful results
 
-## Architecture
+## How It Works
 
-The benchmarks use a **synthetic data generation approach**:
+Benchmarks measure **cache performance**, not network performance.
 
-1. **Data generation**: Fake market data is generated on-the-fly using deterministic random seeds
-2. **Cache seeding**: Before benchmarks run, synthetic data is loaded into DuckDB cache
-3. **Benchmark execution**: Tests measure cache hit performance, not network performance
+The process:
+1. Generate synthetic market data with realistic patterns
+2. Seed the cache with this data
+3. Run benchmarks against the cached data
+4. Measure retrieval performance
 
-This eliminates the flakiness caused by:
-- Network timeouts and failures
-- API rate limiting
-- Variable network latency
-- Market hours and holidays
-- Retry logic timing
-- Large fixture files in the repository
+This approach eliminates flakiness from network issues, API rate limits, and variable latency while still providing meaningful performance metrics.
 
 ## Running Benchmarks
 
@@ -33,75 +29,25 @@ This eliminates the flakiness caused by:
 # Run all benchmarks
 uv run pytest benchmarks/ --benchmark-only
 
-# Run specific benchmark class
-uv run pytest benchmarks/ --benchmark-only -k TestCacheHitDaily
-
-# Save results to JSON for CI tracking
+# Save results for CI tracking
 uv run pytest benchmarks/ --benchmark-only --benchmark-json=results.json
 
 # Compare with previous results
 uv run pytest benchmarks/ --benchmark-only --benchmark-compare=0001
 ```
 
-## Data Generation
+## What's Being Measured
 
-Benchmarks use **synthetic data generated on-the-fly** with deterministic random seeds. This approach:
+- **Cache hit performance**: How fast can we retrieve data from DuckDB?
+- **Portfolio queries**: Multi-symbol lookups
+- **Date range queries**: Specific time period requests
+- **Real-world patterns**: Typical analysis workflows
 
-- **Deterministic**: Same data every run (using symbol name as random seed)
-- **Realistic**: Follows proper OHLCV patterns with volatility
-- **Fast**: No file I/O or network calls
-- **Clean**: No large fixture files in the repository
-- **Network-independent**: No API calls, no flakiness
+All benchmarks use fake symbols (TEST.US, 1234.T, etc.) with diverse exchange formats to test symbol parsing across different markets.
 
-The data is generated using fake symbols (TEST.US, 1234.T, BENCH.DE, etc.) to clearly distinguish it from real market data. Each symbol uses its name as a random seed, ensuring the same data is generated every time for perfect reproducibility.
+## For CI Integration
 
-## Benchmark Categories
-
-### TestCacheHitDaily
-Measures cache performance for daily data queries:
-- Single symbol lookups
-- Various time periods (5d, 1mo, 3mo, 1y, 5y)
-- Different stocks
-
-### TestCacheHitWeeklyMonthly
-Measures cache performance for aggregated intervals:
-- Weekly bars
-- Monthly bars
-- Long-period queries
-
-### TestPortfolioScans
-Simulates portfolio analysis workflows:
-- Multi-symbol queries
-- Different time periods
-- Cross-sectional analysis
-
-### TestDateRangeQueries
-Measures performance of date-range based queries:
-- Specific start/end dates
-- Various period lengths
-- Subset queries within cached data
-
-### TestCacheOperations
-Benchmarks cache-specific functionality:
-- Cache stats retrieval
-- Repeated identical queries
-- Cache hit optimization
-
-### TestConcurrentAccess
-Simulates concurrent-like access patterns:
-- Interleaved symbol queries
-- Mixed interval queries
-- Cache thrashing scenarios
-
-### TestRealWorldPatterns
-Benchmarks realistic usage scenarios:
-- Typical analysis workflows
-- Multi-stock comparisons
-- Dashboard loading patterns
-
-## CI Integration
-
-For tracking benchmark performance over time, use [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark):
+Example with [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark):
 
 ```yaml
 - name: Run benchmarks
@@ -112,18 +58,4 @@ For tracking benchmark performance over time, use [github-action-benchmark](http
   with:
     tool: 'pytest'
     output-file-path: output.json
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    auto-push: true
 ```
-
-## Troubleshooting
-
-### Benchmarks are slow
-- Check that `YFINANCE_CACHE_DB` is set to a fast storage location
-- Verify synthetic data generation completes successfully
-- Ensure DuckDB has write permissions to temp directory
-
-### Inconsistent results
-- Check that no other process is using the benchmark database
-- Ensure system load is consistent between runs
-- Verify numpy/pandas versions are consistent (affects random seed behavior)
