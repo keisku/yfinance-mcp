@@ -51,22 +51,9 @@ Benchmarks use **synthetic data generated on-the-fly** with deterministic random
 - **Realistic**: Follows proper OHLCV patterns with volatility
 - **Fast**: No file I/O or network calls
 - **Clean**: No large fixture files in the repository
+- **Network-independent**: No API calls, no flakiness
 
-### Using Real Market Data (Optional)
-
-If you want to benchmark with actual historical market data instead of synthetic data:
-
-```bash
-python benchmarks/fetch_fixture_data.py
-```
-
-This script:
-- Fetches real data from Yahoo Finance for real ticker symbols
-- Saves data as JSON files in `benchmarks/fixtures/`
-- Requires network access
-- Updates `conftest.py` to load from fixture files instead of generating
-
-**Note**: By default, benchmarks use synthetic data with fake symbols (TEST.US, 1234.T, etc.). Only use real data if you specifically need to benchmark against actual market patterns.
+The data is generated using fake symbols (TEST.US, 1234.T, BENCH.DE, etc.) to clearly distinguish it from real market data. Each symbol uses its name as a random seed, ensuring the same data is generated every time for perfect reproducibility.
 
 ## Benchmark Categories
 
