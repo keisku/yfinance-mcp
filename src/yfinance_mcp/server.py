@@ -530,7 +530,9 @@ TOOLS = [
                 "indicators": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot",
+                    "description": (
+                        "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot"
+                    ),
                 },
                 "period": {"type": "string", "default": "3mo"},
             },
@@ -909,7 +911,8 @@ def _handle_technicals(args: dict) -> str:
     if not inds:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
-            "indicators required. Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot"
+            "indicators required. "
+            "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
