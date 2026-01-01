@@ -73,7 +73,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run benchmarks
-        run: uv run pytest benchmarks/ --benchmark-only --benchmark-json=benchmark-results.json -m "not slow"
+        run: uv run pytest benchmarks/ --benchmark-only --benchmark-json=benchmark-results.json
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
