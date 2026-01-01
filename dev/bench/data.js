@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767242696727,
+  "lastUpdate": 1767263683290,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -2287,6 +2287,93 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00011620076473490526",
             "extra": "mean: 8.522552983051053 msec\nrounds: 118"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "e89f2049f366fefede0a517fcef33a77c03ad3a7",
+          "message": "fix ruff check",
+          "timestamp": "2026-01-01T19:33:42+09:00",
+          "tree_id": "d5757c4711a03e087456295e56c42b24515276b3",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/e89f2049f366fefede0a517fcef33a77c03ad3a7"
+        },
+        "date": 1767263682876,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_us",
+            "value": 299.11151681968784,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006881698677230232",
+            "extra": "mean: 3.343234692640825 msec\nrounds: 231"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_japan",
+            "value": 54.37830335278068,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000903091960555815",
+            "extra": "mean: 18.389687399999843 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_europe",
+            "value": 56.45219518029402,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00048372963139797255",
+            "extra": "mean: 17.71410300000298 msec\nrounds: 6"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHit::test_cache_hit_varied_periods",
+            "value": 78.13250550867862,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00014885990001258425",
+            "extra": "mean: 12.798770415584897 msec\nrounds: 77"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolio::test_portfolio_scan",
+            "value": 19.209186990892366,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005317337214304156",
+            "extra": "mean: 52.05842394444539 msec\nrounds: 18"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_cache_hit",
+            "value": 315.0099555532332,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009743024156685604",
+            "extra": "mean: 3.17450284466013 msec\nrounds: 309"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_monthly_cache_hit",
+            "value": 319.8225794901671,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000050154056592874546",
+            "extra": "mean: 3.126733583332708 msec\nrounds: 12"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestWeeklyMonthly::test_weekly_portfolio_scan",
+            "value": 44.94745274205196,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003240824220891517",
+            "extra": "mean: 22.248201822222946 msec\nrounds: 45"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestIntradayCache::test_intraday_cache_hit",
+            "value": 24057.70017874502,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000006871298847722135",
+            "extra": "mean: 41.566733003161296 usec\nrounds: 11105"
           }
         ]
       }
