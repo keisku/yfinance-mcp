@@ -11,7 +11,6 @@ For CI integration with github-action-benchmark:
     https://github.com/benchmark-action/github-action-benchmark/tree/master/examples/pytest
 """
 
-import pytest
 
 from yfinance_mcp import prices
 

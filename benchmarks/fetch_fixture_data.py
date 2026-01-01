@@ -33,7 +33,7 @@ def main():
     print("Fetching real market data from Yahoo Finance...")
     print(f"Symbols: {', '.join(SYMBOLS)}")
     print(f"Intervals: {', '.join(INTERVALS)}")
-    print(f"Period: 2 years\n")
+    print("Period: 2 years\n")
 
     for symbol in SYMBOLS:
         print(f"Fetching {symbol}...")

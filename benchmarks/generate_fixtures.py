@@ -20,7 +20,7 @@ To use real Yahoo Finance data instead:
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -141,9 +141,7 @@ def resample_to_monthly(daily_records: list[dict]) -> list[dict]:
     df["date"] = pd.to_datetime(df["date"])
     df.set_index("date", inplace=True)
 
-    monthly = df.resample("ME").agg(
-        {"o": "first", "h": "max", "l": "min", "c": "last", "v": "sum"}
-    )
+    monthly = df.resample("ME").agg({"o": "first", "h": "max", "l": "min", "c": "last", "v": "sum"})
 
     records = []
     for date, row in monthly.iterrows():
