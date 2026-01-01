@@ -28,11 +28,15 @@ import pandas as pd
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
-# Benchmark symbols
+# Benchmark symbols - diverse global stocks from different exchanges
 SYMBOLS = {
-    "AAPL": {"base_price": 150.0, "volatility": 0.018},  # Apple
-    "MSFT": {"base_price": 350.0, "volatility": 0.016},  # Microsoft
-    "GOOGL": {"base_price": 130.0, "volatility": 0.020},  # Google
+    "AAPL": {"base_price": 150.0, "volatility": 0.018},  # Apple - NYSE (US)
+    "7203.T": {"base_price": 2000.0, "volatility": 0.015},  # Toyota - Tokyo
+    "SAP.DE": {"base_price": 120.0, "volatility": 0.017},  # SAP - Germany/XETRA
+    "MC.PA": {"base_price": 700.0, "volatility": 0.019},  # LVMH - Paris
+    "HSBA.L": {"base_price": 6.0, "volatility": 0.016},  # HSBC - London
+    "0700.HK": {"base_price": 350.0, "volatility": 0.022},  # Tencent - Hong Kong
+    "RY.TO": {"base_price": 100.0, "volatility": 0.014},  # Royal Bank - Toronto
 }
 
 INTERVALS = ["1d", "1wk", "1mo"]

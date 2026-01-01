@@ -16,8 +16,12 @@ import yfinance as yf
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 SYMBOLS = [
     "AAPL",  # NYSE (US)
-    "MSFT",  # NASDAQ (US) - more reliable than international symbols
-    "GOOGL",  # NASDAQ (US)
+    "7203.T",  # Toyota - Tokyo
+    "SAP.DE",  # SAP - Germany/XETRA
+    "MC.PA",  # LVMH - Paris
+    "HSBA.L",  # HSBC - London
+    "0700.HK",  # Tencent - Hong Kong
+    "RY.TO",  # Royal Bank - Toronto
 ]
 
 INTERVALS = ["1d", "1wk", "1mo"]

@@ -23,13 +23,13 @@ class TestCacheHitDaily:
         """Cache hit for US stock (AAPL) - daily data."""
         benchmark(prices.get_history, "AAPL", "1y", "1d")
 
-    def test_cache_hit_msft_stock(self, benchmark, seeded_cache, benchmark_symbols):
-        """Cache hit for MSFT - daily data."""
-        benchmark(prices.get_history, "MSFT", "1y", "1d")
+    def test_cache_hit_japan_stock(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for Japan stock (Toyota) - daily data."""
+        benchmark(prices.get_history, "7203.T", "1y", "1d")
 
-    def test_cache_hit_googl_stock(self, benchmark, seeded_cache, benchmark_symbols):
-        """Cache hit for GOOGL - daily data."""
-        benchmark(prices.get_history, "GOOGL", "1y", "1d")
+    def test_cache_hit_europe_stock(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for European stock (SAP) - daily data."""
+        benchmark(prices.get_history, "SAP.DE", "1y", "1d")
 
     def test_cache_hit_varied_periods(self, benchmark, seeded_cache, benchmark_symbols):
         """Cache hits with varied periods (5d, 1mo, 3mo, 1y)."""
@@ -208,25 +208,25 @@ class TestRealWorldPatterns:
         benchmark(analysis_workflow)
 
     def test_multi_stock_comparison(self, benchmark, seeded_cache):
-        """Compare same period across multiple stocks."""
+        """Compare same period across multiple stocks (global)."""
 
         def stock_comparison():
-            symbols = ["AAPL", "MSFT", "GOOGL"]
+            symbols = ["AAPL", "7203.T", "SAP.DE"]
             for symbol in symbols:
                 prices.get_history(symbol, "1y", "1d")
 
         benchmark(stock_comparison)
 
     def test_dashboard_load(self, benchmark, seeded_cache, benchmark_symbols):
-        """Simulate dashboard loading multiple widgets."""
+        """Simulate dashboard loading multiple widgets (global portfolio)."""
 
         def dashboard_load():
             # Widget 1: Recent price movement
             prices.get_history("AAPL", "5d", "1d")
             # Widget 2: Monthly trend
             prices.get_history("AAPL", "1mo", "1d")
-            # Widget 3: Portfolio overview (3 stocks)
-            for symbol in ["AAPL", "MSFT", "GOOGL"]:
+            # Widget 3: Portfolio overview (global stocks)
+            for symbol in ["AAPL", "7203.T", "SAP.DE"]:
                 prices.get_history(symbol, "1mo", "1d")
 
         benchmark(dashboard_load)

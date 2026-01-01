@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-01-01T03:11:59.736879",
+  "generated_at": "2026-01-01T03:19:13.149199",
   "period_start": "2023-01-01T00:00:00",
   "period_end": "2024-12-31T00:00:00",
   "symbols": {
@@ -7,13 +7,29 @@
       "base_price": 150.0,
       "volatility": 0.018
     },
-    "MSFT": {
-      "base_price": 350.0,
+    "7203.T": {
+      "base_price": 2000.0,
+      "volatility": 0.015
+    },
+    "SAP.DE": {
+      "base_price": 120.0,
+      "volatility": 0.017
+    },
+    "MC.PA": {
+      "base_price": 700.0,
+      "volatility": 0.019
+    },
+    "HSBA.L": {
+      "base_price": 6.0,
       "volatility": 0.016
     },
-    "GOOGL": {
-      "base_price": 130.0,
-      "volatility": 0.02
+    "0700.HK": {
+      "base_price": 350.0,
+      "volatility": 0.022
+    },
+    "RY.TO": {
+      "base_price": 100.0,
+      "volatility": 0.014
     }
   },
   "intervals": [

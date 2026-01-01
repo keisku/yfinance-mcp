@@ -78,11 +78,15 @@ def generate_ohlcv_data(
 
 @pytest.fixture(scope="session")
 def benchmark_symbols():
-    """Symbols used across benchmarks."""
+    """Symbols used across benchmarks - diverse global stocks."""
     return [
         "AAPL",  # NYSE (US)
-        "MSFT",  # NASDAQ (US)
-        "GOOGL",  # NASDAQ (US)
+        "7203.T",  # Toyota - Tokyo
+        "SAP.DE",  # SAP - Germany/XETRA
+        "MC.PA",  # LVMH - Paris
+        "HSBA.L",  # HSBC - London
+        "0700.HK",  # Tencent - Hong Kong
+        "RY.TO",  # Royal Bank - Toronto
     ]
 
 
