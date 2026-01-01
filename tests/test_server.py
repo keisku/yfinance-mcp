@@ -47,7 +47,7 @@ class TestToolDiscovery:
     def test_list_tools_returns_all_tools(self) -> None:
         """Agent should see all 7 tools."""
         result = asyncio.run(list_tools())
-        assert len(result) == 7
+        assert len(result) == 6
         names = {t.name for t in result}
         assert names == {
             "summary",
@@ -55,7 +55,6 @@ class TestToolDiscovery:
             "technicals",
             "fundamentals",
             "financials",
-            "peers",
             "search",
         }
 
@@ -432,47 +431,6 @@ class TestFinancialsTool:
         assert len(parsed) > 1
 
 
-class TestPeersTool:
-    """Test peers tool - comparative analysis."""
-
-    def _mock_peer(self, symbol: str) -> MagicMock:
-        mock = MagicMock()
-        # Note: yfinance returns dividendYield as percentage (e.g., 0.5 = 0.5%)
-        mock.info = {"trailingPE": 25.0, "priceToBook": 35.0, "dividendYield": 0.5, "beta": 1.2}
-        mock.fast_info.last_price = 150.0
-        mock.fast_info.market_cap = 3e12
-        return mock
-
-    def test_compares_multiple_symbols(self, call) -> None:
-        """Peers should compare symbols on metrics."""
-        with patch("yfinance_mcp.server._ticker", side_effect=self._mock_peer):
-            parsed = call("peers", {"symbols": ["AAPL", "MSFT"], "metrics": ["price", "pe"]})
-
-        assert "AAPL" in parsed
-        assert "MSFT" in parsed
-        assert "price" in parsed["AAPL"]
-        assert "_hint" in parsed
-
-    def test_all_metric_options(self, call) -> None:
-        """All metric options should work."""
-        with patch("yfinance_mcp.server._ticker", side_effect=self._mock_peer):
-            parsed = call(
-                "peers",
-                {
-                    "symbols": ["AAPL"],
-                    "metrics": ["price", "pe", "market_cap", "pb", "ps", "yield", "beta"],
-                },
-            )
-
-        assert "price" in parsed["AAPL"]
-        assert "mcap" in parsed["AAPL"]
-
-    def test_empty_symbols_error(self, call) -> None:
-        """Empty symbols should error."""
-        parsed = call("peers", {"symbols": [], "metrics": ["price"]})
-        assert parsed["err"] == "VALIDATION_ERROR"
-
-
 class TestSearchTool:
     """Test search tool - symbol discovery."""
 
@@ -605,14 +563,6 @@ class TestEdgeCases:
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND"
 
-    def test_too_many_symbols_returns_validation_error(self, call) -> None:
-        """More than 10 symbols should return VALIDATION_ERROR."""
-        symbols = [f"SYM{i}" for i in range(11)]
-        parsed = call("peers", {"symbols": symbols, "metrics": ["price"]})
-
-        assert parsed["err"] == "VALIDATION_ERROR"
-        assert "10" in parsed["msg"]
-
     def test_negative_limit_clamped_to_one(self, call) -> None:
         """Negative limit should be clamped to 1, not cause errors."""
         mock = MagicMock()
@@ -741,18 +691,6 @@ class TestDataEdgeCases:
 
         assert "price" in result
         assert result["price"] > 0, f"Price {price} rounded to zero or negative"
-
-    @given(price=price_strategy)
-    @settings(max_examples=50)
-    def test_peers_handles_any_price(self, price: float) -> None:
-        """Peers tool should preserve any price value."""
-        mock = self._mock_ticker(price)
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
-            result = self._call("peers", {"symbols": ["TEST"], "metrics": ["price"]})
-
-        assert "TEST" in result
-        assert result["TEST"]["price"] > 0, f"Price {price} lost in peers"
 
     @given(
         roa=info_value_strategy,

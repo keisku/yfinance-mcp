@@ -455,10 +455,8 @@ TOOLS = [
     Tool(
         name="summary",
         description=(
-            "Get complete stock overview. Best starting point for analysis. "
-            "Returns PEG ratio (valuation), 50-day trend (momentum), and "
-            "quality score (0-7, financial health). PEG<1 undervalued, >2 overvalued. "
-            "Quality 6-7 strong, 0-2 weak."
+            "Stock overview: price, PE, PEG, market cap, trend, quality score (0-7). "
+            "Call for multiple symbols to compare peers. PEG<1 undervalued, >2 overvalued."
         ),
         inputSchema={
             "type": "object",
@@ -599,30 +597,6 @@ TOOLS = [
         },
     ),
     Tool(
-        name="peers",
-        description=(
-            "Compare multiple stocks side-by-side on selected metrics. "
-            "Max 10 symbols. Use for sector analysis or finding best-in-class. "
-            "Metrics: price, pe, market_cap, pb, ps, yield, beta."
-        ),
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "symbols": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Tickers to compare",
-                },
-                "metrics": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Options: price, pe, market_cap, pb, ps, yield, beta",
-                },
-            },
-            "required": ["symbols", "metrics"],
-        },
-    ),
-    Tool(
         name="search",
         description=(
             "Find stock ticker symbols by company name. "
@@ -739,37 +713,37 @@ def _handle_summary(args: dict) -> str:
     roa = _safe_get(info, "returnOnAssets")
     if _safe_gt(roa, 0):
         quality_score += 1
-        quality_details.append("roa+")
+        quality_details.append("ROA>0")
 
     ocf = _safe_get(info, "operatingCashflow")
     if _safe_gt(ocf, 0):
         quality_score += 1
-        quality_details.append("ocf+")
+        quality_details.append("CashFlow>0")
 
     net_income = _safe_get(info, "netIncomeToCommon")
     if _safe_gt(ocf, net_income):
         quality_score += 1
-        quality_details.append("accrual+")
+        quality_details.append("CashFlow>NetIncome")
 
     current_ratio = _safe_get(info, "currentRatio")
     if _safe_gt(current_ratio, 1):
         quality_score += 1
-        quality_details.append("liquidity+")
+        quality_details.append("CurrentRatio>1")
 
     debt_equity = _safe_get(info, "debtToEquity")
     if _safe_lt(debt_equity, 100) and debt_equity is not None:
         quality_score += 1
-        quality_details.append("lowdebt+")
+        quality_details.append("DebtEquity<100%")
 
     gross_margin = _safe_get(info, "grossMargins")
     if _safe_gt(gross_margin, 0.2):
         quality_score += 1
-        quality_details.append("margin+")
+        quality_details.append("GrossMargin>20%")
 
     roe = _safe_get(info, "returnOnEquity")
     if _safe_gt(roe, 0.1):
         quality_score += 1
-        quality_details.append("roe+")
+        quality_details.append("ROE>10%")
 
     pe = _safe_get(info, "trailingPE")
     forward_pe = _safe_get(info, "forwardPE")
@@ -1182,75 +1156,6 @@ def _handle_financials(args: dict) -> str:
     return _fmt(data)
 
 
-def _handle_peers(args: dict) -> str:
-    """Handle peers tool - comparative analysis."""
-    symbols = args.get("symbols", [])
-    metrics = args.get("metrics", [])
-
-    if not symbols:
-        raise ValidationError("symbols required. Example: ['AAPL', 'MSFT', 'GOOGL']")
-    if not metrics:
-        raise ValidationError(
-            "metrics required. Options: price, pe, market_cap, pb, ps, yield, beta"
-        )
-    if len(symbols) > 10:
-        logger.warning("peers_too_many_symbols count=%d", len(symbols))
-        raise ValidationError("Max 10 symbols per call. Split into multiple calls for more.")
-
-    logger.debug("peers_compare symbols=%s metrics=%s", symbols, metrics)
-    result: dict[str, Any] = {}
-    failed_symbols = []
-
-    for sym in symbols:
-        try:
-            t = _ticker(sym)
-            info = t.info
-            fi = t.fast_info
-
-            last_price = _safe_scalar(fi.last_price)
-            mcap = _safe_scalar(fi.market_cap)
-
-            row: dict[str, Any] = {}
-            price_value = None
-            for m in metrics:
-                if m == "price":
-                    if last_price:
-                        decimals = _adaptive_decimals(float(last_price))
-                        price_value = round(last_price, decimals)
-                elif m == "pe":
-                    row["pe"] = _safe_get(info, "trailingPE")
-                elif m == "market_cap":
-                    row["mcap"] = int(mcap) if mcap else None
-                elif m == "pb":
-                    row["pb"] = _safe_get(info, "priceToBook")
-                elif m == "ps":
-                    row["ps"] = _safe_get(info, "priceToSalesTrailing12Months")
-                elif m == "yield":
-                    div_yield = _safe_get(info, "dividendYield")
-                    row["yield"] = round(div_yield, 2) if div_yield else None
-                elif m == "beta":
-                    row["beta"] = _safe_get(info, "beta")
-
-            rounded_row = _round_result(row)
-            if price_value is not None:
-                rounded_row["price"] = price_value
-            result[sym.upper()] = rounded_row
-        except Exception as e:
-            logger.debug("peers_symbol_failed symbol=%s error=%s", sym, e)
-            failed_symbols.append(sym)
-            result[sym.upper()] = {"err": "failed"}
-
-    if failed_symbols:
-        logger.warning(
-            "peers_partial_failure success=%d failed=%d symbols=%s",
-            len(symbols) - len(failed_symbols),
-            len(failed_symbols),
-            failed_symbols,
-        )
-    result["_hint"] = "Use 'summary' on individual symbols for detailed PEG/quality analysis"
-    return _fmt(result)
-
-
 def _handle_search(args: dict) -> str:
     """Handle search tool - symbol discovery."""
     query = args.get("query", "")
@@ -1285,7 +1190,6 @@ _TOOL_HANDLERS: dict[str, Any] = {
     "technicals": _handle_technicals,
     "fundamentals": _handle_fundamentals,
     "financials": _handle_financials,
-    "peers": _handle_peers,
     "search": _handle_search,
 }
 
