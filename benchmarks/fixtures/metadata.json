@@ -1,33 +1,33 @@
 {
-  "generated_at": "2026-01-01T03:19:13.149199",
+  "generated_at": "2026-01-01T03:23:13.461665",
   "period_start": "2023-01-01T00:00:00",
   "period_end": "2024-12-31T00:00:00",
   "symbols": {
-    "AAPL": {
+    "TEST.US": {
       "base_price": 150.0,
       "volatility": 0.018
     },
-    "7203.T": {
+    "1234.T": {
       "base_price": 2000.0,
       "volatility": 0.015
     },
-    "SAP.DE": {
+    "BENCH.DE": {
       "base_price": 120.0,
       "volatility": 0.017
     },
-    "MC.PA": {
+    "MOCK.PA": {
       "base_price": 700.0,
       "volatility": 0.019
     },
-    "HSBA.L": {
+    "FAKE.L": {
       "base_price": 6.0,
       "volatility": 0.016
     },
-    "0700.HK": {
+    "9999.HK": {
       "base_price": 350.0,
       "volatility": 0.022
     },
-    "RY.TO": {
+    "DEMO.TO": {
       "base_price": 100.0,
       "volatility": 0.014
     }

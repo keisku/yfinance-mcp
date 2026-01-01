@@ -78,15 +78,19 @@ def generate_ohlcv_data(
 
 @pytest.fixture(scope="session")
 def benchmark_symbols():
-    """Symbols used across benchmarks - diverse global stocks."""
+    """Symbols used across benchmarks - synthetic test symbols with diverse formats.
+
+    These are FAKE symbols to avoid confusion with real market data.
+    They represent different exchange formats for comprehensive testing.
+    """
     return [
-        "AAPL",  # NYSE (US)
-        "7203.T",  # Toyota - Tokyo
-        "SAP.DE",  # SAP - Germany/XETRA
-        "MC.PA",  # LVMH - Paris
-        "HSBA.L",  # HSBC - London
-        "0700.HK",  # Tencent - Hong Kong
-        "RY.TO",  # Royal Bank - Toronto
+        "TEST.US",  # US-style symbol
+        "1234.T",  # Tokyo-style symbol
+        "BENCH.DE",  # Germany/XETRA-style
+        "MOCK.PA",  # Paris-style symbol
+        "FAKE.L",  # London-style symbol
+        "9999.HK",  # Hong Kong-style
+        "DEMO.TO",  # Toronto-style symbol
     ]
 
 

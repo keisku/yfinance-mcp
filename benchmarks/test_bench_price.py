@@ -19,34 +19,34 @@ from yfinance_mcp import prices
 class TestCacheHitDaily:
     """Benchmark daily data cache hit performance."""
 
-    def test_cache_hit_us_stock(self, benchmark, seeded_cache, benchmark_symbols):
-        """Cache hit for US stock (AAPL) - daily data."""
-        benchmark(prices.get_history, "AAPL", "1y", "1d")
+    def test_cache_hit_us_symbol(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for US-style symbol - daily data."""
+        benchmark(prices.get_history, "TEST.US", "1y", "1d")
 
-    def test_cache_hit_japan_stock(self, benchmark, seeded_cache, benchmark_symbols):
-        """Cache hit for Japan stock (Toyota) - daily data."""
-        benchmark(prices.get_history, "7203.T", "1y", "1d")
+    def test_cache_hit_tokyo_symbol(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for Tokyo-style symbol - daily data."""
+        benchmark(prices.get_history, "1234.T", "1y", "1d")
 
-    def test_cache_hit_europe_stock(self, benchmark, seeded_cache, benchmark_symbols):
-        """Cache hit for European stock (SAP) - daily data."""
-        benchmark(prices.get_history, "SAP.DE", "1y", "1d")
+    def test_cache_hit_europe_symbol(self, benchmark, seeded_cache, benchmark_symbols):
+        """Cache hit for European-style symbol - daily data."""
+        benchmark(prices.get_history, "BENCH.DE", "1y", "1d")
 
     def test_cache_hit_varied_periods(self, benchmark, seeded_cache, benchmark_symbols):
         """Cache hits with varied periods (5d, 1mo, 3mo, 1y)."""
 
         def fetch_all_periods():
             for period in ["5d", "1mo", "3mo", "1y"]:
-                prices.get_history("AAPL", period, "1d")
+                prices.get_history("TEST.US", period, "1d")
 
         benchmark(fetch_all_periods)
 
     def test_cache_hit_short_period(self, benchmark, seeded_cache, benchmark_symbols):
         """Cache hit for short period (5 days)."""
-        benchmark(prices.get_history, "AAPL", "5d", "1d")
+        benchmark(prices.get_history, "TEST.US", "5d", "1d")
 
     def test_cache_hit_long_period(self, benchmark, seeded_cache, benchmark_symbols):
         """Cache hit for long period (5 years)."""
-        benchmark(prices.get_history, "AAPL", "5y", "1d")
+        benchmark(prices.get_history, "TEST.US", "5y", "1d")
 
 
 class TestCacheHitWeeklyMonthly:
@@ -54,19 +54,19 @@ class TestCacheHitWeeklyMonthly:
 
     def test_cache_hit_weekly(self, benchmark, seeded_cache, benchmark_symbols):
         """Weekly bars from cache."""
-        benchmark(prices.get_history, "AAPL", "1y", "1wk")
+        benchmark(prices.get_history, "TEST.US", "1y", "1wk")
 
     def test_cache_hit_monthly(self, benchmark, seeded_cache, benchmark_symbols):
         """Monthly bars from cache."""
-        benchmark(prices.get_history, "AAPL", "1y", "1mo")
+        benchmark(prices.get_history, "TEST.US", "1y", "1mo")
 
     def test_cache_hit_weekly_long_period(self, benchmark, seeded_cache, benchmark_symbols):
         """Weekly data for 5 years."""
-        benchmark(prices.get_history, "AAPL", "5y", "1wk")
+        benchmark(prices.get_history, "TEST.US", "5y", "1wk")
 
     def test_cache_hit_monthly_long_period(self, benchmark, seeded_cache, benchmark_symbols):
         """Monthly data for 5 years."""
-        benchmark(prices.get_history, "AAPL", "5y", "1mo")
+        benchmark(prices.get_history, "TEST.US", "5y", "1mo")
 
 
 class TestPortfolioScans:
@@ -116,7 +116,7 @@ class TestDateRangeQueries:
         """Date range query for 1 month."""
         benchmark(
             prices.get_history,
-            "AAPL",
+            "TEST.US",
             interval="1d",
             start="2024-11-01",
             end="2024-12-01",
@@ -126,19 +126,19 @@ class TestDateRangeQueries:
         """Date range query for 1 year."""
         benchmark(
             prices.get_history,
-            "AAPL",
+            "TEST.US",
             interval="1d",
             start="2024-01-01",
             end="2024-12-31",
         )
 
     def test_date_range_multi_year(self, benchmark, seeded_cache, benchmark_symbols):
-        """Date range query for 3 years."""
+        """Date range query for 2 years."""
         benchmark(
             prices.get_history,
-            "AAPL",
+            "TEST.US",
             interval="1d",
-            start="2022-01-01",
+            start="2023-01-01",
             end="2024-12-31",
         )
 
@@ -151,7 +151,7 @@ class TestCacheOperations:
         from yfinance_mcp.cache import get_cache_stats
 
         # Warm up
-        prices.get_history("AAPL", "1y", "1d")
+        prices.get_history("TEST.US", "1y", "1d")
 
         benchmark(get_cache_stats)
 
@@ -160,7 +160,7 @@ class TestCacheOperations:
 
         def repeated_query():
             for _ in range(10):
-                prices.get_history("AAPL", "1mo", "1d")
+                prices.get_history("TEST.US", "1mo", "1d")
 
         benchmark(repeated_query)
 
@@ -184,7 +184,7 @@ class TestConcurrentAccess:
 
         def mixed_intervals():
             for interval in ["1d", "1wk", "1mo"]:
-                prices.get_history("AAPL", "1y", interval)
+                prices.get_history("TEST.US", "1y", interval)
 
         benchmark(mixed_intervals)
 
@@ -197,36 +197,36 @@ class TestRealWorldPatterns:
 
         def analysis_workflow():
             # Short-term trend
-            prices.get_history("AAPL", "5d", "1d")
+            prices.get_history("TEST.US", "5d", "1d")
             # Medium-term trend
-            prices.get_history("AAPL", "3mo", "1d")
+            prices.get_history("TEST.US", "3mo", "1d")
             # Long-term trend
-            prices.get_history("AAPL", "1y", "1d")
+            prices.get_history("TEST.US", "1y", "1d")
             # Historical comparison
-            prices.get_history("AAPL", "5y", "1wk")
+            prices.get_history("TEST.US", "5y", "1wk")
 
         benchmark(analysis_workflow)
 
     def test_multi_stock_comparison(self, benchmark, seeded_cache):
-        """Compare same period across multiple stocks (global)."""
+        """Compare same period across multiple test symbols (global formats)."""
 
         def stock_comparison():
-            symbols = ["AAPL", "7203.T", "SAP.DE"]
+            symbols = ["TEST.US", "1234.T", "BENCH.DE"]
             for symbol in symbols:
                 prices.get_history(symbol, "1y", "1d")
 
         benchmark(stock_comparison)
 
     def test_dashboard_load(self, benchmark, seeded_cache, benchmark_symbols):
-        """Simulate dashboard loading multiple widgets (global portfolio)."""
+        """Simulate dashboard loading multiple widgets (diverse symbol formats)."""
 
         def dashboard_load():
             # Widget 1: Recent price movement
-            prices.get_history("AAPL", "5d", "1d")
+            prices.get_history("TEST.US", "5d", "1d")
             # Widget 2: Monthly trend
-            prices.get_history("AAPL", "1mo", "1d")
-            # Widget 3: Portfolio overview (global stocks)
-            for symbol in ["AAPL", "7203.T", "SAP.DE"]:
+            prices.get_history("TEST.US", "1mo", "1d")
+            # Widget 3: Portfolio overview (diverse formats)
+            for symbol in ["TEST.US", "1234.T", "BENCH.DE"]:
                 prices.get_history(symbol, "1mo", "1d")
 
         benchmark(dashboard_load)

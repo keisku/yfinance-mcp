@@ -28,15 +28,16 @@ import pandas as pd
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
-# Benchmark symbols - diverse global stocks from different exchanges
+# Benchmark symbols - synthetic test stocks with diverse exchange formats
+# These are FAKE symbols to avoid confusion with real market data
 SYMBOLS = {
-    "AAPL": {"base_price": 150.0, "volatility": 0.018},  # Apple - NYSE (US)
-    "7203.T": {"base_price": 2000.0, "volatility": 0.015},  # Toyota - Tokyo
-    "SAP.DE": {"base_price": 120.0, "volatility": 0.017},  # SAP - Germany/XETRA
-    "MC.PA": {"base_price": 700.0, "volatility": 0.019},  # LVMH - Paris
-    "HSBA.L": {"base_price": 6.0, "volatility": 0.016},  # HSBC - London
-    "0700.HK": {"base_price": 350.0, "volatility": 0.022},  # Tencent - Hong Kong
-    "RY.TO": {"base_price": 100.0, "volatility": 0.014},  # Royal Bank - Toronto
+    "TEST.US": {"base_price": 150.0, "volatility": 0.018},  # US-style symbol
+    "1234.T": {"base_price": 2000.0, "volatility": 0.015},  # Tokyo-style symbol
+    "BENCH.DE": {"base_price": 120.0, "volatility": 0.017},  # Germany/XETRA-style
+    "MOCK.PA": {"base_price": 700.0, "volatility": 0.019},  # Paris-style symbol
+    "FAKE.L": {"base_price": 6.0, "volatility": 0.016},  # London-style symbol
+    "9999.HK": {"base_price": 350.0, "volatility": 0.022},  # Hong Kong-style
+    "DEMO.TO": {"base_price": 100.0, "volatility": 0.014},  # Toronto-style symbol
 }
 
 INTERVALS = ["1d", "1wk", "1mo"]
