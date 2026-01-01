@@ -522,6 +522,7 @@ TOOLS = [
             "Calculate technical indicators for trading signals. "
             "RSI: >70 overbought, <30 oversold. MACD: histogram>0 bullish. "
             "SMA/EMA: price above = uptrend. BB: volatility bands. "
+            "fibonacci: retracement/extension levels. pivot: support/resistance levels. "
             "Use 'summary' first for fundamental context."
         ),
         inputSchema={
@@ -531,7 +532,7 @@ TOOLS = [
                 "indicators": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv",
+                    "description": "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot",
                 },
                 "period": {"type": "string", "default": "3mo"},
             },
@@ -934,7 +935,7 @@ def _handle_technicals(args: dict) -> str:
     if not inds:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
-            "indicators required. Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv"
+            "indicators required. Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1026,6 +1027,29 @@ def _handle_technicals(args: dict) -> str:
                 else:
                     result["obv"] = int(obv_val)
                     result["obv_trend"] = "bullish" if obv_val > obv_sma else "bearish"
+
+            elif ind == "fibonacci":
+                period_high = float(_to_scalar(df["High"].max()))
+                period_low = float(_to_scalar(df["Low"].min()))
+                current_close = float(_to_scalar(df["Close"].iloc[-1]))
+                is_uptrend = current_close > (period_high + period_low) / 2
+
+                fib = indicators.calculate_fibonacci_levels(period_high, period_low, is_uptrend)
+                result["fib_trend"] = "uptrend" if is_uptrend else "downtrend"
+                result["fib_levels"] = {k: round(v, 2) for k, v in fib.items()}
+
+            elif ind == "pivot" or ind.startswith("pivot_"):
+                method = "standard"
+                if ind.startswith("pivot_"):
+                    method = ind.split("_", 1)[1]
+
+                prev_high = float(_to_scalar(df["High"].iloc[-2]))
+                prev_low = float(_to_scalar(df["Low"].iloc[-2]))
+                prev_close = float(_to_scalar(df["Close"].iloc[-2]))
+
+                pivot = indicators.calculate_pivot_points(prev_high, prev_low, prev_close, method)
+                result["pivot_method"] = method
+                result["pivot_levels"] = {k: round(v, 2) for k, v in pivot.items()}
 
             else:
                 _add_unknown(result, ind)
