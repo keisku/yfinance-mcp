@@ -398,6 +398,41 @@ class TestCCICrosscheck:
         assert valid.std() < 500
 
 
+class TestDMICrosscheck:
+    """Validate DMI/ADX against pandas-ta.
+
+    Tolerance rationale:
+    - DMI uses smoothed directional movement
+    - pandas-ta uses RMA (Wilder's smoothing), we use EMA
+    - ADX values track similar patterns but with different smoothing
+    - We test that ADX captures trend strength (high when trending)
+    """
+
+    def test_adx_correlation(self, sample_ohlcv: pd.DataFrame) -> None:
+        """ADX should be correlated with pandas-ta (allowing smoothing differences)."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        our_dmi = indicators.calculate_dmi(high, low, close, 14)
+        expected = ta.adx(high, low, close, length=14)
+
+        adx_corr = our_dmi["adx"].iloc[30:].corr(expected["ADX_14"].iloc[30:])
+        assert adx_corr > 0.75
+
+    def test_adx_bounds(self, sample_ohlcv: pd.DataFrame) -> None:
+        """ADX should be in [0, 100] range."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        dmi = indicators.calculate_dmi(high, low, close)
+        valid_adx = dmi["adx"].dropna()
+
+        assert (valid_adx >= 0).all()
+        assert (valid_adx <= 100).all()
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

@@ -112,6 +112,50 @@ def calculate_cci(
     return cci
 
 
+def calculate_dmi(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> dict[str, pd.Series]:
+    """Calculate Directional Movement Index.
+    
+    Returns +DI, -DI, and ADX (Average Directional Index).
+    ADX > 25 indicates strong trend, < 20 indicates weak/no trend.
+    +DI > -DI suggests uptrend, -DI > +DI suggests downtrend.
+    """
+    min_periods = period * 2
+    if len(close) < min_periods:
+        logger.warning(
+            "indicator_insufficient_data type=dmi required=%d available=%d",
+            min_periods,
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {min_periods} periods, got {len(close)}",
+            {"required": min_periods, "available": len(close)},
+        )
+    logger.debug("calculate_dmi period=%d data_points=%d", period, len(close))
+    
+    plus_dm = high.diff()
+    minus_dm = -low.diff()
+    
+    plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
+    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
+    
+    prev_close = close.shift(1)
+    tr1 = high - low
+    tr2 = (high - prev_close).abs()
+    tr3 = (low - prev_close).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    atr = tr.ewm(span=period, adjust=False).mean()
+    plus_di = 100 * (plus_dm.ewm(span=period, adjust=False).mean() / atr)
+    minus_di = 100 * (minus_dm.ewm(span=period, adjust=False).mean() / atr)
+    
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+    adx = dx.ewm(span=period, adjust=False).mean()
+    
+    return {"plus_di": plus_di, "minus_di": minus_di, "adx": adx}
+
+
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Relative Strength Index."""
     if len(prices) < period + 1:
