@@ -531,7 +531,7 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, bb, stoch, atr, obv, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, atr, obv, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -912,7 +912,7 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, bb, stoch, atr, obv, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1001,6 +1001,13 @@ def _handle_technicals(args: dict) -> str:
                     trend_strength = "strong" if adx > 25 else "weak" if adx < 20 else "moderate"
                     trend_dir = "bullish" if plus_di > minus_di else "bearish"
                     result["dmi_signal"] = f"{trend_strength}_{trend_dir}"
+
+            elif ind == "williams":
+                wr = indicators.calculate_williams_r(df["High"], df["Low"], df["Close"])
+                v = float(_to_scalar(wr.iloc[-1]))
+                result["williams_r"] = round(v, 1) if not pd.isna(v) else None
+                if not pd.isna(v):
+                    result["williams_signal"] = _signal_level(v, -20, -80)
 
             elif ind == "bb":
                 bb = indicators.calculate_bollinger_bands(df["Close"])

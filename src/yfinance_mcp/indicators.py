@@ -156,6 +156,34 @@ def calculate_dmi(
     return {"plus_di": plus_di, "minus_di": minus_di, "adx": adx}
 
 
+def calculate_williams_r(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> pd.Series:
+    """Calculate Williams %R.
+    
+    Williams %R = ((Highest High - Close) / (Highest High - Lowest Low)) * -100
+    
+    Values range from -100 to 0. Above -20 is overbought, below -80 is oversold.
+    """
+    if len(close) < period:
+        logger.warning(
+            "indicator_insufficient_data type=williams required=%d available=%d",
+            period,
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {period} periods, got {len(close)}",
+            {"required": period, "available": len(close)},
+        )
+    logger.debug("calculate_williams period=%d data_points=%d", period, len(close))
+    
+    highest_high = high.rolling(window=period).max()
+    lowest_low = low.rolling(window=period).min()
+    
+    williams_r = ((highest_high - close) / (highest_high - lowest_low)) * -100
+    return williams_r
+
+
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Relative Strength Index."""
     if len(prices) < period + 1:

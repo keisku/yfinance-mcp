@@ -433,6 +433,41 @@ class TestDMICrosscheck:
         assert (valid_adx <= 100).all()
 
 
+class TestWilliamsRCrosscheck:
+    """Validate Williams %R against pandas-ta.
+
+    Williams %R uses rolling high/low which is deterministic.
+    We expect exact matches within floating-point precision.
+    """
+
+    def test_williams_r_14_matches(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Williams %R(14) should match pandas-ta exactly."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        our_wr = indicators.calculate_williams_r(high, low, close, 14)
+        expected = ta.willr(high, low, close, length=14)
+
+        np.testing.assert_allclose(
+            our_wr.dropna().values,
+            expected.dropna().values,
+            rtol=1e-10,
+        )
+
+    def test_williams_r_bounds(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Williams %R must be in [-100, 0] range."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        wr = indicators.calculate_williams_r(high, low, close)
+        valid = wr.dropna()
+
+        assert (valid >= -100).all()
+        assert (valid <= 0).all()
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

@@ -333,6 +333,15 @@ class TestTechnicalsTool:
         assert "adx" in parsed
         assert "dmi_signal" in parsed
 
+    def test_williams_r_with_signal(self, call) -> None:
+        """Williams %R should return value and overbought/oversold signal."""
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["williams"]})
+
+        assert "williams_r" in parsed
+        assert "williams_signal" in parsed
+        assert parsed["williams_signal"] in ["overbought", "oversold", "neutral"]
+
     def test_bollinger_bands(self, call) -> None:
         """BB should return bands and %B signal."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
@@ -344,7 +353,7 @@ class TestTechnicalsTool:
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
-        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "bb", "stoch", "atr", "obv"]
+        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "bb", "stoch", "atr", "obv"]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 

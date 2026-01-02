@@ -15,6 +15,7 @@ from yfinance_mcp.indicators import (
     calculate_momentum,
     calculate_pivot_points,
     calculate_sma,
+    calculate_williams_r,
     calculate_wma,
 )
 
@@ -55,6 +56,14 @@ class TestErrorHandling:
         close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
         with pytest.raises(CalculationError):
             calculate_dmi(high, low, close, 14)
+
+    def test_williams_r_insufficient_data(self) -> None:
+        """Williams %R should raise CalculationError when data < period."""
+        high = pd.Series([1, 2, 3, 4, 5])
+        low = pd.Series([0.5, 1.5, 2.5, 3.5, 4.5])
+        close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
+        with pytest.raises(CalculationError):
+            calculate_williams_r(high, low, close, 14)
 
 
 class TestFibonacci:
