@@ -11,7 +11,12 @@ logger = logging.getLogger("yfinance_mcp.indicators")
 
 
 def calculate_sma(prices: pd.Series, period: int) -> pd.Series:
-    """Calculate Simple Moving Average."""
+    """Calculate Simple Moving Average (SMA).
+
+    SMA is an arithmetic moving average calculated by adding recent closing prices
+    and dividing by the number of time periods. It provides a smoothed trend line
+    by giving equal weight to all values in the period.
+    """
     if len(prices) < period:
         logger.warning(
             "indicator_insufficient_data type=sma required=%d available=%d", period, len(prices)
@@ -25,7 +30,12 @@ def calculate_sma(prices: pd.Series, period: int) -> pd.Series:
 
 
 def calculate_ema(prices: pd.Series, period: int) -> pd.Series:
-    """Calculate Exponential Moving Average."""
+    """Calculate Exponential Moving Average (EMA).
+
+    EMA is a type of moving average that places greater weight on recent data points.
+    It reacts more significantly to recent price changes than SMA, making it more
+    responsive to new information. Common periods: 12, 26, 50, 200 days.
+    """
     if len(prices) < period:
         logger.warning(
             "indicator_insufficient_data type=ema required=%d available=%d", period, len(prices)
@@ -39,10 +49,11 @@ def calculate_ema(prices: pd.Series, period: int) -> pd.Series:
 
 
 def calculate_wma(prices: pd.Series, period: int) -> pd.Series:
-    """Calculate Weighted Moving Average.
-    
-    Uses linearly increasing weights: for period 5, weights are [1, 2, 3, 4, 5].
-    More recent prices have higher weight.
+    """Calculate Weighted Moving Average (WMA).
+
+    WMA assigns greater weight to recent data using linearly increasing weights.
+    For period 5, weights are [1, 2, 3, 4, 5] with most recent price having
+    highest weight. More responsive than SMA but less than EMA.
     """
     if len(prices) < period:
         logger.warning(
@@ -53,20 +64,22 @@ def calculate_wma(prices: pd.Series, period: int) -> pd.Series:
             {"required": period, "available": len(prices)},
         )
     logger.debug("calculate_wma period=%d data_points=%d", period, len(prices))
-    
+
     weights = np.arange(1, period + 1)
-    
+
     def weighted_avg(x: np.ndarray) -> float:
         return np.sum(weights * x) / np.sum(weights)
-    
+
     return prices.rolling(window=period).apply(weighted_avg, raw=True)
 
 
 def calculate_momentum(prices: pd.Series, period: int = 10) -> pd.Series:
     """Calculate Momentum indicator.
-    
+
+    Measures the rate of price change by comparing current price to price N periods ago.
     Momentum = current_close - close_n_periods_ago
-    Positive values indicate upward momentum, negative indicates downward.
+    Positive values indicate upward momentum, negative indicates downward momentum.
+    Helps identify the velocity and strength of price movements.
     """
     if len(prices) < period + 1:
         logger.warning(
@@ -82,15 +95,14 @@ def calculate_momentum(prices: pd.Series, period: int = 10) -> pd.Series:
     return prices - prices.shift(period)
 
 
-def calculate_cci(
-    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20
-) -> pd.Series:
-    """Calculate Commodity Channel Index.
-    
-    CCI = (TP - SMA(TP)) / (0.015 * Mean Deviation)
-    where TP = (High + Low + Close) / 3
-    
-    Values > 100 indicate overbought, < -100 indicate oversold.
+def calculate_cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> pd.Series:
+    """Calculate Commodity Channel Index (CCI).
+
+    CCI measures variation of price from its statistical mean. Developed by Donald Lambert.
+    CCI = (Typical Price - SMA of TP) / (0.015 × Mean Deviation)
+    where TP (Typical Price) = (High + Low + Close) / 3
+
+    Values > 100 indicate overbought conditions, < -100 indicate oversold conditions.
     """
     if len(close) < period:
         logger.warning(
@@ -103,11 +115,11 @@ def calculate_cci(
             {"required": period, "available": len(close)},
         )
     logger.debug("calculate_cci period=%d data_points=%d", period, len(close))
-    
+
     tp = (high + low + close) / 3
     sma_tp = tp.rolling(window=period).mean()
     mean_dev = tp.rolling(window=period).apply(lambda x: np.abs(x - x.mean()).mean(), raw=True)
-    
+
     cci = (tp - sma_tp) / (0.015 * mean_dev)
     return cci
 
@@ -115,9 +127,12 @@ def calculate_cci(
 def calculate_dmi(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
 ) -> dict[str, pd.Series]:
-    """Calculate Directional Movement Index.
-    
-    Returns +DI, -DI, and ADX (Average Directional Index).
+    """Calculate Directional Movement Index (DMI).
+
+    DMI identifies trend direction and strength. Developed by J. Welles Wilder.
+    Returns +DI (Plus Directional Indicator), -DI (Minus Directional Indicator),
+    and ADX (Average Directional Index).
+
     ADX > 25 indicates strong trend, < 20 indicates weak/no trend.
     +DI > -DI suggests uptrend, -DI > +DI suggests downtrend.
     """
@@ -133,36 +148,39 @@ def calculate_dmi(
             {"required": min_periods, "available": len(close)},
         )
     logger.debug("calculate_dmi period=%d data_points=%d", period, len(close))
-    
+
     plus_dm = high.diff()
     minus_dm = -low.diff()
-    
+
     plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
     minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
-    
+
     prev_close = close.shift(1)
     tr1 = high - low
     tr2 = (high - prev_close).abs()
     tr3 = (low - prev_close).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    
+
     atr = tr.ewm(span=period, adjust=False).mean()
     plus_di = 100 * (plus_dm.ewm(span=period, adjust=False).mean() / atr)
     minus_di = 100 * (minus_dm.ewm(span=period, adjust=False).mean() / atr)
-    
+
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
     adx = dx.ewm(span=period, adjust=False).mean()
-    
+
     return {"plus_di": plus_di, "minus_di": minus_di, "adx": adx}
 
 
 def calculate_williams_r(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
 ) -> pd.Series:
-    """Calculate Williams %R.
-    
-    Williams %R = ((Highest High - Close) / (Highest High - Lowest Low)) * -100
-    
+    """Calculate Williams %R (Williams Percent Range).
+
+    Williams %R is a momentum oscillator that measures overbought/oversold levels.
+    Developed by Larry Williams. Similar to Stochastic but inverted scale.
+
+    Williams %R = ((Highest High - Close) / (Highest High - Lowest Low)) × -100
+
     Values range from -100 to 0. Above -20 is overbought, below -80 is oversold.
     """
     if len(close) < period:
@@ -176,16 +194,22 @@ def calculate_williams_r(
             {"required": period, "available": len(close)},
         )
     logger.debug("calculate_williams period=%d data_points=%d", period, len(close))
-    
+
     highest_high = high.rolling(window=period).max()
     lowest_low = low.rolling(window=period).min()
-    
+
     williams_r = ((highest_high - close) / (highest_high - lowest_low)) * -100
     return williams_r
 
 
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
-    """Calculate Relative Strength Index."""
+    """Calculate Relative Strength Index (RSI).
+
+    RSI is a momentum oscillator that measures the speed and magnitude of price changes.
+    Developed by J. Welles Wilder. Values range from 0 to 100.
+
+    RSI > 70 indicates overbought conditions, RSI < 30 indicates oversold conditions.
+    """
     if len(prices) < period + 1:
         logger.warning(
             "indicator_insufficient_data type=rsi required=%d available=%d",
@@ -216,7 +240,17 @@ def calculate_macd(
     slow_period: int = 26,
     signal_period: int = 9,
 ) -> dict[str, pd.Series]:
-    """Calculate MACD (Moving Average Convergence Divergence)."""
+    """Calculate MACD (Moving Average Convergence Divergence).
+
+    MACD is a trend-following momentum indicator that shows the relationship between
+    two moving averages. Developed by Gerald Appel.
+
+    MACD Line = 12-period EMA - 26-period EMA
+    Signal Line = 9-period EMA of MACD Line
+    Histogram = MACD Line - Signal Line
+
+    Histogram > 0 indicates bullish momentum, < 0 indicates bearish momentum.
+    """
     min_periods = slow_period + signal_period
     if len(prices) < min_periods:
         logger.warning(
@@ -253,7 +287,18 @@ def calculate_macd(
 def calculate_bollinger_bands(
     prices: pd.Series, period: int = 20, std_dev: float = 2.0
 ) -> dict[str, pd.Series]:
-    """Calculate Bollinger Bands."""
+    """Calculate Bollinger Bands (BB).
+
+    Bollinger Bands are volatility bands placed above and below a moving average.
+    Developed by John Bollinger. Bands widen during volatility and contract during
+    calm periods.
+
+    Middle Band = 20-period SMA
+    Upper Band = Middle Band + (2 × standard deviation)
+    Lower Band = Middle Band - (2 × standard deviation)
+
+    Price touching upper band may indicate overbought, lower band may indicate oversold.
+    """
     if len(prices) < period:
         logger.warning(
             "indicator_insufficient_data type=bb required=%d available=%d", period, len(prices)
@@ -290,10 +335,15 @@ def calculate_stochastic(
     d_period: int = 3,
 ) -> dict[str, pd.Series]:
     """Calculate Slow Stochastic Oscillator.
-    
-    Slow Stochastic applies smoothing to %K before computing %D.
+
+    Stochastic Oscillator is a momentum indicator that compares closing price to
+    price range over a period. Developed by George Lane. Values range 0-100.
+
+    Slow Stochastic applies smoothing to %K before computing %D:
     - %K = SMA of Fast %K (raw stochastic)
     - %D = SMA of %K
+
+    %K/%D > 80 indicates overbought, < 20 indicates oversold conditions.
     """
     min_periods = k_period + d_period
     if len(close) < min_periods:
@@ -326,12 +376,15 @@ def calculate_fast_stochastic(
     d_period: int = 3,
 ) -> dict[str, pd.Series]:
     """Calculate Fast Stochastic Oscillator.
-    
-    Fast Stochastic uses the raw (unsmoothed) %K.
-    - %K = ((Close - Lowest Low) / (Highest High - Lowest Low)) * 100
+
+    Fast Stochastic uses the raw (unsmoothed) %K for more responsive signals.
+    Developed by George Lane. Values range 0-100.
+
+    - %K = ((Close - Lowest Low) / (Highest High - Lowest Low)) × 100
     - %D = SMA of %K
-    
+
     More responsive to price changes than Slow Stochastic.
+    %K/%D > 80 indicates overbought, < 20 indicates oversold conditions.
     """
     min_periods = k_period + d_period
     if len(close) < min_periods:
@@ -364,14 +417,14 @@ def calculate_ichimoku(
     leading_b_period: int = 52,
 ) -> dict[str, pd.Series]:
     """Calculate Ichimoku Kinko Hyo (Equilibrium Chart) components.
-    
+
     Returns:
     - conversion_line: 9-period mid-price (fast signal line)
     - base_line: 26-period mid-price (slow signal line)
     - leading_span_a: Average of Conversion and Base, shifted 26 periods ahead
     - leading_span_b: 52-period mid-price, shifted 26 periods ahead
     - lagging_span: Close shifted back 26 periods
-    
+
     Cloud is bullish when Leading Span A > Leading Span B, bearish otherwise.
     """
     min_periods = leading_b_period + base_period
@@ -392,16 +445,16 @@ def calculate_ichimoku(
         leading_b_period,
         len(close),
     )
-    
-    def midprice(h: pd.Series, l: pd.Series, period: int) -> pd.Series:
-        return (h.rolling(window=period).max() + l.rolling(window=period).min()) / 2
-    
+
+    def midprice(h: pd.Series, low: pd.Series, period: int) -> pd.Series:
+        return (h.rolling(window=period).max() + low.rolling(window=period).min()) / 2
+
     conversion_line = midprice(high, low, conversion_period)
     base_line = midprice(high, low, base_period)
     leading_span_a = ((conversion_line + base_line) / 2).shift(base_period)
     leading_span_b = midprice(high, low, leading_b_period).shift(base_period)
     lagging_span = close.shift(-base_period)
-    
+
     return {
         "conversion_line": conversion_line,
         "base_line": base_line,
@@ -415,14 +468,17 @@ def calculate_volume_profile(
     close: pd.Series, volume: pd.Series, bins: int = 10
 ) -> dict[str, float | list[dict]]:
     """Calculate Volume Profile.
-    
-    Returns price levels with highest trading volume (Point of Control)
-    and volume distribution across price bins.
-    
-    - poc: Point of Control (price with highest volume)
+
+    Volume Profile displays trading activity at different price levels over time.
+    Unlike traditional volume, it shows WHERE volume occurred, not WHEN.
+
+    Returns:
+    - poc: Point of Control (price level with highest volume)
     - value_area_high: Upper bound of 70% volume range
     - value_area_low: Lower bound of 70% volume range
     - profile: List of {price, volume} for each bin
+
+    Identifies significant support/resistance levels based on volume concentration.
     """
     if len(close) < 10:
         logger.warning(
@@ -434,11 +490,11 @@ def calculate_volume_profile(
             {"required": 10, "available": len(close)},
         )
     logger.debug("calculate_volume_profile bins=%d data_points=%d", bins, len(close))
-    
+
     price_min = close.min()
     price_max = close.max()
     bin_edges = np.linspace(price_min, price_max, bins + 1)
-    
+
     volume_by_bin = []
     for i in range(bins):
         mask = (close >= bin_edges[i]) & (close < bin_edges[i + 1])
@@ -447,14 +503,14 @@ def calculate_volume_profile(
         bin_volume = float(volume[mask].sum())
         bin_price = (bin_edges[i] + bin_edges[i + 1]) / 2
         volume_by_bin.append({"price": round(bin_price, 2), "volume": bin_volume})
-    
+
     poc_idx = np.argmax([b["volume"] for b in volume_by_bin])
     poc = volume_by_bin[poc_idx]["price"]
-    
+
     total_volume = sum(b["volume"] for b in volume_by_bin)
     target_volume = total_volume * 0.7
     sorted_bins = sorted(volume_by_bin, key=lambda x: x["volume"], reverse=True)
-    
+
     cumulative = 0
     value_area_prices = []
     for b in sorted_bins:
@@ -462,10 +518,10 @@ def calculate_volume_profile(
         value_area_prices.append(b["price"])
         if cumulative >= target_volume:
             break
-    
+
     value_area_high = max(value_area_prices)
     value_area_low = min(value_area_prices)
-    
+
     return {
         "poc": poc,
         "value_area_high": value_area_high,
@@ -476,10 +532,13 @@ def calculate_volume_profile(
 
 def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float]:
     """Calculate Price Change over a period.
-    
+
+    Simple indicator measuring the absolute and percentage change in price over N periods.
+    Useful for quickly assessing performance and momentum.
+
     Returns:
-    - change: Absolute price change
-    - change_pct: Percentage change
+    - change: Absolute price change (current - previous)
+    - change_pct: Percentage change ((current - previous) / previous × 100)
     """
     if len(close) < period + 1:
         logger.warning(
@@ -492,17 +551,24 @@ def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float
             {"required": period + 1, "available": len(close)},
         )
     logger.debug("calculate_price_change period=%d data_points=%d", period, len(close))
-    
+
     current = float(close.iloc[-1])
     previous = float(close.iloc[-1 - period])
     change = current - previous
     change_pct = (change / previous) * 100 if previous != 0 else 0
-    
+
     return {"change": change, "change_pct": change_pct}
 
 
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
-    """Calculate Average True Range."""
+    """Calculate Average True Range (ATR).
+
+    ATR measures market volatility by calculating the average of true ranges over a period.
+    Developed by J. Welles Wilder. Higher ATR indicates higher volatility.
+
+    True Range = max(High - Low, |High - Previous Close|, |Low - Previous Close|)
+    ATR = 14-period moving average of True Range
+    """
     if len(close) < period + 1:
         logger.warning(
             "indicator_insufficient_data type=atr required=%d available=%d",
@@ -525,7 +591,15 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int
 
 
 def calculate_obv(close: pd.Series, volume: pd.Series) -> pd.Series:
-    """Calculate On Balance Volume."""
+    """Calculate On-Balance Volume (OBV).
+
+    OBV is a momentum indicator that uses volume flow to predict price changes.
+    Developed by Joe Granville. Rising OBV suggests accumulation (buying pressure),
+    falling OBV suggests distribution (selling pressure).
+
+    OBV adds volume on up days and subtracts volume on down days, creating
+    a cumulative total that confirms price trends.
+    """
     if len(close) != len(volume):
         logger.warning(
             "indicator_data_mismatch type=obv close_len=%d volume_len=%d", len(close), len(volume)
@@ -548,7 +622,15 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> pd.Series:
 def calculate_fibonacci_levels(
     high: float, low: float, is_uptrend: bool = True
 ) -> dict[str, float]:
-    """Calculate Fibonacci retracement and extension levels."""
+    """Calculate Fibonacci Retracement and extension levels.
+
+    Fibonacci Retracement uses horizontal lines to indicate support/resistance areas
+    at key Fibonacci ratios before price continues in the original direction.
+    Based on the Fibonacci sequence discovered by Leonardo Fibonacci.
+
+    Common retracement levels: 23.6%, 38.2%, 50%, 61.8%, 78.6%
+    Extension levels help identify potential profit targets beyond the original move.
+    """
     diff = high - low
 
     if is_uptrend:
@@ -586,7 +668,15 @@ def calculate_fibonacci_levels(
 def calculate_pivot_points(
     high: float, low: float, close: float, method: str = "standard"
 ) -> dict[str, float]:
-    """Calculate pivot points and support/resistance levels."""
+    """Calculate Pivot Points and support/resistance levels.
+
+    Pivot Points are technical indicators used to identify potential support and
+    resistance levels based on previous period's high, low, and close prices.
+    Widely used by day traders to determine entry/exit points.
+
+    Methods: 'standard' (Classic), 'fibonacci', 'camarilla', 'woodie'
+    Returns: pivot point, 3 resistance levels (R1, R2, R3), 3 support levels (S1, S2, S3)
+    """
     if method == "standard":
         pivot = (high + low + close) / 3
         r1 = 2 * pivot - low

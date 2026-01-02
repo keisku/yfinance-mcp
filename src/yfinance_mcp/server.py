@@ -518,16 +518,30 @@ TOOLS = [
         name="technicals",
         description=(
             "Calculate technical indicators for trading signals. "
-            "RSI (Relative Strength Index): >70 overbought, <30 oversold. "
-            "MACD (Moving Average Convergence Divergence): histogram>0 bullish. "
-            "SMA/EMA/WMA: price above = uptrend. BB (Bollinger Bands): volatility bands. "
+            "SMA (Simple Moving Average), EMA (Exponential Moving Average), "
+            "WMA (Weighted Moving Average): trend indicators, price above = uptrend. "
+            "RSI (Relative Strength Index): momentum oscillator, >70 overbought, <30 oversold. "
+            "MACD (Moving Average Convergence Divergence): trend/momentum, "
+            "histogram>0 bullish. "
+            "BB (Bollinger Bands): volatility bands showing price ranges. "
+            "Stochastic Oscillator (Slow): momentum, %K/%D >80 overbought, "
+            "<20 oversold. "
+            "Fast Stochastic Oscillator: more responsive, %K/%D >80 overbought, "
+            "<20 oversold. "
             "CCI (Commodity Channel Index): >100 overbought, <-100 oversold. "
-            "DMI (Directional Movement Index): ADX>25 strong trend. "
-            "Stochastic: >80 overbought, <20 oversold. "
-            "Ichimoku Cloud: price above cloud = bullish. "
+            "DMI (Directional Movement Index): +DI/-DI trend direction, "
+            "ADX>25 strong trend. "
+            "Williams %R: momentum oscillator, >-20 overbought, <-80 oversold. "
+            "Momentum: rate of price change indicator. "
+            "Price Change: absolute and percentage change over period. "
+            "Ichimoku Kinko Hyo (Equilibrium Chart): comprehensive cloud, "
+            "price above cloud = bullish. "
             "ATR (Average True Range): volatility measure. "
-            "OBV (On-Balance Volume): volume trend confirmation. "
-            "Fibonacci: retracement/extension levels. Pivot: support/resistance levels. "
+            "OBV (On-Balance Volume): volume-price trend confirmation. "
+            "Volume Profile: trading activity distribution at price levels. "
+            "Fibonacci Retracement: support/resistance at key ratios "
+            "(23.6%, 38.2%, 50%, 61.8%). "
+            "Pivot Points: calculated support/resistance levels. "
             "Use 'summary' first for fundamental context."
         ),
         inputSchema={
@@ -538,7 +552,9 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, volume_profile, price_change, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, "
+                        "williams, bb, stoch, fast_stoch, ichimoku, atr, obv, "
+                        "volume_profile, price_change, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -919,7 +935,9 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, volume_profile, price_change, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, "
+            "williams, bb, stoch, fast_stoch, ichimoku, atr, obv, "
+            "volume_profile, price_change, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1052,12 +1070,12 @@ def _handle_technicals(args: dict) -> str:
                 base = float(_to_scalar(ich["base_line"].iloc[-1]))
                 leading_a = float(_to_scalar(ich["leading_span_a"].iloc[-1]))
                 leading_b = float(_to_scalar(ich["leading_span_b"].iloc[-1]))
-                
+
                 result["ichimoku_conversion"] = _safe_round(conversion, 2)
                 result["ichimoku_base"] = _safe_round(base, 2)
                 result["ichimoku_leading_a"] = _safe_round(leading_a, 2)
                 result["ichimoku_leading_b"] = _safe_round(leading_b, 2)
-                
+
                 close_val = float(_to_scalar(df["Close"].iloc[-1]))
                 if not pd.isna(leading_a) and not pd.isna(leading_b):
                     cloud_top = max(leading_a, leading_b)
@@ -1106,7 +1124,9 @@ def _handle_technicals(args: dict) -> str:
                 pc = indicators.calculate_price_change(df["Close"])
                 result["price_change"] = round(pc["change"], 2)
                 result["price_change_pct"] = round(pc["change_pct"], 2)
-                result["price_change_signal"] = "up" if pc["change"] > 0 else "down" if pc["change"] < 0 else "flat"
+                result["price_change_signal"] = (
+                    "up" if pc["change"] > 0 else "down" if pc["change"] < 0 else "flat"
+                )
 
             elif ind == "fibonacci":
                 period_high = float(_to_scalar(df["High"].max()))

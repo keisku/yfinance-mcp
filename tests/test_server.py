@@ -395,7 +395,25 @@ class TestTechnicalsTool:
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
-        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "fast_stoch", "ichimoku", "volume_profile", "price_change", "bb", "stoch", "atr", "obv"]
+        indicators = [
+            "rsi",
+            "macd",
+            "sma_20",
+            "ema_12",
+            "wma_10",
+            "momentum",
+            "cci",
+            "dmi",
+            "williams",
+            "fast_stoch",
+            "ichimoku",
+            "volume_profile",
+            "price_change",
+            "bb",
+            "stoch",
+            "atr",
+            "obv",
+        ]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 
