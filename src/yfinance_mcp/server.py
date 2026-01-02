@@ -531,7 +531,7 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, bb, stoch, atr, obv, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -912,7 +912,7 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, bb, stoch, atr, obv, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, bb, stoch, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -962,6 +962,18 @@ def _handle_technicals(args: dict) -> str:
                 ema = indicators.calculate_ema(df["Close"], p)
                 v = float(_to_scalar(ema.iloc[-1]))
                 result[ind] = round(v, 2) if not pd.isna(v) else None
+
+            elif ind.startswith("wma_"):
+                p = _parse_moving_avg_period(ind)
+                if p is None:
+                    _add_unknown(result, ind)
+                    continue
+                wma = indicators.calculate_wma(df["Close"], p)
+                v = float(_to_scalar(wma.iloc[-1]))
+                result[ind] = round(v, 2) if not pd.isna(v) else None
+                if not pd.isna(v):
+                    close = float(_to_scalar(df["Close"].iloc[-1]))
+                    result[f"{ind}_pos"] = "above" if close > v else "below"
 
             elif ind == "bb":
                 bb = indicators.calculate_bollinger_bands(df["Close"])

@@ -38,6 +38,30 @@ def calculate_ema(prices: pd.Series, period: int) -> pd.Series:
     return prices.ewm(span=period, adjust=False).mean()
 
 
+def calculate_wma(prices: pd.Series, period: int) -> pd.Series:
+    """Calculate Weighted Moving Average.
+    
+    Uses linearly increasing weights: for period 5, weights are [1, 2, 3, 4, 5].
+    More recent prices have higher weight.
+    """
+    if len(prices) < period:
+        logger.warning(
+            "indicator_insufficient_data type=wma required=%d available=%d", period, len(prices)
+        )
+        raise CalculationError(
+            f"Insufficient data: need {period} periods, got {len(prices)}",
+            {"required": period, "available": len(prices)},
+        )
+    logger.debug("calculate_wma period=%d data_points=%d", period, len(prices))
+    
+    weights = np.arange(1, period + 1)
+    
+    def weighted_avg(x: np.ndarray) -> float:
+        return np.sum(weights * x) / np.sum(weights)
+    
+    return prices.rolling(window=period).apply(weighted_avg, raw=True)
+
+
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Relative Strength Index."""
     if len(prices) < period + 1:

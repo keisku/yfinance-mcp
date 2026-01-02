@@ -323,6 +323,27 @@ class TestOBVCrosscheck:
         )
 
 
+class TestWMACrosscheck:
+    """Validate WMA against pandas-ta.
+
+    WMA uses linearly increasing weights, which is deterministic.
+    We expect exact matches within floating-point precision.
+    """
+
+    def test_wma_10_matches(self, sample_ohlcv: pd.DataFrame) -> None:
+        """WMA(10) should match pandas-ta exactly."""
+        close = sample_ohlcv["Close"]
+
+        our_wma = indicators.calculate_wma(close, 10)
+        expected = ta.wma(close, length=10)
+
+        np.testing.assert_allclose(
+            our_wma.dropna().values,
+            expected.dropna().values,
+            rtol=1e-10,
+        )
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

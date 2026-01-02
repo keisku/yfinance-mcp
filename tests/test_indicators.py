@@ -12,6 +12,7 @@ from yfinance_mcp.indicators import (
     calculate_fibonacci_levels,
     calculate_pivot_points,
     calculate_sma,
+    calculate_wma,
 )
 
 
@@ -23,6 +24,12 @@ class TestErrorHandling:
         prices = pd.Series([1, 2, 3, 4, 5])
         with pytest.raises(CalculationError):
             calculate_sma(prices, 10)
+
+    def test_wma_insufficient_data(self) -> None:
+        """WMA should raise CalculationError when data < period."""
+        prices = pd.Series([1, 2, 3, 4, 5])
+        with pytest.raises(CalculationError):
+            calculate_wma(prices, 10)
 
 
 class TestFibonacci:
