@@ -531,7 +531,7 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, bb, stoch, atr, obv, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, bb, stoch, atr, obv, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -912,7 +912,7 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, bb, stoch, atr, obv, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, bb, stoch, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -981,6 +981,13 @@ def _handle_technicals(args: dict) -> str:
                 result["momentum"] = round(v, 2) if not pd.isna(v) else None
                 if not pd.isna(v):
                     result["momentum_signal"] = "bullish" if v > 0 else "bearish"
+
+            elif ind == "cci":
+                cci = indicators.calculate_cci(df["High"], df["Low"], df["Close"])
+                v = float(_to_scalar(cci.iloc[-1]))
+                result["cci"] = round(v, 1) if not pd.isna(v) else None
+                if not pd.isna(v):
+                    result["cci_signal"] = _signal_level(v, 100, -100)
 
             elif ind == "bb":
                 bb = indicators.calculate_bollinger_bands(df["Close"])

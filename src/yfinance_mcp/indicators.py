@@ -82,6 +82,36 @@ def calculate_momentum(prices: pd.Series, period: int = 10) -> pd.Series:
     return prices - prices.shift(period)
 
 
+def calculate_cci(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20
+) -> pd.Series:
+    """Calculate Commodity Channel Index.
+    
+    CCI = (TP - SMA(TP)) / (0.015 * Mean Deviation)
+    where TP = (High + Low + Close) / 3
+    
+    Values > 100 indicate overbought, < -100 indicate oversold.
+    """
+    if len(close) < period:
+        logger.warning(
+            "indicator_insufficient_data type=cci required=%d available=%d",
+            period,
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {period} periods, got {len(close)}",
+            {"required": period, "available": len(close)},
+        )
+    logger.debug("calculate_cci period=%d data_points=%d", period, len(close))
+    
+    tp = (high + low + close) / 3
+    sma_tp = tp.rolling(window=period).mean()
+    mean_dev = tp.rolling(window=period).apply(lambda x: np.abs(x - x.mean()).mean(), raw=True)
+    
+    cci = (tp - sma_tp) / (0.015 * mean_dev)
+    return cci
+
+
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Relative Strength Index."""
     if len(prices) < period + 1:

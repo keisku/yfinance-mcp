@@ -314,6 +314,15 @@ class TestTechnicalsTool:
         assert "momentum_signal" in parsed
         assert parsed["momentum_signal"] in ["bullish", "bearish"]
 
+    def test_cci_with_signal(self, call) -> None:
+        """CCI should return value and overbought/oversold/neutral signal."""
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["cci"]})
+
+        assert "cci" in parsed
+        assert "cci_signal" in parsed
+        assert parsed["cci_signal"] in ["overbought", "oversold", "neutral"]
+
     def test_bollinger_bands(self, call) -> None:
         """BB should return bands and %B signal."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
@@ -325,7 +334,7 @@ class TestTechnicalsTool:
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
-        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "bb", "stoch", "atr", "obv"]
+        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "bb", "stoch", "atr", "obv"]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 

@@ -364,6 +364,40 @@ class TestMomentumCrosscheck:
         )
 
 
+class TestCCICrosscheck:
+    """Validate CCI mathematical properties.
+
+    Note: CCI implementations vary across libraries due to different
+    mean deviation calculations. Our implementation uses the standard
+    Lambert formula: CCI = (TP - SMA(TP)) / (0.015 * MeanDev)
+
+    We test mathematical properties rather than exact match with pandas-ta.
+    """
+
+    def test_cci_oscillates(self, sample_ohlcv: pd.DataFrame) -> None:
+        """CCI should oscillate around zero."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        cci = indicators.calculate_cci(high, low, close, 20)
+        valid = cci.dropna()
+
+        assert valid.mean() < 100
+        assert valid.mean() > -100
+
+    def test_cci_bounds(self, sample_ohlcv: pd.DataFrame) -> None:
+        """CCI should have reasonable range (typically -200 to +200 most of time)."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        cci = indicators.calculate_cci(high, low, close)
+        valid = cci.dropna()
+
+        assert valid.std() < 500
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 
