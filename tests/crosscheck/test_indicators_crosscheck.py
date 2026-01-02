@@ -344,6 +344,26 @@ class TestWMACrosscheck:
         )
 
 
+class TestMomentumCrosscheck:
+    """Validate Momentum against pandas-ta.
+
+    Momentum is simply close - close[n], fully deterministic.
+    """
+
+    def test_momentum_10_matches(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Momentum(10) should match pandas-ta exactly."""
+        close = sample_ohlcv["Close"]
+
+        our_mom = indicators.calculate_momentum(close, 10)
+        expected = ta.mom(close, length=10)
+
+        np.testing.assert_allclose(
+            our_mom.dropna().values,
+            expected.dropna().values,
+            rtol=1e-10,
+        )
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

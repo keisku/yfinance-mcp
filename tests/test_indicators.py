@@ -10,6 +10,7 @@ import pytest
 from yfinance_mcp.errors import CalculationError
 from yfinance_mcp.indicators import (
     calculate_fibonacci_levels,
+    calculate_momentum,
     calculate_pivot_points,
     calculate_sma,
     calculate_wma,
@@ -30,6 +31,12 @@ class TestErrorHandling:
         prices = pd.Series([1, 2, 3, 4, 5])
         with pytest.raises(CalculationError):
             calculate_wma(prices, 10)
+
+    def test_momentum_insufficient_data(self) -> None:
+        """Momentum should raise CalculationError when data < period + 1."""
+        prices = pd.Series([1, 2, 3, 4, 5])
+        with pytest.raises(CalculationError):
+            calculate_momentum(prices, 10)
 
 
 class TestFibonacci:

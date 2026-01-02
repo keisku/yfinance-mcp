@@ -62,6 +62,26 @@ def calculate_wma(prices: pd.Series, period: int) -> pd.Series:
     return prices.rolling(window=period).apply(weighted_avg, raw=True)
 
 
+def calculate_momentum(prices: pd.Series, period: int = 10) -> pd.Series:
+    """Calculate Momentum indicator.
+    
+    Momentum = current_close - close_n_periods_ago
+    Positive values indicate upward momentum, negative indicates downward.
+    """
+    if len(prices) < period + 1:
+        logger.warning(
+            "indicator_insufficient_data type=momentum required=%d available=%d",
+            period + 1,
+            len(prices),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {period + 1} periods, got {len(prices)}",
+            {"required": period + 1, "available": len(prices)},
+        )
+    logger.debug("calculate_momentum period=%d data_points=%d", period, len(prices))
+    return prices - prices.shift(period)
+
+
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Relative Strength Index."""
     if len(prices) < period + 1:
