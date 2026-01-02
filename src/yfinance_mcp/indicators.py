@@ -355,6 +355,62 @@ def calculate_fast_stochastic(
     return {"k": k, "d": d}
 
 
+def calculate_ichimoku(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    conversion_period: int = 9,
+    base_period: int = 26,
+    leading_b_period: int = 52,
+) -> dict[str, pd.Series]:
+    """Calculate Ichimoku Kinko Hyo (Equilibrium Chart) components.
+    
+    Returns:
+    - conversion_line: 9-period mid-price (fast signal line)
+    - base_line: 26-period mid-price (slow signal line)
+    - leading_span_a: Average of Conversion and Base, shifted 26 periods ahead
+    - leading_span_b: 52-period mid-price, shifted 26 periods ahead
+    - lagging_span: Close shifted back 26 periods
+    
+    Cloud is bullish when Leading Span A > Leading Span B, bearish otherwise.
+    """
+    min_periods = leading_b_period + base_period
+    if len(close) < min_periods:
+        logger.warning(
+            "indicator_insufficient_data type=ichimoku required=%d available=%d",
+            min_periods,
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {min_periods} periods, got {len(close)}",
+            {"required": min_periods, "available": len(close)},
+        )
+    logger.debug(
+        "calculate_ichimoku conversion=%d base=%d leading_b=%d data_points=%d",
+        conversion_period,
+        base_period,
+        leading_b_period,
+        len(close),
+    )
+    
+    def midprice(h: pd.Series, l: pd.Series, period: int) -> pd.Series:
+        return (h.rolling(window=period).max() + l.rolling(window=period).min()) / 2
+    
+    conversion_line = midprice(high, low, conversion_period)
+    base_line = midprice(high, low, base_period)
+    leading_span_a = ((conversion_line + base_line) / 2).shift(base_period)
+    leading_span_b = midprice(high, low, leading_b_period).shift(base_period)
+    lagging_span = close.shift(-base_period)
+    
+    return {
+        "conversion_line": conversion_line,
+        "base_line": base_line,
+        "leading_span_a": leading_span_a,
+        "leading_span_b": leading_span_b,
+        "lagging_span": lagging_span,
+    }
+
+
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Average True Range."""
     if len(close) < period + 1:

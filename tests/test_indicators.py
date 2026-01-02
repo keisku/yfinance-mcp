@@ -13,6 +13,7 @@ from yfinance_mcp.indicators import (
     calculate_dmi,
     calculate_fast_stochastic,
     calculate_fibonacci_levels,
+    calculate_ichimoku,
     calculate_momentum,
     calculate_pivot_points,
     calculate_sma,
@@ -73,6 +74,14 @@ class TestErrorHandling:
         close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
         with pytest.raises(CalculationError):
             calculate_fast_stochastic(high, low, close, 14, 3)
+
+    def test_ichimoku_insufficient_data(self) -> None:
+        """Ichimoku should raise CalculationError when data < senkou_b + kijun."""
+        high = pd.Series([1, 2, 3, 4, 5])
+        low = pd.Series([0.5, 1.5, 2.5, 3.5, 4.5])
+        close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
+        with pytest.raises(CalculationError):
+            calculate_ichimoku(high, low, close)
 
 
 class TestFibonacci:

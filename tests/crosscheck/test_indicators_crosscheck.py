@@ -503,6 +503,41 @@ class TestFastStochasticCrosscheck:
         assert (valid_k <= 100).all()
 
 
+class TestIchimokuCrosscheck:
+    """Validate Ichimoku Cloud components.
+
+    Ichimoku uses rolling high/low midpoints which are deterministic.
+    We test structure and mathematical properties.
+    """
+
+    def test_ichimoku_structure(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Ichimoku should return all expected components."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        ich = indicators.calculate_ichimoku(high, low, close)
+
+        assert "conversion_line" in ich
+        assert "base_line" in ich
+        assert "leading_span_a" in ich
+        assert "leading_span_b" in ich
+        assert "lagging_span" in ich
+
+    def test_conversion_base_relationship(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Conversion (9-period) should be more volatile than Base (26-period)."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        ich = indicators.calculate_ichimoku(high, low, close)
+
+        conversion_var = ich["conversion_line"].diff().dropna().var()
+        base_var = ich["base_line"].diff().dropna().var()
+
+        assert conversion_var >= base_var * 0.5
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

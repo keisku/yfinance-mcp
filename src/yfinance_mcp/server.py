@@ -531,7 +531,7 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, atr, obv, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -912,7 +912,7 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, atr, obv, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1038,6 +1038,30 @@ def _handle_technicals(args: dict) -> str:
                 result["fast_stoch_k"] = round(k, 1)
                 result["fast_stoch_d"] = round(float(_to_scalar(s["d"].iloc[-1])), 1)
                 result["fast_stoch_signal"] = _signal_level(k, 80, 20)
+
+            elif ind == "ichimoku":
+                ich = indicators.calculate_ichimoku(df["High"], df["Low"], df["Close"])
+                conversion = float(_to_scalar(ich["conversion_line"].iloc[-1]))
+                base = float(_to_scalar(ich["base_line"].iloc[-1]))
+                leading_a = float(_to_scalar(ich["leading_span_a"].iloc[-1]))
+                leading_b = float(_to_scalar(ich["leading_span_b"].iloc[-1]))
+                
+                result["ichimoku_conversion"] = _safe_round(conversion, 2)
+                result["ichimoku_base"] = _safe_round(base, 2)
+                result["ichimoku_leading_a"] = _safe_round(leading_a, 2)
+                result["ichimoku_leading_b"] = _safe_round(leading_b, 2)
+                
+                close_val = float(_to_scalar(df["Close"].iloc[-1]))
+                if not pd.isna(leading_a) and not pd.isna(leading_b):
+                    cloud_top = max(leading_a, leading_b)
+                    cloud_bottom = min(leading_a, leading_b)
+                    cloud_color = "bullish" if leading_a > leading_b else "bearish"
+                    if close_val > cloud_top:
+                        result["ichimoku_signal"] = f"above_{cloud_color}_cloud"
+                    elif close_val < cloud_bottom:
+                        result["ichimoku_signal"] = f"below_{cloud_color}_cloud"
+                    else:
+                        result["ichimoku_signal"] = f"in_{cloud_color}_cloud"
 
             elif ind == "atr":
                 atr = indicators.calculate_atr(df["High"], df["Low"], df["Close"])

@@ -256,7 +256,7 @@ class TestTechnicalsTool:
     def _mock_prices(self) -> MagicMock:
         mock = MagicMock()
         np.random.seed(42)
-        n = 50
+        n = 100  # Need 78+ for Ichimoku (52 + 26)
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
         df = pd.DataFrame(
             {
@@ -352,6 +352,17 @@ class TestTechnicalsTool:
         assert "fast_stoch_signal" in parsed
         assert parsed["fast_stoch_signal"] in ["overbought", "oversold", "neutral"]
 
+    def test_ichimoku(self, call) -> None:
+        """Ichimoku should return components and cloud signal."""
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["ichimoku"]})
+
+        assert "ichimoku_conversion" in parsed
+        assert "ichimoku_base" in parsed
+        assert "ichimoku_leading_a" in parsed
+        assert "ichimoku_leading_b" in parsed
+        assert "ichimoku_signal" in parsed
+
     def test_bollinger_bands(self, call) -> None:
         """BB should return bands and %B signal."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
@@ -363,7 +374,7 @@ class TestTechnicalsTool:
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
-        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "fast_stoch", "bb", "stoch", "atr", "obv"]
+        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "fast_stoch", "ichimoku", "bb", "stoch", "atr", "obv"]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 
