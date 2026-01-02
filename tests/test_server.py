@@ -51,7 +51,7 @@ class TestToolDiscovery:
         names = {t.name for t in result}
         assert names == {
             "summary",
-            "price",
+            "history",
             "technicals",
             "fundamentals",
             "financials",
@@ -96,7 +96,7 @@ class TestSummaryTool:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -114,7 +114,7 @@ class TestSummaryTool:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -129,7 +129,7 @@ class TestSummaryTool:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
@@ -143,14 +143,14 @@ class TestSummaryTool:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             parsed = call("summary", {"symbol": "AAPL"})
 
         assert parsed["trend"] == "uptrend"
 
 
-class TestPriceTool:
+class TestHistoryTool:
     """Test price tool - historical OHLCV data."""
 
     def _mock_history(self, n: int = 50) -> MagicMock:
@@ -171,9 +171,9 @@ class TestPriceTool:
         return mock
 
     def test_returns_bars_with_hint(self, call) -> None:
-        """Price should return bars dict with navigation hint."""
+        """History should return bars dict with navigation hint."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("price", {"symbol": "AAPL"})
+            parsed = call("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
         assert "_hint" in parsed
@@ -183,14 +183,14 @@ class TestPriceTool:
     def test_limit_restricts_bars(self, call) -> None:
         """Limit parameter should control number of bars."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("price", {"symbol": "AAPL", "limit": 5})
+            parsed = call("history", {"symbol": "AAPL", "limit": 5})
 
         assert len(parsed["bars"]) == 5
 
     def test_detailed_format(self, call) -> None:
         """format=detailed should use full column names."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("price", {"symbol": "AAPL", "format": "detailed"})
+            parsed = call("history", {"symbol": "AAPL", "format": "detailed"})
 
         first_bar = list(parsed["bars"].values())[0]
         assert "Open" in first_bar and "Close" in first_bar
@@ -199,7 +199,7 @@ class TestPriceTool:
         """start/end should fetch specific date range."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call(
-                "price",
+                "history",
                 {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-31"},
             )
 
@@ -209,7 +209,7 @@ class TestPriceTool:
     def test_start_only_defaults_end_to_today(self, call) -> None:
         """start without end should fetch from start to today."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("price", {"symbol": "AAPL", "start": "2024-01-01"})
+            parsed = call("history", {"symbol": "AAPL", "start": "2024-01-01"})
 
         assert "bars" in parsed
         assert len(parsed["bars"]) > 0
@@ -218,7 +218,7 @@ class TestPriceTool:
         """end without start should compute start = end - period."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
             parsed = call(
-                "price",
+                "history",
                 {"symbol": "AAPL", "end": "2024-06-30", "period": "3mo"},
             )
 
@@ -235,7 +235,7 @@ class TestPriceTool:
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call(
-                "price",
+                "history",
                 {
                     "symbol": "AAPL",
                     "start": "2024-01-15 09:30",
@@ -573,7 +573,7 @@ class TestEdgeCases:
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call("price", {"symbol": "AAPL", "limit": -10})
+            parsed = call("history", {"symbol": "AAPL", "limit": -10})
 
         assert "bars" in parsed
         assert len(parsed["bars"]) >= 1  # At least 1 bar returned
@@ -685,7 +685,7 @@ class TestDataEdgeCases:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             result = self._call("summary", {"symbol": "TEST"})
 
@@ -720,7 +720,7 @@ class TestDataEdgeCases:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             result = self._call("summary", {"symbol": "TEST"})
 
@@ -751,7 +751,7 @@ class TestDataEdgeCases:
 
         with (
             patch("yfinance_mcp.server._ticker", return_value=mock),
-            patch("yfinance_mcp.prices.get_history", return_value=df),
+            patch("yfinance_mcp.history.get_history", return_value=df),
         ):
             result = self._call("summary", {"symbol": "TEST"})
 
@@ -780,7 +780,7 @@ class TestDataEdgeCases:
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            result = self._call("price", {"symbol": "TEST", "limit": 5})
+            result = self._call("history", {"symbol": "TEST", "limit": 5})
 
         bars = result["bars"]
         first_bar = list(bars.values())[0]

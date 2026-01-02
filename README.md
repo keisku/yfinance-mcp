@@ -20,11 +20,10 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 | Tool | Purpose |
 |------|---------|
 | `summary` | Stock overview with Quality Score, PEG, trend |
-| `price` | OHLCV bars with date range support |
+| `history` | OHLCV bars with date range support |
 | `technicals` | RSI, MACD, SMA, Bollinger Bands, etc |
 | `fundamentals` | P/E, EPS, margins, dividends |
 | `financials` | Income/balance/cashflow statements |
-| `peers` | Compare multiple stocks |
 | `search` | Find ticker by company name |
 
 ## Development

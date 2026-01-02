@@ -13,7 +13,7 @@ from dateutil.relativedelta import relativedelta
 if TYPE_CHECKING:
     from .cache import CachedPriceFetcher
 
-logger = logging.getLogger("yfinance_mcp.prices")
+logger = logging.getLogger("yfinance_mcp.history")
 
 _PERIOD_DELTAS = {
     "1d": relativedelta(days=1),
@@ -105,7 +105,7 @@ def _init() -> None:
     _initialized = True
 
     if _is_cache_disabled():
-        logger.debug("prices_init cache=disabled")
+        logger.debug("history_init cache=disabled")
         _fetcher = None
         return
 
@@ -113,9 +113,9 @@ def _init() -> None:
         from .cache import CachedPriceFetcher
 
         _fetcher = CachedPriceFetcher()
-        logger.debug("prices_init cache=enabled")
+        logger.debug("history_init cache=enabled")
     except ImportError as e:
-        logger.warning("prices_init cache=unavailable error=%s", e)
+        logger.warning("history_init cache=unavailable error=%s", e)
         _fetcher = None
 
 

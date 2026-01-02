@@ -21,7 +21,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from . import LOGGER_NAME, indicators, prices
+from . import LOGGER_NAME, history, indicators
 from .cache import get_cache_stats
 from .errors import (
     CalculationError,
@@ -470,9 +470,9 @@ TOOLS = [
         },
     ),
     Tool(
-        name="price",
+        name="history",
         description=(
-            "Get historical price data (Open, High, Low, Close, Volume). "
+            "Get historical OHLCV data (Open, High, Low, Close, Volume). "
             "Supports arbitrary date ranges back to 1990s for daily data."
         ),
         inputSchema={
@@ -793,7 +793,7 @@ def _handle_summary(args: dict) -> str:
         prev_close = None
         market_cap = None
 
-    df = prices.get_history(symbol, "3mo", "1d", ticker=t)
+    df = history.get_history(symbol, "3mo", "1d", ticker=t)
     trend = "unknown"
     sma50 = None
     if not df.empty and len(df) >= 50:
@@ -842,8 +842,8 @@ def _handle_summary(args: dict) -> str:
     return _fmt({k: v for k, v in result.items() if v is not None})
 
 
-def _handle_price(args: dict) -> str:
-    """Handle price tool - historical OHLCV data."""
+def _handle_history(args: dict) -> str:
+    """Handle history tool - historical OHLCV data."""
     symbol, t = _require_symbol(args)
     start = args.get("start")
     end = args.get("end")
@@ -868,7 +868,7 @@ def _handle_price(args: dict) -> str:
         limit,
     )
 
-    df = prices.get_history(symbol, period, interval, ticker=t, start=start, end=end)
+    df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
     if df.empty:
         logger.warning("price_no_data symbol=%s period=%s", symbol, period)
         raise DataUnavailableError(
@@ -917,7 +917,7 @@ def _handle_technicals(args: dict) -> str:
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
 
-    df = prices.get_history(symbol, period, "1d", ticker=t)
+    df = history.get_history(symbol, period, "1d", ticker=t)
     if df.empty:
         logger.warning("technicals_no_data symbol=%s period=%s", symbol, period)
         raise DataUnavailableError(f"No price data for {symbol}. Try period='6mo' for more data.")
@@ -1189,7 +1189,7 @@ def _handle_search(args: dict) -> str:
 
 _TOOL_HANDLERS: dict[str, Any] = {
     "summary": _handle_summary,
-    "price": _handle_price,
+    "history": _handle_history,
     "technicals": _handle_technicals,
     "fundamentals": _handle_fundamentals,
     "financials": _handle_financials,
