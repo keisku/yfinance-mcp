@@ -231,24 +231,24 @@ class TestBollingerCrosscheck:
 
 
 class TestStochasticCrosscheck:
-    """Validate Stochastic Oscillator against pandas-ta.
+    """Validate Slow Stochastic Oscillator against pandas-ta.
 
-    Stochastic uses rolling min/max which is deterministic.
-    We expect close matches with 1% tolerance for %D smoothing differences.
+    Slow Stochastic applies smoothing to %K before computing %D.
+    We use smooth_k=3 to match our implementation.
     """
 
     def test_stochastic_matches(self, sample_ohlcv: pd.DataFrame) -> None:
-        """Stochastic %K should match pandas-ta."""
+        """Slow Stochastic %K should match pandas-ta with smooth_k=3."""
         high = sample_ohlcv["High"]
         low = sample_ohlcv["Low"]
         close = sample_ohlcv["Close"]
 
         our_stoch = indicators.calculate_stochastic(high, low, close, 14, 3)
-        expected = ta.stoch(high, low, close, k=14, d=3, smooth_k=1)
+        expected = ta.stoch(high, low, close, k=14, d=3, smooth_k=3)
 
         np.testing.assert_allclose(
             our_stoch["k"].iloc[20:].values,
-            expected["STOCHk_14_3_1"].iloc[20:].values,
+            expected["STOCHk_14_3_3"].iloc[20:].values,
             rtol=0.01,
         )
 
@@ -567,6 +567,34 @@ class TestVolumeProfileCrosscheck:
 
         assert vp["poc"] >= close.min()
         assert vp["poc"] <= close.max()
+
+
+class TestPriceChangeCrosscheck:
+    """Validate Price Change calculations.
+
+    Price Change is a simple percentage calculation.
+    """
+
+    def test_price_change_structure(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Price Change should return change and percentage."""
+        close = sample_ohlcv["Close"]
+
+        pc = indicators.calculate_price_change(close)
+
+        assert "change" in pc
+        assert "change_pct" in pc
+
+    def test_price_change_accuracy(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Price Change percentage should be mathematically correct."""
+        close = sample_ohlcv["Close"]
+
+        pc = indicators.calculate_price_change(close, period=1)
+        
+        expected_change = float(close.iloc[-1]) - float(close.iloc[-2])
+        expected_pct = (expected_change / float(close.iloc[-2])) * 100
+
+        assert abs(pc["change"] - expected_change) < 0.0001
+        assert abs(pc["change_pct"] - expected_pct) < 0.0001
 
 
 class TestMathematicalInvariants:

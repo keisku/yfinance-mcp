@@ -474,6 +474,33 @@ def calculate_volume_profile(
     }
 
 
+def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float]:
+    """Calculate Price Change over a period.
+    
+    Returns:
+    - change: Absolute price change
+    - change_pct: Percentage change
+    """
+    if len(close) < period + 1:
+        logger.warning(
+            "indicator_insufficient_data type=price_change required=%d available=%d",
+            period + 1,
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {period + 1} periods, got {len(close)}",
+            {"required": period + 1, "available": len(close)},
+        )
+    logger.debug("calculate_price_change period=%d data_points=%d", period, len(close))
+    
+    current = float(close.iloc[-1])
+    previous = float(close.iloc[-1 - period])
+    change = current - previous
+    change_pct = (change / previous) * 100 if previous != 0 else 0
+    
+    return {"change": change, "change_pct": change_pct}
+
+
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Average True Range."""
     if len(close) < period + 1:

@@ -16,6 +16,7 @@ from yfinance_mcp.indicators import (
     calculate_ichimoku,
     calculate_momentum,
     calculate_pivot_points,
+    calculate_price_change,
     calculate_sma,
     calculate_volume_profile,
     calculate_williams_r,
@@ -90,6 +91,12 @@ class TestErrorHandling:
         volume = pd.Series([100, 200, 300, 400, 500])
         with pytest.raises(CalculationError):
             calculate_volume_profile(close, volume)
+
+    def test_price_change_insufficient_data(self) -> None:
+        """Price Change should raise CalculationError when data < period + 1."""
+        close = pd.Series([100.0])
+        with pytest.raises(CalculationError):
+            calculate_price_change(close, period=1)
 
 
 class TestFibonacci:

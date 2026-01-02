@@ -21,10 +21,34 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 |------|---------|
 | `summary` | Stock overview with Quality Score, PEG, trend |
 | `history` | OHLCV bars with date range support |
-| `technicals` | RSI, MACD, SMA, Bollinger Bands, etc |
+| `technicals` | Technical indicators (see below) |
 | `fundamentals` | P/E, EPS, margins, dividends |
 | `financials` | Income/balance/cashflow statements |
 | `search` | Find ticker by company name |
+
+### Technical Indicators
+
+| Indicator | Description |
+|-----------|-------------|
+| `rsi` | Relative Strength Index (14-period) |
+| `macd` | Moving Average Convergence Divergence |
+| `sma_N` | Simple Moving Average (e.g., `sma_20`) |
+| `ema_N` | Exponential Moving Average (e.g., `ema_12`) |
+| `wma_N` | Weighted Moving Average (e.g., `wma_10`) |
+| `momentum` | Price momentum (10-period) |
+| `cci` | Commodity Channel Index |
+| `dmi` | Directional Movement Index (+DI, -DI, ADX) |
+| `williams` | Williams %R oscillator |
+| `bb` | Bollinger Bands |
+| `stoch` | Slow Stochastic |
+| `fast_stoch` | Fast Stochastic |
+| `ichimoku` | Ichimoku Cloud components |
+| `atr` | Average True Range |
+| `obv` | On-Balance Volume |
+| `volume_profile` | Volume Profile (POC, Value Area) |
+| `price_change` | Price change and percentage |
+| `fibonacci` | Fibonacci retracement levels |
+| `pivot` | Pivot points (Standard, Fibonacci, Camarilla, Woodie) |
 
 ## Development
 
