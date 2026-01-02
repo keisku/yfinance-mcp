@@ -17,19 +17,21 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 
 ## Tools
 
+Each tool has a single responsibility with no overlap.
+
 | Tool | Purpose |
 |------|---------|
-| `summary` | Stock overview with Quality Score, PEG, trend |
-| `history` | OHLCV bars with date range support |
-| `technicals` | Technical indicators (see below) |
-| `fundamentals` | P/E, EPS, margins, dividends |
+| `search_stock` | Find stock by symbol or company name, returns identity + current price |
+| `history` | Historical OHLCV bars |
+| `technicals` | Technical indicators and signals |
+| `valuation` | Valuation metrics and quality score |
 | `financials` | Income/balance/cashflow statements |
-| `search` | Find ticker by company name |
 
 ### Technical Indicators
 
 | Indicator | Description |
 |-----------|-------------|
+| `trend` | SMA50-based trend direction (uptrend/downtrend) |
 | `rsi` | [Relative Strength Index](https://www.investopedia.com/terms/r/rsi.asp) (14-period) |
 | `macd` | [Moving Average Convergence Divergence](https://www.investopedia.com/terms/m/macd.asp) |
 | `sma_N` | [Simple Moving Average](https://www.investopedia.com/terms/s/sma.asp) (e.g., `sma_20`) |
@@ -49,6 +51,19 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 | `price_change` | [Price Change](https://www.investopedia.com/terms/p/price-change.asp) and percentage |
 | `fibonacci` | [Fibonacci Retracement](https://www.investopedia.com/terms/f/fibonacciretracement.asp) levels |
 | `pivot` | [Pivot Points](https://www.investopedia.com/terms/p/pivotpoint.asp) (Standard, Fibonacci, Camarilla, Woodie) |
+
+### Valuation Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `pe` | P/E ratios (trailing and forward) |
+| `eps` | Earnings per share |
+| `peg` | [PEG ratio](https://www.investopedia.com/terms/p/pegratio.asp) (<1 undervalued, >2 overvalued) |
+| `margins` | Gross, operating, and net margins |
+| `growth` | Revenue and earnings growth |
+| `ratios` | P/B, P/S, EV/EBITDA |
+| `dividends` | Yield, rate, payout ratio |
+| `quality` | 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE |
 
 ## Development
 

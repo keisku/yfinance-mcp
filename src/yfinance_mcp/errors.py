@@ -46,8 +46,8 @@ class SymbolNotFoundError(MCPError):
     def __init__(self, symbol: str):
         super().__init__(
             ErrorCode.SYMBOL_NOT_FOUND,
-            f"Try search tool with company name to find correct ticker for '{symbol}'",
-            {"symbol": symbol, "suggestion": "use search tool"},
+            f"No results for '{symbol}'. Try a more specific query.",
+            {"symbol": symbol},
         )
 
 

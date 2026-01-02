@@ -453,41 +453,53 @@ def _parse_moving_avg_period(indicator: str) -> int | None:
 
 TOOLS = [
     Tool(
-        name="summary",
+        name="search_stock",
         description=(
-            "Stock overview: price, PE, PEG, market cap, trend, quality score (0-7). "
-            "Call for multiple symbols to compare peers. PEG<1 undervalued, >2 overvalued."
+            "Find stock by symbol or company name. "
+            "Returns identity (name, sector, industry, exchange, currency) "
+            "and current price snapshot (price, change, change_pct, market_cap, volume)."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "symbol": {
                     "type": "string",
-                    "description": "Stock ticker (e.g., AAPL, MSFT, 7203.T)",
+                    "description": (
+                        "Stock ticker (e.g., AAPL, MSFT, 7203.T). "
+                        "Required if query is not provided."
+                    ),
+                },
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Company name to search (e.g., 'Apple', 'Tesla'). "
+                        "Required if symbol is not provided. "
+                        "Works globally: US, Japan (.T), Germany (.DE), Singapore (.SI), etc. "
+                        "Tip: Use core name without suffixes for best results "
+                        "(e.g., 'Toyota' instead of 'Toyota Motor Corporation')."
+                    ),
                 },
             },
-            "required": ["symbol"],
         },
     ),
     Tool(
         name="history",
         description=(
-            "Get historical OHLCV data (Open, High, Low, Close, Volume). "
-            "Supports arbitrary date ranges back to 1990s for daily data."
+            "Historical OHLCV bars. Supports 1m-1mo intervals, arbitrary date ranges back to 1990s."
         ),
         inputSchema={
             "type": "object",
             "properties": {
-                "symbol": {"type": "string", "description": "Stock ticker (e.g., AAPL, MSFT)"},
+                "symbol": {"type": "string", "description": "Stock ticker"},
                 "period": {
                     "type": "string",
                     "default": "1mo",
                     "enum": ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "ytd", "max"],
-                    "description": "Relative period from today. Ignored if start provided.",
+                    "description": "Relative period. Ignored if start provided.",
                 },
                 "start": {
                     "type": "string",
-                    "description": "Start date (YYYY-MM-DD) or datetime (YYYY-MM-DD HH:MM).",
+                    "description": "Start date (YYYY-MM-DD).",
                 },
                 "end": {
                     "type": "string",
@@ -497,18 +509,18 @@ TOOLS = [
                     "type": "string",
                     "default": "1d",
                     "enum": ["1m", "5m", "15m", "1h", "1d", "1wk", "1mo"],
-                    "description": "Bar size. Intraday (1m-1h) limited to 60 days.",
+                    "description": "Bar size. Intraday limited to 60 days.",
                 },
                 "limit": {
                     "type": "integer",
                     "default": 20,
-                    "description": "Number of bars to return (max 500).",
+                    "description": "Number of bars (max 500).",
                 },
                 "format": {
                     "type": "string",
                     "enum": ["concise", "detailed"],
                     "default": "concise",
-                    "description": "concise: o/h/l/c/v keys. detailed: full names.",
+                    "description": "concise: o/h/l/c/v. detailed: full names.",
                 },
             },
             "required": ["symbol"],
@@ -517,32 +529,21 @@ TOOLS = [
     Tool(
         name="technicals",
         description=(
-            "Calculate technical indicators for trading signals. "
-            "SMA (Simple Moving Average), EMA (Exponential Moving Average), "
-            "WMA (Weighted Moving Average): trend indicators, price above = uptrend. "
-            "RSI (Relative Strength Index): momentum oscillator, >70 overbought, <30 oversold. "
-            "MACD (Moving Average Convergence Divergence): trend/momentum, "
-            "histogram>0 bullish. "
-            "BB (Bollinger Bands): volatility bands showing price ranges. "
-            "Stochastic Oscillator (Slow): momentum, %K/%D >80 overbought, "
-            "<20 oversold. "
-            "Fast Stochastic Oscillator: more responsive, %K/%D >80 overbought, "
-            "<20 oversold. "
-            "CCI (Commodity Channel Index): >100 overbought, <-100 oversold. "
-            "DMI (Directional Movement Index): +DI/-DI trend direction, "
-            "ADX>25 strong trend. "
-            "Williams %R: momentum oscillator, >-20 overbought, <-80 oversold. "
-            "Momentum: rate of price change indicator. "
-            "Price Change: absolute and percentage change over period. "
-            "Ichimoku Kinko Hyo (Equilibrium Chart): comprehensive cloud, "
-            "price above cloud = bullish. "
-            "ATR (Average True Range): volatility measure. "
-            "OBV (On-Balance Volume): volume-price trend confirmation. "
-            "Volume Profile: trading activity distribution at price levels. "
-            "Fibonacci Retracement: support/resistance at key ratios "
-            "(23.6%, 38.2%, 50%, 61.8%). "
-            "Pivot Points: calculated support/resistance levels. "
-            "Use 'summary' first for fundamental context."
+            "Technical indicators and signals. "
+            "trend: SMA50-based trend direction. "
+            "rsi: >70 overbought, <30 oversold. "
+            "macd: histogram>0 bullish. "
+            "sma_N, ema_N, wma_N: moving averages. "
+            "bb: Bollinger Bands. "
+            "stoch, fast_stoch: Stochastic oscillators, >80 overbought, <20 oversold. "
+            "cci: >100 overbought, <-100 oversold. "
+            "dmi: ADX>25 strong trend. "
+            "williams: >-20 overbought, <-80 oversold. "
+            "ichimoku: cloud analysis. "
+            "atr: volatility. obv: volume trend. "
+            "momentum, price_change: rate of change. "
+            "volume_profile: price-level activity. "
+            "fibonacci, pivot: support/resistance levels."
         ),
         inputSchema={
             "type": "object",
@@ -552,9 +553,9 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, "
-                        "williams, bb, stoch, fast_stoch, ichimoku, atr, obv, "
-                        "volume_profile, price_change, fibonacci, pivot"
+                        "Options: trend, rsi, macd, sma_N, ema_N, wma_N, bb, stoch, "
+                        "fast_stoch, cci, dmi, williams, ichimoku, atr, obv, "
+                        "momentum, volume_profile, price_change, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -563,13 +564,14 @@ TOOLS = [
         },
     ),
     Tool(
-        name="fundamentals",
+        name="valuation",
         description=(
-            "Get detailed fundamental valuation metrics. "
-            "pe: P/E ratio. eps: earnings per share. margins: gross/operating/net. "
-            "growth: revenue/earnings growth. valuation: P/B, P/S, EV/EBITDA. "
-            "dividends: yield, rate, payout ratio. "
-            "Use 'summary' for quick PEG/quality analysis."
+            "Valuation metrics and financial quality. "
+            "pe: P/E ratios. eps: earnings per share. "
+            "peg: PE-to-growth ratio (<1 undervalued, >2 overvalued). "
+            "margins: gross/operating/net. growth: revenue/earnings. "
+            "ratios: P/B, P/S, EV/EBITDA. dividends: yield, rate, payout. "
+            "quality: 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE."
         ),
         inputSchema={
             "type": "object",
@@ -578,7 +580,9 @@ TOOLS = [
                 "metrics": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Options: pe, eps, margins, growth, valuation, dividends",
+                    "description": (
+                        "Options: pe, eps, peg, margins, growth, ratios, dividends, quality"
+                    ),
                 },
             },
             "required": ["symbol", "metrics"],
@@ -587,10 +591,8 @@ TOOLS = [
     Tool(
         name="financials",
         description=(
-            "Get financial statements: income, balance, or cashflow. "
-            "income: revenue, net income. balance: assets, liabilities. "
-            "cashflow: operating/investing/financing. Use 'fields' to filter rows. "
-            "Note: Yahoo API limits to 4 years annual or 5 quarters."
+            "Financial statements: income, balance, cashflow. "
+            "Raw data rows. Use 'fields' to filter specific items."
         ),
         inputSchema={
             "type": "object",
@@ -605,36 +607,20 @@ TOOLS = [
                 "periods": {
                     "type": "integer",
                     "default": 4,
-                    "description": "Number of time periods/years to return (default 4, max ~10)",
+                    "description": "Number of periods (default 4)",
                 },
                 "limit": {
                     "type": "integer",
                     "default": 10,
-                    "description": "Max rows to return (for token efficiency)",
+                    "description": "Max rows to return",
                 },
                 "fields": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Filter to specific rows (e.g., ['TotalRevenue', 'NetIncome'])",
+                    "description": "Filter rows (e.g., ['TotalRevenue', 'NetIncome'])",
                 },
             },
             "required": ["symbol"],
-        },
-    ),
-    Tool(
-        name="search",
-        description=(
-            "Find stock ticker symbols by company name. "
-            "Enter company name, returns matching tickers. "
-            "Use returned symbol with 'summary' for full analysis."
-        ),
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Company name to search"},
-                "limit": {"type": "integer", "default": 5},
-            },
-            "required": ["query"],
         },
     ),
 ]
@@ -717,150 +703,178 @@ def _summarize_args(args: dict) -> str:
     return json.dumps(summary, separators=(",", ":"))
 
 
-def _handle_summary(args: dict) -> str:
-    """Handle summary tool - quick stock overview with PEG, trend, and quality score."""
-    symbol, t = _require_symbol(args)
-    logger.debug("summary_fetch symbol=%s", symbol)
+def _calculate_quality(info: dict) -> tuple[int, list[str]]:
+    """Calculate quality score (0-7) based on fundamental metrics."""
+    score = 0
+    details = []
 
+    roa = _safe_get(info, "returnOnAssets")
+    if _safe_gt(roa, 0):
+        score += 1
+        details.append("ROA>0")
+
+    ocf = _safe_get(info, "operatingCashflow")
+    if _safe_gt(ocf, 0):
+        score += 1
+        details.append("CashFlow>0")
+
+    net_income = _safe_get(info, "netIncomeToCommon")
+    if _safe_gt(ocf, net_income):
+        score += 1
+        details.append("CashFlow>NetIncome")
+
+    current_ratio = _safe_get(info, "currentRatio")
+    if _safe_gt(current_ratio, 1):
+        score += 1
+        details.append("CurrentRatio>1")
+
+    debt_equity = _safe_get(info, "debtToEquity")
+    if _safe_lt(debt_equity, 100) and debt_equity is not None:
+        score += 1
+        details.append("DebtEquity<100%")
+
+    gross_margin = _safe_get(info, "grossMargins")
+    if _safe_gt(gross_margin, 0.2):
+        score += 1
+        details.append("GrossMargin>20%")
+
+    roe = _safe_get(info, "returnOnEquity")
+    if _safe_gt(roe, 0.1):
+        score += 1
+        details.append("ROE>10%")
+
+    return score, details
+
+
+# Common suffixes that can cause search to fail
+_SEARCH_STRIP_SUFFIXES = (
+    "bank",
+    "inc",
+    "inc.",
+    "corp",
+    "corp.",
+    "corporation",
+    "ltd",
+    "ltd.",
+    "limited",
+    "group",
+    "holdings",
+    "holding",
+    "ag",
+    "sa",
+    "plc",
+    "co",
+    "co.",
+    "company",
+)
+
+
+def _smart_search(query: str, max_results: int = 1) -> list[dict]:
+    """Search with fallback strategies for better results.
+
+    1. Try original query
+    2. If no results, strip common suffixes (Bank, Inc, Corp, etc.)
+    3. If still no results, try first word only
+    """
+    # Try original query
+    search = yf.Search(query, max_results=max_results)
+    if search.quotes:
+        logger.debug("search_found query=%r results=%d", query, len(search.quotes))
+        return search.quotes
+
+    # Try stripping common suffixes
+    words = query.lower().split()
+    stripped = [w for w in words if w not in _SEARCH_STRIP_SUFFIXES]
+    if stripped and stripped != words:
+        stripped_query = " ".join(stripped)
+        search = yf.Search(stripped_query, max_results=max_results)
+        if search.quotes:
+            logger.debug(
+                "search_found_stripped query=%r stripped=%r results=%d",
+                query,
+                stripped_query,
+                len(search.quotes),
+            )
+            return search.quotes
+
+    # Try first word only (for cases like "Toyota Motor Corporation")
+    if len(words) > 1:
+        first_word = words[0]
+        if first_word not in _SEARCH_STRIP_SUFFIXES and len(first_word) >= 3:
+            search = yf.Search(first_word, max_results=max_results)
+            if search.quotes:
+                logger.debug(
+                    "search_found_first_word query=%r first=%r results=%d",
+                    query,
+                    first_word,
+                    len(search.quotes),
+                )
+                return search.quotes
+
+    logger.debug("search_not_found query=%r", query)
+    return []
+
+
+def _handle_search_stock(args: dict) -> str:
+    """Handle search_stock tool - find stock and return identity + current price."""
+    symbol = args.get("symbol")
+    query = args.get("query")
+
+    if not symbol and not query:
+        raise ValidationError("Either symbol or query required")
+
+    if query and not symbol:
+        quotes = _smart_search(query, max_results=1)
+        if not quotes:
+            raise SymbolNotFoundError(query)
+        symbol = quotes[0].get("symbol")
+        if not symbol:
+            raise SymbolNotFoundError(query)
+
+    logger.debug("search_stock symbol=%s query=%s", symbol, query)
+
+    t = _ticker(symbol)
     try:
         fi = t.fast_info
         info = t.info
         if not info or _safe_get(info, "regularMarketPrice") is None:
             raise SymbolNotFoundError(symbol)
     except (KeyError, TypeError, ValueError) as e:
-        logger.warning("summary_invalid_symbol symbol=%s error=%s", symbol, e)
+        logger.warning("search_stock_invalid symbol=%s error=%s", symbol, e)
         raise SymbolNotFoundError(symbol)
-    logger.debug("summary_info symbol=%s has_pe=%s", symbol, "trailingPE" in info)
 
-    quality_score = 0
-    quality_details = []
-
-    roa = _safe_get(info, "returnOnAssets")
-    if _safe_gt(roa, 0):
-        quality_score += 1
-        quality_details.append("ROA>0")
-
-    ocf = _safe_get(info, "operatingCashflow")
-    if _safe_gt(ocf, 0):
-        quality_score += 1
-        quality_details.append("CashFlow>0")
-
-    net_income = _safe_get(info, "netIncomeToCommon")
-    if _safe_gt(ocf, net_income):
-        quality_score += 1
-        quality_details.append("CashFlow>NetIncome")
-
-    current_ratio = _safe_get(info, "currentRatio")
-    if _safe_gt(current_ratio, 1):
-        quality_score += 1
-        quality_details.append("CurrentRatio>1")
-
-    debt_equity = _safe_get(info, "debtToEquity")
-    if _safe_lt(debt_equity, 100) and debt_equity is not None:
-        quality_score += 1
-        quality_details.append("DebtEquity<100%")
-
-    gross_margin = _safe_get(info, "grossMargins")
-    if _safe_gt(gross_margin, 0.2):
-        quality_score += 1
-        quality_details.append("GrossMargin>20%")
-
-    roe = _safe_get(info, "returnOnEquity")
-    if _safe_gt(roe, 0.1):
-        quality_score += 1
-        quality_details.append("ROE>10%")
-
-    pe = _safe_get(info, "trailingPE")
-    forward_pe = _safe_get(info, "forwardPE")
-    earnings_growth = _safe_get(info, "earningsGrowth")
-    revenue_growth = _safe_get(info, "revenueGrowth")
-
-    peg = None
-    peg_source = None
-    pe_for_peg = pe if pe else forward_pe
-
-    if pe_for_peg:
-        if _safe_gt(earnings_growth, 0):
-            peg = round(float(pe_for_peg) / (float(earnings_growth) * 100), 2)
-            peg_source = "earnings"
-        elif _safe_gt(revenue_growth, 0):
-            peg = round(float(pe_for_peg) / (float(revenue_growth) * 100), 2)
-            peg_source = "revenue"
-
-    pe_note = None
-    if not pe:
-        net_income_for_pe = _safe_get(info, "netIncomeToCommon")
-        if _safe_lt(net_income_for_pe, 0):
-            pe_note = "unprofitable"
-        elif forward_pe:
-            pe_note = "use_forward_pe"
-
-    peg_note = None
-    if not peg:
-        if not pe_for_peg:
-            peg_note = "no_pe"
-        elif earnings_growth is not None and not _safe_gt(earnings_growth, 0):
-            peg_note = "negative_earnings_growth"
-        elif revenue_growth is not None and not _safe_gt(revenue_growth, 0):
-            peg_note = "negative_growth"
-        else:
-            peg_note = "no_growth_data"
-
-    # fast_info returns Series for some stocks
     try:
         last_price = _safe_scalar(fi.last_price)
         prev_close = _safe_scalar(fi.previous_close)
         market_cap = _safe_scalar(fi.market_cap)
+        day_high = _safe_scalar(fi.day_high)
+        day_low = _safe_scalar(fi.day_low)
+        volume = _safe_scalar(fi.last_volume)
     except Exception:
         last_price = None
         prev_close = None
         market_cap = None
-
-    df = history.get_history(symbol, "3mo", "1d", ticker=t)
-    trend = "unknown"
-    sma50 = None
-    if not df.empty and len(df) >= 50:
-        sma50 = df["Close"].tail(50).mean()
-        trend = "uptrend" if last_price and last_price > sma50 else "downtrend"
-
-    if quality_score >= 6:
-        quality_signal = "strong"
-    elif quality_score >= 3:
-        quality_signal = "neutral"
-    else:
-        quality_signal = "weak"
+        day_high = None
+        day_low = None
+        volume = None
 
     price_decimals = _adaptive_decimals(float(last_price)) if last_price else 2
 
     result = {
+        "symbol": symbol.upper(),
+        "name": _safe_get(info, "shortName") or _safe_get(info, "longName"),
+        "sector": _safe_get(info, "sector"),
+        "industry": _safe_get(info, "industry"),
+        "exchange": _safe_get(info, "exchange"),
+        "currency": _safe_get(info, "currency"),
         "price": round(last_price, price_decimals) if last_price else None,
         "change_pct": round((last_price / prev_close - 1) * 100, 2)
         if last_price and prev_close
         else None,
+        "day_high": round(day_high, price_decimals) if day_high else None,
+        "day_low": round(day_low, price_decimals) if day_low else None,
+        "volume": int(volume) if volume else None,
         "market_cap": int(market_cap) if market_cap else None,
-        "pe": round(pe, 1) if pe else None,
-        "pe_forward": round(forward_pe, 1) if forward_pe and not pe else None,
-        "pe_note": pe_note,
-        "peg": peg,
-        "peg_source": peg_source,
-        "peg_note": peg_note if not peg else None,
-        "peg_signal": "undervalued"
-        if peg and peg < 1
-        else "overvalued"
-        if peg and peg > 2
-        else "fair"
-        if peg
-        else None,
-        "sector": _safe_get(info, "sector"),
-        "industry": _safe_get(info, "industry"),
-        "trend": trend,
-        "sma50": round(sma50, price_decimals) if sma50 else None,
-        "quality_score": quality_score,
-        "quality_max": 7,
-        "quality_signal": quality_signal,
-        "quality_details": ",".join(quality_details) if quality_details else None,
-        "roe": round(roe * 100, 1) if roe else None,
-        "_hint": "peg_signal + trend = primary view. quality_score = financial health check.",
     }
     return _fmt({k: v for k, v in result.items() if v is not None})
 
@@ -894,9 +908,7 @@ def _handle_history(args: dict) -> str:
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
     if df.empty:
         logger.warning("price_no_data symbol=%s period=%s", symbol, period)
-        raise DataUnavailableError(
-            f"No price data for {symbol}. Try different period or check with 'search'."
-        )
+        raise DataUnavailableError(f"No price data for {symbol}. Try different period.")
     logger.debug("price_fetched symbol=%s bars=%d", symbol, len(df))
 
     total_bars = len(df)
@@ -921,7 +933,6 @@ def _handle_history(args: dict) -> str:
     result: dict[str, Any] = {"bars": df.to_dict("index")}
     if total_bars > limit:
         result["_truncated"] = f"Showing {limit} of {total_bars}. Increase limit for more."
-    result["_hint"] = "Use 'technicals' for indicators or 'summary' for fundamentals"
     return _fmt(result)
 
 
@@ -935,9 +946,9 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, "
-            "williams, bb, stoch, fast_stoch, ichimoku, atr, obv, "
-            "volume_profile, price_change, fibonacci, pivot"
+            "Options: trend, rsi, macd, sma_N, ema_N, wma_N, bb, stoch, "
+            "fast_stoch, cci, dmi, williams, ichimoku, atr, obv, "
+            "momentum, volume_profile, price_change, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1151,6 +1162,19 @@ def _handle_technicals(args: dict) -> str:
                 result["pivot_method"] = method
                 result["pivot_levels"] = {k: round(v, 2) for k, v in pivot.items()}
 
+            elif ind == "trend":
+                if len(df) >= 50:
+                    sma50 = indicators.calculate_sma(df["Close"], 50)
+                    sma50_val = float(_to_scalar(sma50.iloc[-1]))
+                    close = float(_to_scalar(df["Close"].iloc[-1]))
+                    result["sma50"] = round(sma50_val, 2) if not pd.isna(sma50_val) else None
+                    if not pd.isna(sma50_val):
+                        result["trend"] = "uptrend" if close > sma50_val else "downtrend"
+                        result["price_vs_sma50"] = round((close / sma50_val - 1) * 100, 2)
+                else:
+                    result["trend"] = None
+                    result["_trend_error"] = f"need_50_bars_have_{len(df)}"
+
             else:
                 _add_unknown(result, ind)
 
@@ -1170,14 +1194,11 @@ def _handle_technicals(args: dict) -> str:
             else:
                 raise
 
-    result["_hint"] = (
-        "Use 'summary' for PEG/quality analysis or 'peers' to compare with competitors"
-    )
     return _fmt(result)
 
 
-def _handle_fundamentals(args: dict) -> str:
-    """Handle fundamentals tool - valuation metrics."""
+def _handle_valuation(args: dict) -> str:
+    """Handle valuation tool - valuation metrics and quality score."""
     symbol = args.get("symbol")
     if not symbol:
         raise ValidationError("symbol required")
@@ -1188,7 +1209,7 @@ def _handle_fundamentals(args: dict) -> str:
 
     if not metrics:
         raise ValidationError(
-            "metrics required. Options: pe, eps, margins, growth, valuation, dividends"
+            "metrics required. Options: pe, eps, margins, growth, ratios, dividends, quality"
         )
 
     result: dict[str, Any] = {}
@@ -1196,7 +1217,35 @@ def _handle_fundamentals(args: dict) -> str:
     if "all" in metrics or "pe" in metrics:
         result["pe"] = _safe_get(info, "trailingPE")
         result["pe_fwd"] = _safe_get(info, "forwardPE")
-        result["peg"] = _safe_get(info, "pegRatio")
+
+    if "all" in metrics or "peg" in metrics:
+        pe = _safe_get(info, "trailingPE")
+        forward_pe = _safe_get(info, "forwardPE")
+        earnings_growth = _safe_get(info, "earningsGrowth")
+        revenue_growth = _safe_get(info, "revenueGrowth")
+
+        peg = None
+        peg_source = None
+        pe_for_peg = pe if pe else forward_pe
+
+        if pe_for_peg:
+            if _safe_gt(earnings_growth, 0):
+                peg = round(float(pe_for_peg) / (float(earnings_growth) * 100), 2)
+                peg_source = "earnings"
+            elif _safe_gt(revenue_growth, 0):
+                peg = round(float(pe_for_peg) / (float(revenue_growth) * 100), 2)
+                peg_source = "revenue"
+
+        result["peg"] = peg
+        if peg_source:
+            result["peg_source"] = peg_source
+        if peg:
+            if peg < 1:
+                result["peg_signal"] = "undervalued"
+            elif peg > 2:
+                result["peg_signal"] = "overvalued"
+            else:
+                result["peg_signal"] = "fair"
 
     if "all" in metrics or "eps" in metrics:
         result["eps"] = _safe_get(info, "trailingEps")
@@ -1211,7 +1260,7 @@ def _handle_fundamentals(args: dict) -> str:
         result["growth_rev"] = _safe_get(info, "revenueGrowth")
         result["growth_earn"] = _safe_get(info, "earningsGrowth")
 
-    if "all" in metrics or "valuation" in metrics:
+    if "all" in metrics or "ratios" in metrics:
         result["pb"] = _safe_get(info, "priceToBook")
         result["ps"] = _safe_get(info, "priceToSalesTrailing12Months")
         result["ev_ebitda"] = _safe_get(info, "enterpriseToEbitda")
@@ -1227,7 +1276,18 @@ def _handle_fundamentals(args: dict) -> str:
         if payout is not None:
             result["payout_ratio"] = round(payout * 100, 1)
 
-    result["_hint"] = "Use 'financials' for full statements or 'peers' to compare with competitors"
+    if "all" in metrics or "quality" in metrics:
+        score, details = _calculate_quality(info)
+        result["quality_score"] = score
+        result["quality_max"] = 7
+        if score >= 6:
+            result["quality_signal"] = "strong"
+        elif score >= 3:
+            result["quality_signal"] = "neutral"
+        else:
+            result["quality_signal"] = "weak"
+        result["quality_details"] = ",".join(details) if details else None
+
     return _fmt(result)
 
 
@@ -1278,45 +1338,15 @@ def _handle_financials(args: dict) -> str:
     data = df.to_dict()
     if total_rows > limit:
         data["_truncated"] = f"Showing {limit} of {total_rows}. Increase limit for more."
-    data["_hint"] = "Use 'fundamentals' for key ratios or try 'balance'/'cashflow' statements"
     return _fmt(data)
 
 
-def _handle_search(args: dict) -> str:
-    """Handle search tool - symbol discovery."""
-    query = args.get("query", "")
-    limit = max(1, min(args.get("limit", 5), 20))
-
-    if not query:
-        raise ValidationError("query required. Example: 'Apple' or 'Tesla'")
-
-    search = yf.Search(query, max_results=limit)
-    quotes = search.quotes[:limit]
-
-    matches = [
-        {
-            "symbol": q.get("symbol"),
-            "name": q.get("shortname") or q.get("longname"),
-            "type": q.get("quoteType"),
-        }
-        for q in quotes
-    ]
-    return _fmt(
-        {
-            "matches": matches,
-            "count": len(matches),
-            "_hint": f"Found {len(matches)}. Use 'summary' with symbol for analysis.",
-        }
-    )
-
-
 _TOOL_HANDLERS: dict[str, Any] = {
-    "summary": _handle_summary,
+    "search_stock": _handle_search_stock,
     "history": _handle_history,
     "technicals": _handle_technicals,
-    "fundamentals": _handle_fundamentals,
+    "valuation": _handle_valuation,
     "financials": _handle_financials,
-    "search": _handle_search,
 }
 
 
