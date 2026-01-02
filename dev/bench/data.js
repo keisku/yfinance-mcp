@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767264787188,
+  "lastUpdate": 1767320277085,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -2454,6 +2454,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.000273987671265605",
             "extra": "mean: 27.355734200003212 msec\nrounds: 10"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "825380329cf1aff7cc20948aaf69e80879fc5aed",
+          "message": "Add Investopedia references to technical indicators\n\n- README: Add hyperlinks to Investopedia definitions for all 19 indicators\n- server.py: Expand technicals tool description with key signal thresholds\n\nReferences: https://www.investopedia.com/terms",
+          "timestamp": "2026-01-02T11:16:32+09:00",
+          "tree_id": "549a8e9240567ab162ff46c376f62abeb4b307fe",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/825380329cf1aff7cc20948aaf69e80879fc5aed"
+        },
+        "date": 1767320276785,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 27.439157235909374,
+            "unit": "iter/sec",
+            "range": "stddev: 0.07200138351403243",
+            "extra": "mean: 36.444268000013835 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 227.1885126220006,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003765241931611165",
+            "extra": "mean: 4.401630999996087 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 225.69802191499426,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003474441092547301",
+            "extra": "mean: 4.430698999996707 msec\nrounds: 8"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 87.71230579162453,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001051234921055398",
+            "extra": "mean: 11.400908811765476 msec\nrounds: 85"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 257.72364042284073,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000528803421422727",
+            "extra": "mean: 3.8801252316602586 msec\nrounds: 259"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 259.1016432161357,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000055852587190477726",
+            "extra": "mean: 3.8594892243343533 msec\nrounds: 263"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 33.890386682059614,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0012570377990479878",
+            "extra": "mean: 29.5068925999999 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 37.11071616421863,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00018463835484605972",
+            "extra": "mean: 26.94639455554832 msec\nrounds: 9"
           }
         ]
       }
