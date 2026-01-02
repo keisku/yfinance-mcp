@@ -1,18 +1,12 @@
 """Yahoo Finance MCP Server"""
 
 import contextvars
-import json
 import logging
 import os
-import platform
-import sys
-import tempfile
 import threading
 import time
 import uuid
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -21,7 +15,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from . import LOGGER_NAME, history, indicators
+from . import history, indicators
 from .cache import get_cache_stats
 from .errors import (
     CalculationError,
@@ -29,6 +23,26 @@ from .errors import (
     MCPError,
     SymbolNotFoundError,
     ValidationError,
+)
+from .helpers import (
+    adaptive_decimals,
+    add_unknown,
+    calculate_quality,
+    configure_logging,
+    err,
+    fmt,
+    get_default_log_path,
+    normalize_df,
+    parse_moving_avg_period,
+    round_result,
+    safe_get,
+    safe_gt,
+    safe_round,
+    safe_scalar,
+    signal_level,
+    smart_search,
+    summarize_args,
+    to_scalar,
 )
 
 _request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
@@ -63,134 +77,10 @@ def _update_stats(
                     _debug_stats[key] = value
 
 
-def _get_default_log_path() -> str:
-    """Return platform-appropriate default log path."""
-    log_name = "yfinance-mcp.log"
-    if platform.system() == "Windows":
-        # Use %LOCALAPPDATA%/yfinance-mcp or fallback to temp
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            log_dir = Path(local_app_data) / "yfinance-mcp" / "logs"
-        else:
-            log_dir = Path(tempfile.gettempdir()) / "yfinance-mcp"
-    else:
-        # Unix-like: use /tmp or XDG_STATE_HOME
-        xdg_state = os.environ.get("XDG_STATE_HOME")
-        if xdg_state:
-            log_dir = Path(xdg_state) / "yfinance-mcp"
-        else:
-            log_dir = Path("/tmp")
-    return str(log_dir / log_name)
-
-
-def _get_log_level() -> int:
-    """Determine log level from environment."""
-    level_str = os.environ.get("MCP_LOG_LEVEL", "").upper()
-    valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
-    if level_str in valid_levels:
-        return getattr(logging, level_str)
-    if level_str:
-        sys.stderr.write(
-            f"[yfinance-mcp] Invalid MCP_LOG_LEVEL='{level_str}', "
-            f"expected one of {valid_levels}. Using WARNING.\n"
-        )
-    if os.environ.get("MCP_DEBUG"):
-        return logging.DEBUG
-    return logging.WARNING
-
-
-class NDJSONFormatter(logging.Formatter):
-    """Formatter that outputs NDJSON for structured analysis."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        entry: dict[str, Any] = {
-            "ts": int(record.created * 1000),
-            "level": record.levelname,
-            "logger": record.name,
-            "loc": f"{record.filename}:{record.lineno}",
-            "msg": record.getMessage(),
-        }
-        req_id = _request_id.get()
-        if req_id:
-            entry["request_id"] = req_id
-        if record.levelno <= logging.INFO:
-            entry["stats"] = _get_stats_snapshot()
-        if hasattr(record, "data"):
-            entry["data"] = record.data
-        return json.dumps(entry)
-
-
-class ConsoleFormatter(logging.Formatter):
-    """Human-readable formatter for console output."""
-
-    COLORS = {
-        "DEBUG": "\033[36m",  # Cyan
-        "INFO": "\033[32m",  # Green
-        "WARNING": "\033[33m",  # Yellow
-        "ERROR": "\033[31m",  # Red
-        "CRITICAL": "\033[35m",  # Magenta
-    }
-    RESET = "\033[0m"
-
-    def format(self, record: logging.LogRecord) -> str:
-        color = self.COLORS.get(record.levelname, "")
-        reset = self.RESET if color else ""
-        ts = datetime.fromtimestamp(record.created).strftime("%H:%M:%S.%f")[:-3]
-        return f"{ts} {color}{record.levelname:7}{reset} {record.name}: {record.getMessage()}"
-
-
-def _configure_logging() -> logging.Logger:
-    """Configure logging with platform support and rotation."""
-    log_file = os.environ.get("MCP_LOG_FILE") or _get_default_log_path()
-    log_level = _get_log_level()
-    enable_console = os.environ.get("MCP_LOG_CONSOLE", "").lower() in ("1", "true", "yes")
-
-    handlers: list[logging.Handler] = []
-
-    if log_file:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=5 * 1024 * 1024,
-            backupCount=3,
-            encoding="utf-8",
-        )
-        file_handler.setFormatter(NDJSONFormatter())
-        handlers.append(file_handler)
-
-    if enable_console:
-        console_handler = logging.StreamHandler(sys.stderr)
-        if hasattr(sys.stderr, "isatty") and sys.stderr.isatty():
-            console_handler.setFormatter(ConsoleFormatter())
-        else:
-            console_handler.setFormatter(NDJSONFormatter())
-        handlers.append(console_handler)
-
-    if not handlers:
-        handlers.append(logging.NullHandler())
-
-    logging.root.handlers.clear()
-    for handler in handlers:
-        logging.root.addHandler(handler)
-    logging.root.setLevel(log_level)
-
-    app_logger = logging.getLogger(LOGGER_NAME)
-    app_logger.setLevel(log_level)
-
-    mcp_log_level = max(log_level, logging.WARNING)
-    for name in ("mcp", "mcp.server", "mcp.server.lowlevel", "mcp.server.lowlevel.server"):
-        mcp_logger = logging.getLogger(name)
-        mcp_logger.handlers.clear()
-        mcp_logger.propagate = False
-        for handler in handlers:
-            mcp_logger.addHandler(handler)
-        mcp_logger.setLevel(mcp_log_level)
-
-    return app_logger
-
-
-logger = _configure_logging()
+logger = configure_logging(
+    request_id_getter=lambda: _request_id.get(),
+    stats_getter=_get_stats_snapshot,
+)
 
 server = Server("yfinance-mcp")
 
@@ -198,7 +88,7 @@ _cb: dict = {
     "fails": 0,
     "open": False,
     "threshold": 5,
-    "recovery_timeout": 30,  # seconds
+    "recovery_timeout": 30,
     "opened_at": None,
 }
 
@@ -208,11 +98,9 @@ def _check_cb() -> None:
     if not _cb["open"]:
         return
 
-    # Check if recovery timeout has passed
     if _cb["opened_at"] is not None:
         elapsed = (datetime.now() - _cb["opened_at"]).total_seconds()
         if elapsed >= _cb["recovery_timeout"]:
-            # Half-open: allow one request through
             logger.info(
                 "circuit_breaker recovery_attempt elapsed=%.1fs threshold=%d",
                 elapsed,
@@ -289,7 +177,6 @@ def _ticker(symbol: str) -> yf.Ticker:
         logger.warning("ticker_not_found symbol=%s fast_info=None", symbol_upper)
         raise SymbolNotFoundError(symbol)
 
-    # accessing last_price raises KeyError for invalid tickers
     try:
         _ = fi.last_price
     except KeyError as e:
@@ -301,94 +188,6 @@ def _ticker(symbol: str) -> yf.Ticker:
     return t
 
 
-def _fmt(data: Any) -> str:
-    """Format result as compact JSON (no indentation)."""
-    if isinstance(data, (pd.DataFrame, pd.Series)):
-        data = data.copy()
-        if isinstance(data.index, pd.DatetimeIndex):
-            data.index = data.index.strftime("%Y-%m-%d")
-        return json.dumps(data.to_dict(), default=str, separators=(",", ":"))
-    return json.dumps(data, default=str, separators=(",", ":"))
-
-
-def _err(e: Exception) -> str:
-    """Format error compactly."""
-    if isinstance(e, MCPError):
-        return json.dumps({"err": e.code, "msg": e.message}, separators=(",", ":"))
-    return json.dumps({"err": "ERROR", "msg": str(e)}, separators=(",", ":"))
-
-
-def _to_scalar(val: Any) -> Any:
-    """Extract scalar from value (handles Series from multi-index edge cases)."""
-    if val is None:
-        return None
-    if isinstance(val, pd.Series):
-        return val.iloc[0] if len(val) > 0 else None
-    if isinstance(val, pd.DataFrame):
-        return val.iloc[0, 0] if val.size > 0 else None
-    return val
-
-
-def _safe_scalar(val: Any) -> Any:
-    """Safely extract scalar, catching any ambiguous truth value errors."""
-    try:
-        return _to_scalar(val)
-    except (ValueError, TypeError):
-        # pandas Series raises "truth value is ambiguous" on direct comparison
-        if hasattr(val, "iloc"):
-            try:
-                return val.iloc[0] if len(val) > 0 else None
-            except Exception:
-                return None
-        return None
-
-
-def _safe_gt(a: Any, b: Any) -> bool:
-    """Safe greater-than comparison that handles None and Series."""
-    try:
-        if a is None or b is None:
-            return False
-        return float(a) > float(b)
-    except (ValueError, TypeError):
-        return False
-
-
-def _safe_lt(a: Any, b: Any) -> bool:
-    """Safe less-than comparison that handles None and Series."""
-    try:
-        if a is None or b is None:
-            return False
-        return float(a) < float(b)
-    except (ValueError, TypeError):
-        return False
-
-
-def _safe_get(info: dict, key: str) -> Any:
-    """Safely get a value from info dict, converting Series to scalar."""
-    val = info.get(key)
-    return _safe_scalar(val)
-
-
-def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize DataFrame for indicator calculations."""
-    if df.empty:
-        return df
-
-    # yfinance returns multi-index for some queries
-    if isinstance(df.index, pd.MultiIndex):
-        df = df.droplevel(0)
-
-    # contiguous copy avoids pandas internal block errors
-    df = df.copy()
-
-    # sparse data sometimes has object-typed OHLCV columns
-    for col in ["Open", "High", "Low", "Close", "Volume"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    return df
-
-
 def _require_symbol(args: dict) -> tuple[str, yf.Ticker]:
     """Validate symbol argument and return (symbol, ticker) tuple."""
     symbol = args.get("symbol")
@@ -397,58 +196,9 @@ def _require_symbol(args: dict) -> tuple[str, yf.Ticker]:
     return symbol, _ticker(symbol)
 
 
-def _signal_level(value: float, high: float, low: float) -> str:
-    """Return overbought/oversold/neutral based on thresholds."""
-    if value > high:
-        return "overbought"
-    if value < low:
-        return "oversold"
-    return "neutral"
-
-
 def _add_unknown(result: dict, indicator: str) -> None:
     """Add indicator to _unknown list in result dict."""
-    result.setdefault("_unknown", []).append(indicator)
-    logger.warning("technicals_unknown_indicator indicator=%s", indicator)
-
-
-def _round_result(data: dict, decimals: int = 2) -> dict:
-    """Round float values and remove None values from result dict."""
-    return {
-        k: (round(v, decimals) if isinstance(v, float) else v)
-        for k, v in data.items()
-        if v is not None
-    }
-
-
-def _safe_round(value: float, decimals: int = 2) -> float | None:
-    """Round value, returning None if NaN or infinite."""
-    if pd.isna(value) or not pd.api.types.is_number(value):
-        return None
-    return round(value, decimals)
-
-
-def _adaptive_decimals(price: float) -> int:
-    """Determine decimal places based on price magnitude."""
-    import math
-
-    if price <= 0 or not math.isfinite(price):
-        return 2
-    if price >= 1.0:
-        return 2
-    # penny stocks need more decimals to preserve precision
-    return max(2, int(-math.log10(price)) + 1)
-
-
-def _parse_moving_avg_period(indicator: str) -> int | None:
-    """Parse period from sma_N or ema_N format. Returns None on invalid format."""
-    try:
-        period = int(indicator.split("_")[1])
-        if period < 1:
-            return None
-        return period
-    except (ValueError, IndexError):
-        return None
+    add_unknown(result, indicator, logger)
 
 
 TOOLS = [
@@ -642,7 +392,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.debug(
         "tool_call_start name=%s args=%s call=%d",
         name,
-        _summarize_args(arguments),
+        summarize_args(arguments),
         stats["calls"],
     )
 
@@ -675,7 +425,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             elapsed_ms,
             e.message,
         )
-        return [TextContent(type="text", text=_err(e))]
+        return [TextContent(type="text", text=err(e))]
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         logger.error(
@@ -685,134 +435,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             e,
             exc_info=True,
         )
-        return [TextContent(type="text", text=_err(e))]
+        return [TextContent(type="text", text=err(e))]
     finally:
         _request_id.set(None)
-
-
-def _summarize_args(args: dict) -> str:
-    """Create a compact summary of arguments for logging."""
-    summary = {}
-    for k, v in args.items():
-        if isinstance(v, list) and len(v) > 3:
-            summary[k] = f"[{len(v)} items]"
-        elif isinstance(v, str) and len(v) > 50:
-            summary[k] = v[:50] + "..."
-        else:
-            summary[k] = v
-    return json.dumps(summary, separators=(",", ":"))
-
-
-def _calculate_quality(info: dict) -> tuple[int, list[str]]:
-    """Calculate quality score (0-7) based on fundamental metrics."""
-    score = 0
-    details = []
-
-    roa = _safe_get(info, "returnOnAssets")
-    if _safe_gt(roa, 0):
-        score += 1
-        details.append("ROA>0")
-
-    ocf = _safe_get(info, "operatingCashflow")
-    if _safe_gt(ocf, 0):
-        score += 1
-        details.append("CashFlow>0")
-
-    net_income = _safe_get(info, "netIncomeToCommon")
-    if _safe_gt(ocf, net_income):
-        score += 1
-        details.append("CashFlow>NetIncome")
-
-    current_ratio = _safe_get(info, "currentRatio")
-    if _safe_gt(current_ratio, 1):
-        score += 1
-        details.append("CurrentRatio>1")
-
-    debt_equity = _safe_get(info, "debtToEquity")
-    if _safe_lt(debt_equity, 100) and debt_equity is not None:
-        score += 1
-        details.append("DebtEquity<100%")
-
-    gross_margin = _safe_get(info, "grossMargins")
-    if _safe_gt(gross_margin, 0.2):
-        score += 1
-        details.append("GrossMargin>20%")
-
-    roe = _safe_get(info, "returnOnEquity")
-    if _safe_gt(roe, 0.1):
-        score += 1
-        details.append("ROE>10%")
-
-    return score, details
-
-
-# Common suffixes that can cause search to fail
-_SEARCH_STRIP_SUFFIXES = (
-    "bank",
-    "inc",
-    "inc.",
-    "corp",
-    "corp.",
-    "corporation",
-    "ltd",
-    "ltd.",
-    "limited",
-    "group",
-    "holdings",
-    "holding",
-    "ag",
-    "sa",
-    "plc",
-    "co",
-    "co.",
-    "company",
-)
-
-
-def _smart_search(query: str, max_results: int = 1) -> list[dict]:
-    """Search with fallback strategies for better results.
-
-    1. Try original query
-    2. If no results, strip common suffixes (Bank, Inc, Corp, etc.)
-    3. If still no results, try first word only
-    """
-    # Try original query
-    search = yf.Search(query, max_results=max_results)
-    if search.quotes:
-        logger.debug("search_found query=%r results=%d", query, len(search.quotes))
-        return search.quotes
-
-    # Try stripping common suffixes
-    words = query.lower().split()
-    stripped = [w for w in words if w not in _SEARCH_STRIP_SUFFIXES]
-    if stripped and stripped != words:
-        stripped_query = " ".join(stripped)
-        search = yf.Search(stripped_query, max_results=max_results)
-        if search.quotes:
-            logger.debug(
-                "search_found_stripped query=%r stripped=%r results=%d",
-                query,
-                stripped_query,
-                len(search.quotes),
-            )
-            return search.quotes
-
-    # Try first word only (for cases like "Toyota Motor Corporation")
-    if len(words) > 1:
-        first_word = words[0]
-        if first_word not in _SEARCH_STRIP_SUFFIXES and len(first_word) >= 3:
-            search = yf.Search(first_word, max_results=max_results)
-            if search.quotes:
-                logger.debug(
-                    "search_found_first_word query=%r first=%r results=%d",
-                    query,
-                    first_word,
-                    len(search.quotes),
-                )
-                return search.quotes
-
-    logger.debug("search_not_found query=%r", query)
-    return []
 
 
 def _handle_search_stock(args: dict) -> str:
@@ -824,7 +449,7 @@ def _handle_search_stock(args: dict) -> str:
         raise ValidationError("Either symbol or query required")
 
     if query and not symbol:
-        quotes = _smart_search(query, max_results=1)
+        quotes = smart_search(query, max_results=1, logger=logger)
         if not quotes:
             raise SymbolNotFoundError(query)
         symbol = quotes[0].get("symbol")
@@ -837,19 +462,19 @@ def _handle_search_stock(args: dict) -> str:
     try:
         fi = t.fast_info
         info = t.info
-        if not info or _safe_get(info, "regularMarketPrice") is None:
+        if not info or safe_get(info, "regularMarketPrice") is None:
             raise SymbolNotFoundError(symbol)
     except (KeyError, TypeError, ValueError) as e:
         logger.warning("search_stock_invalid symbol=%s error=%s", symbol, e)
         raise SymbolNotFoundError(symbol)
 
     try:
-        last_price = _safe_scalar(fi.last_price)
-        prev_close = _safe_scalar(fi.previous_close)
-        market_cap = _safe_scalar(fi.market_cap)
-        day_high = _safe_scalar(fi.day_high)
-        day_low = _safe_scalar(fi.day_low)
-        volume = _safe_scalar(fi.last_volume)
+        last_price = safe_scalar(fi.last_price)
+        prev_close = safe_scalar(fi.previous_close)
+        market_cap = safe_scalar(fi.market_cap)
+        day_high = safe_scalar(fi.day_high)
+        day_low = safe_scalar(fi.day_low)
+        volume = safe_scalar(fi.last_volume)
     except Exception:
         last_price = None
         prev_close = None
@@ -858,15 +483,15 @@ def _handle_search_stock(args: dict) -> str:
         day_low = None
         volume = None
 
-    price_decimals = _adaptive_decimals(float(last_price)) if last_price else 2
+    price_decimals = adaptive_decimals(float(last_price)) if last_price else 2
 
     result = {
         "symbol": symbol.upper(),
-        "name": _safe_get(info, "shortName") or _safe_get(info, "longName"),
-        "sector": _safe_get(info, "sector"),
-        "industry": _safe_get(info, "industry"),
-        "exchange": _safe_get(info, "exchange"),
-        "currency": _safe_get(info, "currency"),
+        "name": safe_get(info, "shortName") or safe_get(info, "longName"),
+        "sector": safe_get(info, "sector"),
+        "industry": safe_get(info, "industry"),
+        "exchange": safe_get(info, "exchange"),
+        "currency": safe_get(info, "currency"),
         "price": round(last_price, price_decimals) if last_price else None,
         "change_pct": round((last_price / prev_close - 1) * 100, 2)
         if last_price and prev_close
@@ -876,7 +501,7 @@ def _handle_search_stock(args: dict) -> str:
         "volume": int(volume) if volume else None,
         "market_cap": int(market_cap) if market_cap else None,
     }
-    return _fmt({k: v for k, v in result.items() if v is not None})
+    return fmt({k: v for k, v in result.items() if v is not None})
 
 
 def _handle_history(args: dict) -> str:
@@ -893,7 +518,7 @@ def _handle_history(args: dict) -> str:
     except (TypeError, ValueError):
         raise ValidationError(f"limit must be an integer, got {type(raw_limit).__name__}")
 
-    fmt = args.get("format", "concise")
+    format_type = args.get("format", "concise")
 
     logger.debug(
         "price_fetch symbol=%s start=%s end=%s period=%s interval=%s limit=%d",
@@ -915,9 +540,9 @@ def _handle_history(args: dict) -> str:
     df = df.tail(limit)
 
     last_close = df["Close"].iloc[-1] if not df.empty else 1.0
-    decimals = _adaptive_decimals(float(last_close))
+    decimals = adaptive_decimals(float(last_close))
 
-    if fmt == "concise":
+    if format_type == "concise":
         col_map = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
         df = df.rename(columns=col_map)
         df = df[["o", "h", "l", "c", "v"]].round(decimals)
@@ -933,7 +558,7 @@ def _handle_history(args: dict) -> str:
     result: dict[str, Any] = {"bars": df.to_dict("index")}
     if total_bars > limit:
         result["_truncated"] = f"Showing {limit} of {total_bars}. Increase limit for more."
-    return _fmt(result)
+    return fmt(result)
 
 
 def _handle_technicals(args: dict) -> str:
@@ -957,7 +582,7 @@ def _handle_technicals(args: dict) -> str:
     if df.empty:
         logger.warning("technicals_no_data symbol=%s period=%s", symbol, period)
         raise DataUnavailableError(f"No price data for {symbol}. Try period='6mo' for more data.")
-    df = _normalize_df(df)
+    df = normalize_df(df)
     logger.debug("technicals_data_ready symbol=%s bars=%d", symbol, len(df))
 
     result: dict[str, Any] = {}
@@ -966,70 +591,70 @@ def _handle_technicals(args: dict) -> str:
         try:
             if ind == "rsi":
                 rsi = indicators.calculate_rsi(df["Close"])
-                v = float(_to_scalar(rsi.iloc[-1]))
+                v = float(to_scalar(rsi.iloc[-1]))
                 result["rsi"] = round(v, 1)
-                result["rsi_signal"] = _signal_level(v, 70, 30)
+                result["rsi_signal"] = signal_level(v, 70, 30)
 
             elif ind == "macd":
                 m = indicators.calculate_macd(df["Close"])
-                hist = float(_to_scalar(m["histogram"].iloc[-1]))
-                result["macd"] = round(float(_to_scalar(m["macd"].iloc[-1])), 3)
-                result["macd_signal"] = round(float(_to_scalar(m["signal"].iloc[-1])), 3)
+                hist = float(to_scalar(m["histogram"].iloc[-1]))
+                result["macd"] = round(float(to_scalar(m["macd"].iloc[-1])), 3)
+                result["macd_signal"] = round(float(to_scalar(m["signal"].iloc[-1])), 3)
                 result["macd_hist"] = round(hist, 3)
                 result["macd_trend"] = "bullish" if hist > 0 else "bearish"
 
             elif ind.startswith("sma_"):
-                p = _parse_moving_avg_period(ind)
+                p = parse_moving_avg_period(ind)
                 if p is None:
                     _add_unknown(result, ind)
                     continue
                 sma = indicators.calculate_sma(df["Close"], p)
-                v = float(_to_scalar(sma.iloc[-1]))
+                v = float(to_scalar(sma.iloc[-1]))
                 result[ind] = round(v, 2) if not pd.isna(v) else None
                 if not pd.isna(v):
-                    close = float(_to_scalar(df["Close"].iloc[-1]))
+                    close = float(to_scalar(df["Close"].iloc[-1]))
                     result[f"{ind}_pos"] = "above" if close > v else "below"
 
             elif ind.startswith("ema_"):
-                p = _parse_moving_avg_period(ind)
+                p = parse_moving_avg_period(ind)
                 if p is None:
                     _add_unknown(result, ind)
                     continue
                 ema = indicators.calculate_ema(df["Close"], p)
-                v = float(_to_scalar(ema.iloc[-1]))
+                v = float(to_scalar(ema.iloc[-1]))
                 result[ind] = round(v, 2) if not pd.isna(v) else None
 
             elif ind.startswith("wma_"):
-                p = _parse_moving_avg_period(ind)
+                p = parse_moving_avg_period(ind)
                 if p is None:
                     _add_unknown(result, ind)
                     continue
                 wma = indicators.calculate_wma(df["Close"], p)
-                v = float(_to_scalar(wma.iloc[-1]))
+                v = float(to_scalar(wma.iloc[-1]))
                 result[ind] = round(v, 2) if not pd.isna(v) else None
                 if not pd.isna(v):
-                    close = float(_to_scalar(df["Close"].iloc[-1]))
+                    close = float(to_scalar(df["Close"].iloc[-1]))
                     result[f"{ind}_pos"] = "above" if close > v else "below"
 
             elif ind == "momentum":
                 mom = indicators.calculate_momentum(df["Close"])
-                v = float(_to_scalar(mom.iloc[-1]))
+                v = float(to_scalar(mom.iloc[-1]))
                 result["momentum"] = round(v, 2) if not pd.isna(v) else None
                 if not pd.isna(v):
                     result["momentum_signal"] = "bullish" if v > 0 else "bearish"
 
             elif ind == "cci":
                 cci = indicators.calculate_cci(df["High"], df["Low"], df["Close"])
-                v = float(_to_scalar(cci.iloc[-1]))
+                v = float(to_scalar(cci.iloc[-1]))
                 result["cci"] = round(v, 1) if not pd.isna(v) else None
                 if not pd.isna(v):
-                    result["cci_signal"] = _signal_level(v, 100, -100)
+                    result["cci_signal"] = signal_level(v, 100, -100)
 
             elif ind == "dmi":
                 dmi = indicators.calculate_dmi(df["High"], df["Low"], df["Close"])
-                plus_di = float(_to_scalar(dmi["plus_di"].iloc[-1]))
-                minus_di = float(_to_scalar(dmi["minus_di"].iloc[-1]))
-                adx = float(_to_scalar(dmi["adx"].iloc[-1]))
+                plus_di = float(to_scalar(dmi["plus_di"].iloc[-1]))
+                minus_di = float(to_scalar(dmi["minus_di"].iloc[-1]))
+                adx = float(to_scalar(dmi["adx"].iloc[-1]))
                 result["dmi_plus"] = round(plus_di, 1) if not pd.isna(plus_di) else None
                 result["dmi_minus"] = round(minus_di, 1) if not pd.isna(minus_di) else None
                 result["adx"] = round(adx, 1) if not pd.isna(adx) else None
@@ -1040,54 +665,54 @@ def _handle_technicals(args: dict) -> str:
 
             elif ind == "williams":
                 wr = indicators.calculate_williams_r(df["High"], df["Low"], df["Close"])
-                v = float(_to_scalar(wr.iloc[-1]))
+                v = float(to_scalar(wr.iloc[-1]))
                 result["williams_r"] = round(v, 1) if not pd.isna(v) else None
                 if not pd.isna(v):
-                    result["williams_signal"] = _signal_level(v, -20, -80)
+                    result["williams_signal"] = signal_level(v, -20, -80)
 
             elif ind == "bb":
                 bb = indicators.calculate_bollinger_bands(df["Close"])
-                upper = float(_to_scalar(bb["upper"].iloc[-1]))
-                lower = float(_to_scalar(bb["lower"].iloc[-1]))
-                pctb = float(_to_scalar(bb["percent_b"].iloc[-1]))
+                upper = float(to_scalar(bb["upper"].iloc[-1]))
+                lower = float(to_scalar(bb["lower"].iloc[-1]))
+                pctb = float(to_scalar(bb["percent_b"].iloc[-1]))
 
-                result["bb_upper"] = _safe_round(upper, 2)
-                result["bb_lower"] = _safe_round(lower, 2)
+                result["bb_upper"] = safe_round(upper, 2)
+                result["bb_lower"] = safe_round(lower, 2)
 
                 if pd.isna(pctb):
                     result["bb_pctb"] = None
                     result["bb_signal"] = "unavailable"
                 else:
                     result["bb_pctb"] = round(pctb, 2)
-                    result["bb_signal"] = _signal_level(pctb, 1, 0)
+                    result["bb_signal"] = signal_level(pctb, 1, 0)
 
             elif ind == "stoch":
                 s = indicators.calculate_stochastic(df["High"], df["Low"], df["Close"])
-                k = float(_to_scalar(s["k"].iloc[-1]))
+                k = float(to_scalar(s["k"].iloc[-1]))
                 result["stoch_k"] = round(k, 1)
-                result["stoch_d"] = round(float(_to_scalar(s["d"].iloc[-1])), 1)
-                result["stoch_signal"] = _signal_level(k, 80, 20)
+                result["stoch_d"] = round(float(to_scalar(s["d"].iloc[-1])), 1)
+                result["stoch_signal"] = signal_level(k, 80, 20)
 
             elif ind == "fast_stoch":
                 s = indicators.calculate_fast_stochastic(df["High"], df["Low"], df["Close"])
-                k = float(_to_scalar(s["k"].iloc[-1]))
+                k = float(to_scalar(s["k"].iloc[-1]))
                 result["fast_stoch_k"] = round(k, 1)
-                result["fast_stoch_d"] = round(float(_to_scalar(s["d"].iloc[-1])), 1)
-                result["fast_stoch_signal"] = _signal_level(k, 80, 20)
+                result["fast_stoch_d"] = round(float(to_scalar(s["d"].iloc[-1])), 1)
+                result["fast_stoch_signal"] = signal_level(k, 80, 20)
 
             elif ind == "ichimoku":
                 ich = indicators.calculate_ichimoku(df["High"], df["Low"], df["Close"])
-                conversion = float(_to_scalar(ich["conversion_line"].iloc[-1]))
-                base = float(_to_scalar(ich["base_line"].iloc[-1]))
-                leading_a = float(_to_scalar(ich["leading_span_a"].iloc[-1]))
-                leading_b = float(_to_scalar(ich["leading_span_b"].iloc[-1]))
+                conversion = float(to_scalar(ich["conversion_line"].iloc[-1]))
+                base = float(to_scalar(ich["base_line"].iloc[-1]))
+                leading_a = float(to_scalar(ich["leading_span_a"].iloc[-1]))
+                leading_b = float(to_scalar(ich["leading_span_b"].iloc[-1]))
 
-                result["ichimoku_conversion"] = _safe_round(conversion, 2)
-                result["ichimoku_base"] = _safe_round(base, 2)
-                result["ichimoku_leading_a"] = _safe_round(leading_a, 2)
-                result["ichimoku_leading_b"] = _safe_round(leading_b, 2)
+                result["ichimoku_conversion"] = safe_round(conversion, 2)
+                result["ichimoku_base"] = safe_round(base, 2)
+                result["ichimoku_leading_a"] = safe_round(leading_a, 2)
+                result["ichimoku_leading_b"] = safe_round(leading_b, 2)
 
-                close_val = float(_to_scalar(df["Close"].iloc[-1]))
+                close_val = float(to_scalar(df["Close"].iloc[-1]))
                 if not pd.isna(leading_a) and not pd.isna(leading_b):
                     cloud_top = max(leading_a, leading_b)
                     cloud_bottom = min(leading_a, leading_b)
@@ -1101,15 +726,15 @@ def _handle_technicals(args: dict) -> str:
 
             elif ind == "atr":
                 atr = indicators.calculate_atr(df["High"], df["Low"], df["Close"])
-                atr_val = float(_to_scalar(atr.iloc[-1]))
-                close = float(_to_scalar(df["Close"].iloc[-1]))
+                atr_val = float(to_scalar(atr.iloc[-1]))
+                close = float(to_scalar(df["Close"].iloc[-1]))
                 result["atr"] = round(atr_val, 3)
                 result["atr_pct"] = round(atr_val / close * 100, 2)
 
             elif ind == "obv":
                 obv = indicators.calculate_obv(df["Close"], df["Volume"])
-                obv_val = float(_to_scalar(obv.iloc[-1]))
-                obv_sma = float(_to_scalar(obv.rolling(20).mean().iloc[-1]))
+                obv_val = float(to_scalar(obv.iloc[-1]))
+                obv_sma = float(to_scalar(obv.rolling(20).mean().iloc[-1]))
 
                 if pd.isna(obv_val):
                     result["obv"] = None
@@ -1123,7 +748,7 @@ def _handle_technicals(args: dict) -> str:
                 result["vp_poc"] = vp["poc"]
                 result["vp_value_area_high"] = vp["value_area_high"]
                 result["vp_value_area_low"] = vp["value_area_low"]
-                close_val = float(_to_scalar(df["Close"].iloc[-1]))
+                close_val = float(to_scalar(df["Close"].iloc[-1]))
                 if close_val > vp["value_area_high"]:
                     result["vp_signal"] = "above_value_area"
                 elif close_val < vp["value_area_low"]:
@@ -1140,9 +765,9 @@ def _handle_technicals(args: dict) -> str:
                 )
 
             elif ind == "fibonacci":
-                period_high = float(_to_scalar(df["High"].max()))
-                period_low = float(_to_scalar(df["Low"].min()))
-                current_close = float(_to_scalar(df["Close"].iloc[-1]))
+                period_high = float(to_scalar(df["High"].max()))
+                period_low = float(to_scalar(df["Low"].min()))
+                current_close = float(to_scalar(df["Close"].iloc[-1]))
                 is_uptrend = current_close > (period_high + period_low) / 2
 
                 fib = indicators.calculate_fibonacci_levels(period_high, period_low, is_uptrend)
@@ -1154,9 +779,9 @@ def _handle_technicals(args: dict) -> str:
                 if ind.startswith("pivot_"):
                     method = ind.split("_", 1)[1]
 
-                prev_high = float(_to_scalar(df["High"].iloc[-2]))
-                prev_low = float(_to_scalar(df["Low"].iloc[-2]))
-                prev_close = float(_to_scalar(df["Close"].iloc[-2]))
+                prev_high = float(to_scalar(df["High"].iloc[-2]))
+                prev_low = float(to_scalar(df["Low"].iloc[-2]))
+                prev_close = float(to_scalar(df["Close"].iloc[-2]))
 
                 pivot = indicators.calculate_pivot_points(prev_high, prev_low, prev_close, method)
                 result["pivot_method"] = method
@@ -1165,8 +790,8 @@ def _handle_technicals(args: dict) -> str:
             elif ind == "trend":
                 if len(df) >= 50:
                     sma50 = indicators.calculate_sma(df["Close"], 50)
-                    sma50_val = float(_to_scalar(sma50.iloc[-1]))
-                    close = float(_to_scalar(df["Close"].iloc[-1]))
+                    sma50_val = float(to_scalar(sma50.iloc[-1]))
+                    close = float(to_scalar(df["Close"].iloc[-1]))
                     result["sma50"] = round(sma50_val, 2) if not pd.isna(sma50_val) else None
                     if not pd.isna(sma50_val):
                         result["trend"] = "uptrend" if close > sma50_val else "downtrend"
@@ -1181,11 +806,9 @@ def _handle_technicals(args: dict) -> str:
         except CalculationError:
             result[ind] = None
         except (ValueError, TypeError) as e:
-            # NaN values cause conversion errors
             logger.warning("technicals_conversion_error indicator=%s error=%s", ind, e)
             result[ind] = None
         except Exception as e:
-            # pandas internal errors need user-friendly messages
             error_msg = str(e)
             if "blk ref_locs" in error_msg or "internal" in error_msg.lower():
                 logger.warning("technicals_data_quality indicator=%s error=%s", ind, e)
@@ -1194,7 +817,7 @@ def _handle_technicals(args: dict) -> str:
             else:
                 raise
 
-    return _fmt(result)
+    return fmt(result)
 
 
 def _handle_valuation(args: dict) -> str:
@@ -1215,24 +838,24 @@ def _handle_valuation(args: dict) -> str:
     result: dict[str, Any] = {}
 
     if "all" in metrics or "pe" in metrics:
-        result["pe"] = _safe_get(info, "trailingPE")
-        result["pe_fwd"] = _safe_get(info, "forwardPE")
+        result["pe"] = safe_get(info, "trailingPE")
+        result["pe_fwd"] = safe_get(info, "forwardPE")
 
     if "all" in metrics or "peg" in metrics:
-        pe = _safe_get(info, "trailingPE")
-        forward_pe = _safe_get(info, "forwardPE")
-        earnings_growth = _safe_get(info, "earningsGrowth")
-        revenue_growth = _safe_get(info, "revenueGrowth")
+        pe = safe_get(info, "trailingPE")
+        forward_pe = safe_get(info, "forwardPE")
+        earnings_growth = safe_get(info, "earningsGrowth")
+        revenue_growth = safe_get(info, "revenueGrowth")
 
         peg = None
         peg_source = None
         pe_for_peg = pe if pe else forward_pe
 
         if pe_for_peg:
-            if _safe_gt(earnings_growth, 0):
+            if safe_gt(earnings_growth, 0):
                 peg = round(float(pe_for_peg) / (float(earnings_growth) * 100), 2)
                 peg_source = "earnings"
-            elif _safe_gt(revenue_growth, 0):
+            elif safe_gt(revenue_growth, 0):
                 peg = round(float(pe_for_peg) / (float(revenue_growth) * 100), 2)
                 peg_source = "revenue"
 
@@ -1248,36 +871,36 @@ def _handle_valuation(args: dict) -> str:
                 result["peg_signal"] = "fair"
 
     if "all" in metrics or "eps" in metrics:
-        result["eps"] = _safe_get(info, "trailingEps")
-        result["eps_fwd"] = _safe_get(info, "forwardEps")
+        result["eps"] = safe_get(info, "trailingEps")
+        result["eps_fwd"] = safe_get(info, "forwardEps")
 
     if "all" in metrics or "margins" in metrics:
-        result["margin_gross"] = _safe_get(info, "grossMargins")
-        result["margin_op"] = _safe_get(info, "operatingMargins")
-        result["margin_net"] = _safe_get(info, "profitMargins")
+        result["margin_gross"] = safe_get(info, "grossMargins")
+        result["margin_op"] = safe_get(info, "operatingMargins")
+        result["margin_net"] = safe_get(info, "profitMargins")
 
     if "all" in metrics or "growth" in metrics:
-        result["growth_rev"] = _safe_get(info, "revenueGrowth")
-        result["growth_earn"] = _safe_get(info, "earningsGrowth")
+        result["growth_rev"] = safe_get(info, "revenueGrowth")
+        result["growth_earn"] = safe_get(info, "earningsGrowth")
 
     if "all" in metrics or "ratios" in metrics:
-        result["pb"] = _safe_get(info, "priceToBook")
-        result["ps"] = _safe_get(info, "priceToSalesTrailing12Months")
-        result["ev_ebitda"] = _safe_get(info, "enterpriseToEbitda")
+        result["pb"] = safe_get(info, "priceToBook")
+        result["ps"] = safe_get(info, "priceToSalesTrailing12Months")
+        result["ev_ebitda"] = safe_get(info, "enterpriseToEbitda")
 
     if "all" in metrics or "dividends" in metrics:
-        result["div_yield"] = _safe_get(info, "dividendYield")
-        result["div_rate"] = _safe_get(info, "dividendRate")
+        result["div_yield"] = safe_get(info, "dividendYield")
+        result["div_rate"] = safe_get(info, "dividendRate")
 
-    result = _round_result(result, 3)
+    result = round_result(result, 3)
 
     if "all" in metrics or "dividends" in metrics:
-        payout = _safe_get(info, "payoutRatio")
+        payout = safe_get(info, "payoutRatio")
         if payout is not None:
             result["payout_ratio"] = round(payout * 100, 1)
 
     if "all" in metrics or "quality" in metrics:
-        score, details = _calculate_quality(info)
+        score, details = calculate_quality(info)
         result["quality_score"] = score
         result["quality_max"] = 7
         if score >= 6:
@@ -1288,7 +911,7 @@ def _handle_valuation(args: dict) -> str:
             result["quality_signal"] = "weak"
         result["quality_details"] = ",".join(details) if details else None
 
-    return _fmt(result)
+    return fmt(result)
 
 
 def _handle_financials(args: dict) -> str:
@@ -1329,7 +952,7 @@ def _handle_financials(args: dict) -> str:
                 "_available_fields": list(df.index)[:20],
                 "_hint": "None of requested fields found. See available fields above.",
             }
-            return _fmt(data)
+            return fmt(data)
 
     total_rows = len(df)
     df = df.head(limit)
@@ -1338,7 +961,7 @@ def _handle_financials(args: dict) -> str:
     data = df.to_dict()
     if total_rows > limit:
         data["_truncated"] = f"Showing {limit} of {total_rows}. Increase limit for more."
-    return _fmt(data)
+    return fmt(data)
 
 
 _TOOL_HANDLERS: dict[str, Any] = {
@@ -1360,7 +983,7 @@ async def _execute(name: str, args: dict) -> str:
 
 async def run_server() -> None:
     """Run the MCP server."""
-    log_file = os.environ.get("MCP_LOG_FILE") or _get_default_log_path()
+    log_file = os.environ.get("MCP_LOG_FILE") or get_default_log_path()
     logger.info(
         "server_start log_level=%s log_file=%s",
         logging.getLevelName(logger.getEffectiveLevel()),
