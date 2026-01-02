@@ -19,7 +19,7 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 
 | Tool | Purpose |
 |------|---------|
-| `summary` | Stock overview with Quality Score, PEG, trend |
+| `diagnose` | Stock health diagnosis with intelligent analysis recommendations |
 | `history` | OHLCV bars with date range support |
 | `technicals` | Technical indicators (see below) |
 | `fundamentals` | P/E, EPS, margins, dividends |

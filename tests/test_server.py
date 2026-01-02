@@ -50,7 +50,7 @@ class TestToolDiscovery:
         assert len(result) == 6
         names = {t.name for t in result}
         assert names == {
-            "summary",
+            "diagnose",
             "history",
             "technicals",
             "fundamentals",
@@ -66,8 +66,8 @@ class TestToolDiscovery:
             assert "properties" in tool.inputSchema
 
 
-class TestSummaryTool:
-    """Test summary tool - the recommended starting point for stock analysis."""
+class TestDiagnoseTool:
+    """Test diagnose tool - stock health diagnosis with intelligent recommendations."""
 
     def _mock_ticker(self, **overrides) -> MagicMock:
         """Create mock with sensible defaults."""
@@ -90,7 +90,7 @@ class TestSummaryTool:
         return mock
 
     def test_returns_key_metrics(self, call) -> None:
-        """Summary should return price, quality score, PEG, trend."""
+        """Diagnose should return price, quality score, PEG, trend, and recommendations."""
         mock = self._mock_ticker()
         df = pd.DataFrame({"Close": [150] * 60}, index=pd.date_range("2024-01-01", periods=60))
 
@@ -98,14 +98,16 @@ class TestSummaryTool:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            parsed = call("summary", {"symbol": "AAPL"})
+            parsed = call("diagnose", {"symbol": "AAPL"})
 
         assert "price" in parsed
         assert "quality_score" in parsed
         assert "quality_max" in parsed  # Shows scale (7, static thresholds)
         assert "quality_signal" in parsed
         assert "trend" in parsed
-        assert "_hint" in parsed  # Guides next action
+        assert "_next_steps" in parsed  # Context-aware recommendations
+        assert isinstance(parsed["_next_steps"], list)
+        assert len(parsed["_next_steps"]) > 0
 
     def test_quality_strong_signal(self, call) -> None:
         """Company with strong fundamentals should get quality_signal=strong."""
@@ -116,7 +118,7 @@ class TestSummaryTool:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            parsed = call("summary", {"symbol": "AAPL"})
+            parsed = call("diagnose", {"symbol": "AAPL"})
 
         assert parsed["quality_score"] >= 6  # 6-7 is strong on our 0-7 scale
         assert parsed["quality_max"] == 7
@@ -131,7 +133,7 @@ class TestSummaryTool:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            parsed = call("summary", {"symbol": "AAPL"})
+            parsed = call("diagnose", {"symbol": "AAPL"})
 
         assert parsed["peg"] == 0.5
         assert parsed["peg_signal"] == "undervalued"
@@ -145,7 +147,7 @@ class TestSummaryTool:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            parsed = call("summary", {"symbol": "AAPL"})
+            parsed = call("diagnose", {"symbol": "AAPL"})
 
         assert parsed["trend"] == "uptrend"
 
@@ -578,7 +580,7 @@ class TestErrorHandling:
         with patch("yfinance.Ticker") as mock_yf:
             mock_yf.return_value.fast_info = None
             mock_yf.return_value.info = {"regularMarketPrice": None}
-            parsed = call("summary", {"symbol": "INVALID123"})
+            parsed = call("diagnose", {"symbol": "INVALID123"})
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND"
 
@@ -591,7 +593,7 @@ class TestErrorHandling:
         """Network errors should be wrapped cleanly."""
         with patch("yfinance_mcp.server._ticker") as mock:
             mock.side_effect = ConnectionError("Network failed")
-            parsed = call("summary", {"symbol": "AAPL"})
+            parsed = call("diagnose", {"symbol": "AAPL"})
 
         assert parsed["err"] == "ERROR"
         assert "msg" in parsed
@@ -610,7 +612,7 @@ class TestCircuitBreaker:
         open_circuit_breaker_for_testing()
 
         # Request should be rejected without hitting yfinance
-        parsed = call("summary", {"symbol": "AAPL"})
+        parsed = call("diagnose", {"symbol": "AAPL"})
         assert parsed["err"] == "DATA_UNAVAILABLE"
         assert "retry later" in parsed["msg"].lower()
 
@@ -628,7 +630,7 @@ class TestCircuitBreaker:
         mock.history.return_value = pd.DataFrame()
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call("summary", {"symbol": "AAPL"})
+            parsed = call("diagnose", {"symbol": "AAPL"})
 
         assert "err" not in parsed
         assert "price" in parsed
@@ -639,7 +641,7 @@ class TestEdgeCases:
 
     def test_empty_symbol_returns_validation_error(self, call) -> None:
         """Empty symbol should return VALIDATION_ERROR."""
-        parsed = call("summary", {"symbol": ""})
+        parsed = call("diagnose", {"symbol": ""})
         assert parsed["err"] == "VALIDATION_ERROR"
         assert "symbol" in parsed["msg"].lower()
 
@@ -647,7 +649,7 @@ class TestEdgeCases:
         """SQL injection attempt should be treated as invalid symbol."""
         with patch("yfinance.Ticker") as mock_yf:
             mock_yf.return_value.fast_info = None
-            parsed = call("summary", {"symbol": "'; DROP TABLE stocks;--"})
+            parsed = call("diagnose", {"symbol": "'; DROP TABLE stocks;--"})
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND"
 
@@ -664,7 +666,7 @@ class TestEdgeCases:
         """Newline in symbol should be treated as invalid."""
         with patch("yfinance.Ticker") as mock_yf:
             mock_yf.return_value.fast_info = None
-            parsed = call("summary", {"symbol": "AAPL\nMSFT"})
+            parsed = call("diagnose", {"symbol": "AAPL\nMSFT"})
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND"
 
@@ -783,7 +785,7 @@ class TestDataEdgeCases:
 
     @given(price=price_strategy)
     @settings(max_examples=50)
-    def test_summary_handles_any_price(self, price: float) -> None:
+    def test_diagnose_handles_any_price(self, price: float) -> None:
         """Any valid price should not crash and should preserve non-zero."""
         mock = self._mock_ticker(price)
         df = pd.DataFrame({"Close": [price] * 60}, index=pd.date_range("2024-01-01", periods=60))
@@ -792,7 +794,7 @@ class TestDataEdgeCases:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            result = self._call("summary", {"symbol": "TEST"})
+            result = self._call("diagnose", {"symbol": "TEST"})
 
         assert "price" in result
         assert result["price"] > 0, f"Price {price} rounded to zero or negative"
@@ -804,14 +806,14 @@ class TestDataEdgeCases:
         growth=info_value_strategy,
     )
     @settings(max_examples=50)
-    def test_summary_handles_any_info_types(
+    def test_diagnose_handles_any_info_types(
         self,
         roa: float | pd.Series | None,
         ocf: float | pd.Series | None,
         pe: float | pd.Series | None,
         growth: float | pd.Series | None,
     ) -> None:
-        """Summary should handle any combination of info value types."""
+        """Diagnose should handle any combination of info value types."""
         mock = self._mock_ticker(
             100.0,
             {
@@ -827,7 +829,7 @@ class TestDataEdgeCases:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            result = self._call("summary", {"symbol": "TEST"})
+            result = self._call("diagnose", {"symbol": "TEST"})
 
         # Should not crash, should return valid response
         assert "price" in result
@@ -839,10 +841,10 @@ class TestDataEdgeCases:
         net_income=st.one_of(st.none(), st.floats(min_value=-1e9, max_value=1e9)),
     )
     @settings(max_examples=30)
-    def test_summary_explains_missing_metrics(
+    def test_diagnose_explains_missing_metrics(
         self, has_pe: bool, has_growth: bool, net_income: float | None
     ) -> None:
-        """Summary should gracefully handle and explain missing metrics."""
+        """Diagnose should gracefully handle and explain missing metrics."""
         info: dict = {"regularMarketPrice": 50.0}
         if has_pe:
             info["trailingPE"] = 25.0
@@ -858,7 +860,7 @@ class TestDataEdgeCases:
             patch("yfinance_mcp.server._ticker", return_value=mock),
             patch("yfinance_mcp.history.get_history", return_value=df),
         ):
-            result = self._call("summary", {"symbol": "TEST"})
+            result = self._call("diagnose", {"symbol": "TEST"})
 
         # Should not crash
         assert "price" in result

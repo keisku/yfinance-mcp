@@ -451,12 +451,97 @@ def _parse_moving_avg_period(indicator: str) -> int | None:
         return None
 
 
+def _generate_next_steps(result: dict, symbol: str) -> list[str]:
+    """Generate context-aware recommendations for deeper analysis.
+
+    Analyzes diagnostic results and suggests specific tool calls with reasoning.
+    Returns prioritized list of next steps (max 3) to guide LLM toward thorough analysis.
+    """
+    recommendations = []
+
+    quality_score = result.get("quality_score", 0)
+    peg = result.get("peg")
+    peg_signal = result.get("peg_signal")
+    peg_note = result.get("peg_note")
+    pe_note = result.get("pe_note")
+    trend = result.get("trend")
+
+    # Quality Score Concerns (0-2 = weak, 3-5 = neutral, 6-7 = strong)
+    if quality_score <= 4:
+        recommendations.append(
+            f"fundamentals('{symbol}', ['margins', 'growth']) - "
+            f"Quality score is {quality_score}/7. Check margin trends and growth sustainability."
+        )
+
+    # Valuation Extremes
+    if peg and peg > 2:
+        recommendations.append(
+            f"fundamentals('{symbol}', ['valuation', 'growth']) - "
+            f"High PEG ({peg}) suggests overvaluation. "
+            "Verify with P/B, P/S ratios and growth quality."
+        )
+    elif peg and peg < 0.5:
+        recommendations.append(
+            f"fundamentals('{symbol}', ['growth', 'eps']) - "
+            f"Very low PEG ({peg}) is unusual. Verify earnings quality and forward estimates."
+        )
+
+    # Trend Validation
+    if trend == "uptrend":
+        recommendations.append(
+            f"technicals('{symbol}', ['rsi', 'macd', 'bb']) - "
+            "Uptrend detected. Confirm momentum strength and check for "
+            "overbought conditions (RSI>70)."
+        )
+    elif trend == "downtrend":
+        recommendations.append(
+            f"technicals('{symbol}', ['rsi', 'dmi', 'obv']) - "
+            "Downtrend detected. Check if oversold (RSI<30) or if volume confirms weakness."
+        )
+
+    # Missing Data / Red Flags
+    if peg_note == "negative_earnings_growth":
+        recommendations.append(
+            f"financials('{symbol}', statement='income', periods=4) - "
+            "Negative earnings growth detected. Review revenue and income trends over time."
+        )
+
+    if pe_note == "unprofitable":
+        recommendations.append(
+            f"financials('{symbol}', statement='cashflow') - "
+            "Company is unprofitable. Examine operating cash flow and burn rate."
+        )
+
+    # Conflicting Signals (value traps or momentum traps)
+    if peg_signal == "undervalued" and trend == "downtrend":
+        recommendations.append(
+            f"technicals('{symbol}', ['williams', 'stoch', 'volume_profile']) - "
+            "Undervalued but downtrending. Identify support levels and potential reversal signals."
+        )
+    elif peg_signal == "overvalued" and trend == "uptrend":
+        recommendations.append(
+            f"technicals('{symbol}', ['rsi', 'macd']) - "
+            "Overvalued yet uptrending. Check for momentum exhaustion or divergence."
+        )
+
+    # Always suggest historical context if no other priority recommendations
+    if len(recommendations) < 2:
+        recommendations.append(
+            f"history('{symbol}', period='1y') - Review 1-year price action for broader context."
+        )
+
+    # Return top 3 most relevant recommendations
+    return recommendations[:3]
+
+
 TOOLS = [
     Tool(
-        name="summary",
+        name="diagnose",
         description=(
-            "Stock overview: price, PE, PEG, market cap, trend, quality score (0-7). "
-            "Call for multiple symbols to compare peers. PEG<1 undervalued, >2 overvalued."
+            "Diagnose stock health and get analysis roadmap. Returns: price, PE, PEG, market cap, "
+            "quality score (0-7), trend, plus context-aware recommendations for deeper analysis. "
+            "Use this FIRST to identify which fundamentals/technicals tools to call next. "
+            "Quality score evaluates 7 financial health metrics. PEG<1 undervalued, >2 overvalued."
         ),
         inputSchema={
             "type": "object",
@@ -542,7 +627,7 @@ TOOLS = [
             "Fibonacci Retracement: support/resistance at key ratios "
             "(23.6%, 38.2%, 50%, 61.8%). "
             "Pivot Points: calculated support/resistance levels. "
-            "Use 'summary' first for fundamental context."
+            "Use 'diagnose' first for fundamental context."
         ),
         inputSchema={
             "type": "object",
@@ -569,7 +654,7 @@ TOOLS = [
             "pe: P/E ratio. eps: earnings per share. margins: gross/operating/net. "
             "growth: revenue/earnings growth. valuation: P/B, P/S, EV/EBITDA. "
             "dividends: yield, rate, payout ratio. "
-            "Use 'summary' for quick PEG/quality analysis."
+            "Use 'diagnose' for quick PEG/quality analysis."
         ),
         inputSchema={
             "type": "object",
@@ -626,7 +711,7 @@ TOOLS = [
         description=(
             "Find stock ticker symbols by company name. "
             "Enter company name, returns matching tickers. "
-            "Use returned symbol with 'summary' for full analysis."
+            "Use returned symbol with 'diagnose' for full analysis."
         ),
         inputSchema={
             "type": "object",
@@ -717,10 +802,10 @@ def _summarize_args(args: dict) -> str:
     return json.dumps(summary, separators=(",", ":"))
 
 
-def _handle_summary(args: dict) -> str:
-    """Handle summary tool - quick stock overview with PEG, trend, and quality score."""
+def _handle_diagnose(args: dict) -> str:
+    """Handle diagnose tool - stock health diagnosis with intelligent analysis recommendations."""
     symbol, t = _require_symbol(args)
-    logger.debug("summary_fetch symbol=%s", symbol)
+    logger.debug("diagnose_fetch symbol=%s", symbol)
 
     try:
         fi = t.fast_info
@@ -728,9 +813,9 @@ def _handle_summary(args: dict) -> str:
         if not info or _safe_get(info, "regularMarketPrice") is None:
             raise SymbolNotFoundError(symbol)
     except (KeyError, TypeError, ValueError) as e:
-        logger.warning("summary_invalid_symbol symbol=%s error=%s", symbol, e)
+        logger.warning("diagnose_invalid_symbol symbol=%s error=%s", symbol, e)
         raise SymbolNotFoundError(symbol)
-    logger.debug("summary_info symbol=%s has_pe=%s", symbol, "trailingPE" in info)
+    logger.debug("diagnose_info symbol=%s has_pe=%s", symbol, "trailingPE" in info)
 
     quality_score = 0
     quality_details = []
@@ -860,8 +945,11 @@ def _handle_summary(args: dict) -> str:
         "quality_signal": quality_signal,
         "quality_details": ",".join(quality_details) if quality_details else None,
         "roe": round(roe * 100, 1) if roe else None,
-        "_hint": "peg_signal + trend = primary view. quality_score = financial health check.",
     }
+
+    # Generate context-aware recommendations based on diagnostic results
+    result["_next_steps"] = _generate_next_steps(result, symbol)
+
     return _fmt({k: v for k, v in result.items() if v is not None})
 
 
@@ -921,7 +1009,7 @@ def _handle_history(args: dict) -> str:
     result: dict[str, Any] = {"bars": df.to_dict("index")}
     if total_bars > limit:
         result["_truncated"] = f"Showing {limit} of {total_bars}. Increase limit for more."
-    result["_hint"] = "Use 'technicals' for indicators or 'summary' for fundamentals"
+    result["_hint"] = "Use 'technicals' for indicators or 'diagnose' for fundamentals"
     return _fmt(result)
 
 
@@ -1171,7 +1259,7 @@ def _handle_technicals(args: dict) -> str:
                 raise
 
     result["_hint"] = (
-        "Use 'summary' for PEG/quality analysis or 'peers' to compare with competitors"
+        "Use 'diagnose' for PEG/quality analysis or 'peers' to compare with competitors"
     )
     return _fmt(result)
 
@@ -1305,13 +1393,13 @@ def _handle_search(args: dict) -> str:
         {
             "matches": matches,
             "count": len(matches),
-            "_hint": f"Found {len(matches)}. Use 'summary' with symbol for analysis.",
+            "_hint": f"Found {len(matches)}. Use 'diagnose' with symbol for analysis.",
         }
     )
 
 
 _TOOL_HANDLERS: dict[str, Any] = {
-    "summary": _handle_summary,
+    "diagnose": _handle_diagnose,
     "history": _handle_history,
     "technicals": _handle_technicals,
     "fundamentals": _handle_fundamentals,
