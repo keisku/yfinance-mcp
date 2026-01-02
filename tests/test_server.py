@@ -342,6 +342,16 @@ class TestTechnicalsTool:
         assert "williams_signal" in parsed
         assert parsed["williams_signal"] in ["overbought", "oversold", "neutral"]
 
+    def test_fast_stochastic(self, call) -> None:
+        """Fast Stochastic should return %K, %D and signal."""
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["fast_stoch"]})
+
+        assert "fast_stoch_k" in parsed
+        assert "fast_stoch_d" in parsed
+        assert "fast_stoch_signal" in parsed
+        assert parsed["fast_stoch_signal"] in ["overbought", "oversold", "neutral"]
+
     def test_bollinger_bands(self, call) -> None:
         """BB should return bands and %B signal."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
@@ -353,7 +363,7 @@ class TestTechnicalsTool:
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
-        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "bb", "stoch", "atr", "obv"]
+        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "fast_stoch", "bb", "stoch", "atr", "obv"]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 

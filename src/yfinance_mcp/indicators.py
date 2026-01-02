@@ -289,7 +289,12 @@ def calculate_stochastic(
     k_period: int = 14,
     d_period: int = 3,
 ) -> dict[str, pd.Series]:
-    """Calculate Stochastic Oscillator."""
+    """Calculate Slow Stochastic Oscillator.
+    
+    Slow Stochastic applies smoothing to %K before computing %D.
+    - %K = SMA of Fast %K (raw stochastic)
+    - %D = SMA of %K
+    """
     min_periods = k_period + d_period
     if len(close) < min_periods:
         logger.warning(
@@ -302,6 +307,44 @@ def calculate_stochastic(
             {"required": min_periods, "available": len(close)},
         )
     logger.debug("calculate_stoch k=%d d=%d data_points=%d", k_period, d_period, len(close))
+
+    lowest_low = low.rolling(window=k_period).min()
+    highest_high = high.rolling(window=k_period).max()
+
+    raw_k = 100 * (close - lowest_low) / (highest_high - lowest_low)
+    k = raw_k.rolling(window=d_period).mean()
+    d = k.rolling(window=d_period).mean()
+
+    return {"k": k, "d": d}
+
+
+def calculate_fast_stochastic(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    k_period: int = 14,
+    d_period: int = 3,
+) -> dict[str, pd.Series]:
+    """Calculate Fast Stochastic Oscillator.
+    
+    Fast Stochastic uses the raw (unsmoothed) %K.
+    - %K = ((Close - Lowest Low) / (Highest High - Lowest Low)) * 100
+    - %D = SMA of %K
+    
+    More responsive to price changes than Slow Stochastic.
+    """
+    min_periods = k_period + d_period
+    if len(close) < min_periods:
+        logger.warning(
+            "indicator_insufficient_data type=fast_stoch required=%d available=%d",
+            min_periods,
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need {min_periods} periods, got {len(close)}",
+            {"required": min_periods, "available": len(close)},
+        )
+    logger.debug("calculate_fast_stoch k=%d d=%d data_points=%d", k_period, d_period, len(close))
 
     lowest_low = low.rolling(window=k_period).min()
     highest_high = high.rolling(window=k_period).max()

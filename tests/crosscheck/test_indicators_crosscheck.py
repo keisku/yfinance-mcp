@@ -468,6 +468,41 @@ class TestWilliamsRCrosscheck:
         assert (valid <= 0).all()
 
 
+class TestFastStochasticCrosscheck:
+    """Validate Fast Stochastic against pandas-ta.
+
+    Fast Stochastic uses raw %K (no smoothing).
+    We expect exact matches within floating-point precision.
+    """
+
+    def test_fast_stoch_matches(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Fast Stochastic should match pandas-ta with smooth_k=1."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        our_stoch = indicators.calculate_fast_stochastic(high, low, close, 14, 3)
+        expected = ta.stoch(high, low, close, k=14, d=3, smooth_k=1)
+
+        np.testing.assert_allclose(
+            our_stoch["k"].iloc[20:].values,
+            expected["STOCHk_14_3_1"].iloc[20:].values,
+            rtol=0.01,
+        )
+
+    def test_fast_stoch_bounds(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Fast Stochastic must be in [0, 100]."""
+        high = sample_ohlcv["High"]
+        low = sample_ohlcv["Low"]
+        close = sample_ohlcv["Close"]
+
+        stoch = indicators.calculate_fast_stochastic(high, low, close)
+
+        valid_k = stoch["k"].dropna()
+        assert (valid_k >= 0).all()
+        assert (valid_k <= 100).all()
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

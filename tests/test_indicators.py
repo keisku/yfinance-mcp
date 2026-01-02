@@ -11,6 +11,7 @@ from yfinance_mcp.errors import CalculationError
 from yfinance_mcp.indicators import (
     calculate_cci,
     calculate_dmi,
+    calculate_fast_stochastic,
     calculate_fibonacci_levels,
     calculate_momentum,
     calculate_pivot_points,
@@ -64,6 +65,14 @@ class TestErrorHandling:
         close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
         with pytest.raises(CalculationError):
             calculate_williams_r(high, low, close, 14)
+
+    def test_fast_stochastic_insufficient_data(self) -> None:
+        """Fast Stochastic should raise CalculationError when data < k + d."""
+        high = pd.Series([1, 2, 3, 4, 5])
+        low = pd.Series([0.5, 1.5, 2.5, 3.5, 4.5])
+        close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
+        with pytest.raises(CalculationError):
+            calculate_fast_stochastic(high, low, close, 14, 3)
 
 
 class TestFibonacci:

@@ -531,7 +531,7 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, atr, obv, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, atr, obv, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -912,7 +912,7 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, atr, obv, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, atr, obv, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1031,6 +1031,13 @@ def _handle_technicals(args: dict) -> str:
                 result["stoch_k"] = round(k, 1)
                 result["stoch_d"] = round(float(_to_scalar(s["d"].iloc[-1])), 1)
                 result["stoch_signal"] = _signal_level(k, 80, 20)
+
+            elif ind == "fast_stoch":
+                s = indicators.calculate_fast_stochastic(df["High"], df["Low"], df["Close"])
+                k = float(_to_scalar(s["k"].iloc[-1]))
+                result["fast_stoch_k"] = round(k, 1)
+                result["fast_stoch_d"] = round(float(_to_scalar(s["d"].iloc[-1])), 1)
+                result["fast_stoch_signal"] = _signal_level(k, 80, 20)
 
             elif ind == "atr":
                 atr = indicators.calculate_atr(df["High"], df["Low"], df["Close"])
