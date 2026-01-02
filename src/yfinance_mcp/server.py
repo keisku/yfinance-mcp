@@ -518,9 +518,16 @@ TOOLS = [
         name="technicals",
         description=(
             "Calculate technical indicators for trading signals. "
-            "RSI: >70 overbought, <30 oversold. MACD: histogram>0 bullish. "
-            "SMA/EMA: price above = uptrend. BB: volatility bands. "
-            "fibonacci: retracement/extension levels. pivot: support/resistance levels. "
+            "RSI (Relative Strength Index): >70 overbought, <30 oversold. "
+            "MACD (Moving Average Convergence Divergence): histogram>0 bullish. "
+            "SMA/EMA/WMA: price above = uptrend. BB (Bollinger Bands): volatility bands. "
+            "CCI (Commodity Channel Index): >100 overbought, <-100 oversold. "
+            "DMI (Directional Movement Index): ADX>25 strong trend. "
+            "Stochastic: >80 overbought, <20 oversold. "
+            "Ichimoku Cloud: price above cloud = bullish. "
+            "ATR (Average True Range): volatility measure. "
+            "OBV (On-Balance Volume): volume trend confirmation. "
+            "Fibonacci: retracement/extension levels. Pivot: support/resistance levels. "
             "Use 'summary' first for fundamental context."
         ),
         inputSchema={
