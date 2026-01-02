@@ -538,6 +538,37 @@ class TestIchimokuCrosscheck:
         assert conversion_var >= base_var * 0.5
 
 
+class TestVolumeProfileCrosscheck:
+    """Validate Volume Profile calculations.
+
+    Volume Profile is a price-volume distribution analysis.
+    We test structure and mathematical properties.
+    """
+
+    def test_volume_profile_structure(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Volume Profile should return POC and value area."""
+        close = sample_ohlcv["Close"]
+        volume = sample_ohlcv["Volume"]
+
+        vp = indicators.calculate_volume_profile(close, volume)
+
+        assert "poc" in vp
+        assert "value_area_high" in vp
+        assert "value_area_low" in vp
+        assert "profile" in vp
+        assert vp["value_area_high"] >= vp["value_area_low"]
+
+    def test_poc_within_price_range(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Point of Control should be within the price range."""
+        close = sample_ohlcv["Close"]
+        volume = sample_ohlcv["Volume"]
+
+        vp = indicators.calculate_volume_profile(close, volume)
+
+        assert vp["poc"] >= close.min()
+        assert vp["poc"] <= close.max()
+
+
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
 

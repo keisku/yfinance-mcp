@@ -363,6 +363,17 @@ class TestTechnicalsTool:
         assert "ichimoku_leading_b" in parsed
         assert "ichimoku_signal" in parsed
 
+    def test_volume_profile(self, call) -> None:
+        """Volume Profile should return POC, value area, and signal."""
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["volume_profile"]})
+
+        assert "vp_poc" in parsed
+        assert "vp_value_area_high" in parsed
+        assert "vp_value_area_low" in parsed
+        assert "vp_signal" in parsed
+        assert parsed["vp_signal"] in ["above_value_area", "below_value_area", "in_value_area"]
+
     def test_bollinger_bands(self, call) -> None:
         """BB should return bands and %B signal."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
@@ -374,7 +385,7 @@ class TestTechnicalsTool:
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
-        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "fast_stoch", "ichimoku", "bb", "stoch", "atr", "obv"]
+        indicators = ["rsi", "macd", "sma_20", "ema_12", "wma_10", "momentum", "cci", "dmi", "williams", "fast_stoch", "ichimoku", "volume_profile", "bb", "stoch", "atr", "obv"]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 

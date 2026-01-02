@@ -411,6 +411,69 @@ def calculate_ichimoku(
     }
 
 
+def calculate_volume_profile(
+    close: pd.Series, volume: pd.Series, bins: int = 10
+) -> dict[str, float | list[dict]]:
+    """Calculate Volume Profile.
+    
+    Returns price levels with highest trading volume (Point of Control)
+    and volume distribution across price bins.
+    
+    - poc: Point of Control (price with highest volume)
+    - value_area_high: Upper bound of 70% volume range
+    - value_area_low: Lower bound of 70% volume range
+    - profile: List of {price, volume} for each bin
+    """
+    if len(close) < 10:
+        logger.warning(
+            "indicator_insufficient_data type=volume_profile required=10 available=%d",
+            len(close),
+        )
+        raise CalculationError(
+            f"Insufficient data: need 10 periods, got {len(close)}",
+            {"required": 10, "available": len(close)},
+        )
+    logger.debug("calculate_volume_profile bins=%d data_points=%d", bins, len(close))
+    
+    price_min = close.min()
+    price_max = close.max()
+    bin_edges = np.linspace(price_min, price_max, bins + 1)
+    
+    volume_by_bin = []
+    for i in range(bins):
+        mask = (close >= bin_edges[i]) & (close < bin_edges[i + 1])
+        if i == bins - 1:
+            mask = (close >= bin_edges[i]) & (close <= bin_edges[i + 1])
+        bin_volume = float(volume[mask].sum())
+        bin_price = (bin_edges[i] + bin_edges[i + 1]) / 2
+        volume_by_bin.append({"price": round(bin_price, 2), "volume": bin_volume})
+    
+    poc_idx = np.argmax([b["volume"] for b in volume_by_bin])
+    poc = volume_by_bin[poc_idx]["price"]
+    
+    total_volume = sum(b["volume"] for b in volume_by_bin)
+    target_volume = total_volume * 0.7
+    sorted_bins = sorted(volume_by_bin, key=lambda x: x["volume"], reverse=True)
+    
+    cumulative = 0
+    value_area_prices = []
+    for b in sorted_bins:
+        cumulative += b["volume"]
+        value_area_prices.append(b["price"])
+        if cumulative >= target_volume:
+            break
+    
+    value_area_high = max(value_area_prices)
+    value_area_low = min(value_area_prices)
+    
+    return {
+        "poc": poc,
+        "value_area_high": value_area_high,
+        "value_area_low": value_area_low,
+        "profile": volume_by_bin,
+    }
+
+
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Calculate Average True Range."""
     if len(close) < period + 1:

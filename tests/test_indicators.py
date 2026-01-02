@@ -17,6 +17,7 @@ from yfinance_mcp.indicators import (
     calculate_momentum,
     calculate_pivot_points,
     calculate_sma,
+    calculate_volume_profile,
     calculate_williams_r,
     calculate_wma,
 )
@@ -82,6 +83,13 @@ class TestErrorHandling:
         close = pd.Series([0.8, 1.8, 2.8, 3.8, 4.8])
         with pytest.raises(CalculationError):
             calculate_ichimoku(high, low, close)
+
+    def test_volume_profile_insufficient_data(self) -> None:
+        """Volume Profile should raise CalculationError when data < 10."""
+        close = pd.Series([1, 2, 3, 4, 5])
+        volume = pd.Series([100, 200, 300, 400, 500])
+        with pytest.raises(CalculationError):
+            calculate_volume_profile(close, volume)
 
 
 class TestFibonacci:

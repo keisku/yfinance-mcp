@@ -531,7 +531,7 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, fibonacci, pivot"
+                        "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, volume_profile, fibonacci, pivot"
                     ),
                 },
                 "period": {"type": "string", "default": "3mo"},
@@ -912,7 +912,7 @@ def _handle_technicals(args: dict) -> str:
         logger.debug("technicals_no_indicators symbol=%s", symbol)
         raise ValidationError(
             "indicators required. "
-            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, fibonacci, pivot"
+            "Options: rsi, macd, sma_N, ema_N, wma_N, momentum, cci, dmi, williams, bb, stoch, fast_stoch, ichimoku, atr, obv, volume_profile, fibonacci, pivot"
         )
 
     logger.debug("technicals_fetch symbol=%s period=%s indicators=%s", symbol, period, inds)
@@ -1081,6 +1081,19 @@ def _handle_technicals(args: dict) -> str:
                 else:
                     result["obv"] = int(obv_val)
                     result["obv_trend"] = "bullish" if obv_val > obv_sma else "bearish"
+
+            elif ind == "volume_profile":
+                vp = indicators.calculate_volume_profile(df["Close"], df["Volume"])
+                result["vp_poc"] = vp["poc"]
+                result["vp_value_area_high"] = vp["value_area_high"]
+                result["vp_value_area_low"] = vp["value_area_low"]
+                close_val = float(_to_scalar(df["Close"].iloc[-1]))
+                if close_val > vp["value_area_high"]:
+                    result["vp_signal"] = "above_value_area"
+                elif close_val < vp["value_area_low"]:
+                    result["vp_signal"] = "below_value_area"
+                else:
+                    result["vp_signal"] = "in_value_area"
 
             elif ind == "fibonacci":
                 period_high = float(_to_scalar(df["High"].max()))
