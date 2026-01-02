@@ -632,7 +632,7 @@ class TestPriceChangeCrosscheck:
         close = sample_ohlcv["Close"]
 
         pc = indicators.calculate_price_change(close, period=1)
-        
+
         expected_change = float(close.iloc[-1]) - float(close.iloc[-2])
         expected_pct = (expected_change / float(close.iloc[-2])) * 100
 

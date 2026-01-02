@@ -64,12 +64,12 @@ def calculate_wma(prices: pd.Series, period: int) -> pd.Series:
             {"required": period, "available": len(prices)},
         )
     logger.debug("calculate_wma period=%d data_points=%d", period, len(prices))
-    
+
     weights = np.arange(1, period + 1)
-    
+
     def weighted_avg(x: np.ndarray) -> float:
         return np.sum(weights * x) / np.sum(weights)
-    
+
     return prices.rolling(window=period).apply(weighted_avg, raw=True)
 
 
@@ -95,9 +95,7 @@ def calculate_momentum(prices: pd.Series, period: int = 10) -> pd.Series:
     return prices - prices.shift(period)
 
 
-def calculate_cci(
-    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20
-) -> pd.Series:
+def calculate_cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> pd.Series:
     """Calculate Commodity Channel Index (CCI).
 
     CCI measures variation of price from its statistical mean. Developed by Donald Lambert.
@@ -117,11 +115,11 @@ def calculate_cci(
             {"required": period, "available": len(close)},
         )
     logger.debug("calculate_cci period=%d data_points=%d", period, len(close))
-    
+
     tp = (high + low + close) / 3
     sma_tp = tp.rolling(window=period).mean()
     mean_dev = tp.rolling(window=period).apply(lambda x: np.abs(x - x.mean()).mean(), raw=True)
-    
+
     cci = (tp - sma_tp) / (0.015 * mean_dev)
     return cci
 
@@ -150,26 +148,26 @@ def calculate_dmi(
             {"required": min_periods, "available": len(close)},
         )
     logger.debug("calculate_dmi period=%d data_points=%d", period, len(close))
-    
+
     plus_dm = high.diff()
     minus_dm = -low.diff()
-    
+
     plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
     minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
-    
+
     prev_close = close.shift(1)
     tr1 = high - low
     tr2 = (high - prev_close).abs()
     tr3 = (low - prev_close).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    
+
     atr = tr.ewm(span=period, adjust=False).mean()
     plus_di = 100 * (plus_dm.ewm(span=period, adjust=False).mean() / atr)
     minus_di = 100 * (minus_dm.ewm(span=period, adjust=False).mean() / atr)
-    
+
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
     adx = dx.ewm(span=period, adjust=False).mean()
-    
+
     return {"plus_di": plus_di, "minus_di": minus_di, "adx": adx}
 
 
@@ -196,10 +194,10 @@ def calculate_williams_r(
             {"required": period, "available": len(close)},
         )
     logger.debug("calculate_williams period=%d data_points=%d", period, len(close))
-    
+
     highest_high = high.rolling(window=period).max()
     lowest_low = low.rolling(window=period).min()
-    
+
     williams_r = ((highest_high - close) / (highest_high - lowest_low)) * -100
     return williams_r
 
@@ -419,14 +417,14 @@ def calculate_ichimoku(
     leading_b_period: int = 52,
 ) -> dict[str, pd.Series]:
     """Calculate Ichimoku Kinko Hyo (Equilibrium Chart) components.
-    
+
     Returns:
     - conversion_line: 9-period mid-price (fast signal line)
     - base_line: 26-period mid-price (slow signal line)
     - leading_span_a: Average of Conversion and Base, shifted 26 periods ahead
     - leading_span_b: 52-period mid-price, shifted 26 periods ahead
     - lagging_span: Close shifted back 26 periods
-    
+
     Cloud is bullish when Leading Span A > Leading Span B, bearish otherwise.
     """
     min_periods = leading_b_period + base_period
@@ -447,16 +445,16 @@ def calculate_ichimoku(
         leading_b_period,
         len(close),
     )
-    
-    def midprice(h: pd.Series, l: pd.Series, period: int) -> pd.Series:
-        return (h.rolling(window=period).max() + l.rolling(window=period).min()) / 2
-    
+
+    def midprice(h: pd.Series, low: pd.Series, period: int) -> pd.Series:
+        return (h.rolling(window=period).max() + low.rolling(window=period).min()) / 2
+
     conversion_line = midprice(high, low, conversion_period)
     base_line = midprice(high, low, base_period)
     leading_span_a = ((conversion_line + base_line) / 2).shift(base_period)
     leading_span_b = midprice(high, low, leading_b_period).shift(base_period)
     lagging_span = close.shift(-base_period)
-    
+
     return {
         "conversion_line": conversion_line,
         "base_line": base_line,
@@ -492,11 +490,11 @@ def calculate_volume_profile(
             {"required": 10, "available": len(close)},
         )
     logger.debug("calculate_volume_profile bins=%d data_points=%d", bins, len(close))
-    
+
     price_min = close.min()
     price_max = close.max()
     bin_edges = np.linspace(price_min, price_max, bins + 1)
-    
+
     volume_by_bin = []
     for i in range(bins):
         mask = (close >= bin_edges[i]) & (close < bin_edges[i + 1])
@@ -505,14 +503,14 @@ def calculate_volume_profile(
         bin_volume = float(volume[mask].sum())
         bin_price = (bin_edges[i] + bin_edges[i + 1]) / 2
         volume_by_bin.append({"price": round(bin_price, 2), "volume": bin_volume})
-    
+
     poc_idx = np.argmax([b["volume"] for b in volume_by_bin])
     poc = volume_by_bin[poc_idx]["price"]
-    
+
     total_volume = sum(b["volume"] for b in volume_by_bin)
     target_volume = total_volume * 0.7
     sorted_bins = sorted(volume_by_bin, key=lambda x: x["volume"], reverse=True)
-    
+
     cumulative = 0
     value_area_prices = []
     for b in sorted_bins:
@@ -520,10 +518,10 @@ def calculate_volume_profile(
         value_area_prices.append(b["price"])
         if cumulative >= target_volume:
             break
-    
+
     value_area_high = max(value_area_prices)
     value_area_low = min(value_area_prices)
-    
+
     return {
         "poc": poc,
         "value_area_high": value_area_high,
@@ -553,12 +551,12 @@ def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float
             {"required": period + 1, "available": len(close)},
         )
     logger.debug("calculate_price_change period=%d data_points=%d", period, len(close))
-    
+
     current = float(close.iloc[-1])
     previous = float(close.iloc[-1 - period])
     change = current - previous
     change_pct = (change / previous) * 100 if previous != 0 else 0
-    
+
     return {"change": change, "change_pct": change_pct}
 
 
