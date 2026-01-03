@@ -7,6 +7,7 @@ import os
 import platform
 import sys
 import tempfile
+import math
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -572,9 +573,11 @@ class DateRangeExceededError(Exception):
         self.requested_days = requested_days
         self.max_days = max_days
         self.suggested_period = suggested_period
+        max_years = round(max_days / 365, 1)
+        num_calls = math.ceil(requested_days / max_days)
         super().__init__(
-            f"Requested range ({requested_days} days) exceeds maximum ({max_days} days). "
-            f"Try period='{suggested_period}' or a shorter date range."
+            f"Range too long: {requested_days} days requested, max is {max_days} days (~{max_years} years). "
+            f"Please make {num_calls} separate requests covering ~{max_years} years each."
         )
 
 
