@@ -19,63 +19,55 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 
 Each tool has a single responsibility with no overlap.
 
-| Tool | Purpose |
-|------|---------|
-| `search_stock` | Find stock by symbol or company name, returns identity + current price |
-| `history` | Historical OHLCV bars |
-| `technicals` | Technical indicators and signals |
-| `valuation` | Valuation metrics and quality score |
-| `financials` | Income/balance/cashflow statements |
+- `search_stock` - Find stock by symbol or company name, returns identity + current price
+- `history` - Historical OHLCV bars
+- `technicals` - Technical indicators and signals
+- `valuation` - Valuation metrics and quality score
+- `financials` - Income/balance/cashflow statements
 
 ### Technical Indicators
 
-| Indicator | Description |
-|-----------|-------------|
-| `trend` | SMA50-based trend direction (uptrend/downtrend) |
-| `rsi` | [Relative Strength Index](https://www.investopedia.com/terms/r/rsi.asp) (14-period) |
-| `macd` | [Moving Average Convergence Divergence](https://www.investopedia.com/terms/m/macd.asp) |
-| `sma_N` | [Simple Moving Average](https://www.investopedia.com/terms/s/sma.asp) (e.g., `sma_20`) |
-| `ema_N` | [Exponential Moving Average](https://www.investopedia.com/terms/e/ema.asp) (e.g., `ema_12`) |
-| `wma_N` | [Weighted Moving Average](https://www.investopedia.com/articles/technical/060401.asp) (e.g., `wma_10`) |
-| `momentum` | [Momentum](https://www.investopedia.com/terms/m/momentum.asp) (10-period) |
-| `cci` | [Commodity Channel Index](https://www.investopedia.com/terms/c/commoditychannelindex.asp) |
-| `dmi` | [Directional Movement Index](https://www.investopedia.com/terms/d/dmi.asp) (+DI, -DI, ADX) |
-| `williams` | [Williams %R](https://www.investopedia.com/terms/w/williamsr.asp) oscillator |
-| `bb` | [Bollinger Bands](https://www.investopedia.com/terms/b/bollingerbands.asp) |
-| `stoch` | [Stochastic Oscillator](https://www.investopedia.com/terms/s/stochasticoscillator.asp) (Slow) |
-| `fast_stoch` | [Stochastic Oscillator](https://www.investopedia.com/terms/s/stochasticoscillator.asp) (Fast) |
-| `ichimoku` | [Ichimoku Cloud](https://www.investopedia.com/terms/i/ichimoku-cloud.asp) components |
-| `atr` | [Average True Range](https://www.investopedia.com/terms/a/atr.asp) |
-| `obv` | [On-Balance Volume](https://www.investopedia.com/terms/o/onbalancevolume.asp) |
-| `volume_profile` | [Volume Profile](https://www.investopedia.com/terms/v/volume-analysis.asp) (POC, Value Area) |
-| `price_change` | [Price Change](https://www.investopedia.com/terms/p/price-change.asp) and percentage |
-| `fibonacci` | [Fibonacci Retracement](https://www.investopedia.com/terms/f/fibonacciretracement.asp) levels |
-| `pivot` | [Pivot Points](https://www.investopedia.com/terms/p/pivotpoint.asp) (Standard, Fibonacci, Camarilla, Woodie) |
+- `trend` - SMA50-based trend direction (uptrend/downtrend)
+- `rsi` - [Relative Strength Index](https://www.investopedia.com/terms/r/rsi.asp) (14-period)
+- `macd` - [Moving Average Convergence Divergence](https://www.investopedia.com/terms/m/macd.asp)
+- `sma_N` - [Simple Moving Average](https://www.investopedia.com/terms/s/sma.asp) (e.g., `sma_20`)
+- `ema_N` - [Exponential Moving Average](https://www.investopedia.com/terms/e/ema.asp) (e.g., `ema_12`)
+- `wma_N` - [Weighted Moving Average](https://www.investopedia.com/articles/technical/060401.asp) (e.g., `wma_10`)
+- `momentum` - [Momentum](https://www.investopedia.com/terms/m/momentum.asp) (10-period)
+- `cci` - [Commodity Channel Index](https://www.investopedia.com/terms/c/commoditychannelindex.asp)
+- `dmi` - [Directional Movement Index](https://www.investopedia.com/terms/d/dmi.asp) (+DI, -DI, ADX)
+- `williams` - [Williams %R](https://www.investopedia.com/terms/w/williamsr.asp) oscillator
+- `bb` - [Bollinger Bands](https://www.investopedia.com/terms/b/bollingerbands.asp)
+- `stoch` - [Stochastic Oscillator](https://www.investopedia.com/terms/s/stochasticoscillator.asp) (Slow)
+- `fast_stoch` - [Stochastic Oscillator](https://www.investopedia.com/terms/s/stochasticoscillator.asp) (Fast)
+- `ichimoku` - [Ichimoku Cloud](https://www.investopedia.com/terms/i/ichimoku-cloud.asp) components
+- `atr` - [Average True Range](https://www.investopedia.com/terms/a/atr.asp)
+- `obv` - [On-Balance Volume](https://www.investopedia.com/terms/o/onbalancevolume.asp)
+- `volume_profile` - [Volume Profile](https://www.investopedia.com/terms/v/volume-analysis.asp) (POC, Value Area)
+- `price_change` - [Price Change](https://www.investopedia.com/terms/p/price-change.asp) and percentage
+- `fibonacci` - [Fibonacci Retracement](https://www.investopedia.com/terms/f/fibonacciretracement.asp) levels
+- `pivot` - [Pivot Points](https://www.investopedia.com/terms/p/pivotpoint.asp) (Standard, Fibonacci, Camarilla, Woodie)
 
 ### Valuation Metrics
 
-| Metric | Description |
-|--------|-------------|
-| `pe` | P/E ratios (trailing and forward) |
-| `eps` | Earnings per share |
-| `peg` | [PEG ratio](https://www.investopedia.com/terms/p/pegratio.asp) (<1 undervalued, >2 overvalued) |
-| `margins` | Gross, operating, and net margins |
-| `growth` | Revenue and earnings growth |
-| `ratios` | P/B, P/S, EV/EBITDA |
-| `dividends` | Yield, rate, payout ratio |
-| `quality` | 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE |
+- `pe` - P/E ratios (trailing and forward)
+- `eps` - Earnings per share
+- `peg` - [PEG ratio](https://www.investopedia.com/terms/p/pegratio.asp) (<1 undervalued, >2 overvalued)
+- `margins` - Gross, operating, and net margins
+- `growth` - Revenue and earnings growth
+- `ratios` - P/B, P/S, EV/EBITDA
+- `dividends` - Yield, rate, payout ratio
+- `quality` - 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE
 
 #### Historical Valuation
 
 The `valuation` tool supports historical data via the `periods` parameter:
 
-| Value | Description |
-|-------|-------------|
-| `now` (default) | Current valuation from real-time data |
-| `YYYY` | Fiscal year (e.g., `2024`) |
-| `YYYY-QN` | Quarter (e.g., `2024-Q3`) |
-| `YYYY:YYYY` | Year range (e.g., `2023:2024`) |
-| `YYYY-QN:YYYY-QN` | Quarter range (e.g., `2024-Q1:2024-Q3`) |
+- `now` (default) - Current valuation from real-time data
+- `YYYY` - Fiscal year (e.g., `2024`)
+- `YYYY-QN` - Quarter (e.g., `2024-Q3`)
+- `YYYY:YYYY` - Year range (e.g., `2023:2024`)
+- `YYYY-QN:YYYY-QN` - Quarter range (e.g., `2024-Q1:2024-Q3`)
 
 Historical mode computes P/E, P/B, P/S from financial statements. Data availability is limited to recent years (~4-5 years for annual, ~5 quarters for quarterly).
 
