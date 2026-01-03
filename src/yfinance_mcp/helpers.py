@@ -651,3 +651,139 @@ def auto_downsample(
     indices[-1] = len(df) - 1  # always include the last row
 
     return df.iloc[indices]
+
+
+def ohlc_resample(df: pd.DataFrame, target_points: int | None = None) -> pd.DataFrame:
+    """Resample OHLCV data preserving price semantics.
+
+    Aggregates multiple bars into fewer bars while preserving:
+    - Open: first open in bucket (entry price)
+    - High: max of all highs (resistance level)
+    - Low: min of all lows (support level)
+    - Close: last close in bucket (exit price)
+    - Volume: sum of all volumes (total activity)
+
+    This preserves support/resistance levels and accurate trend direction,
+    unlike uniform subsampling which can miss price extremes.
+    """
+    if target_points is None:
+        target_points = TARGET_POINTS
+
+    if len(df) <= target_points:
+        return df
+
+    total_seconds = (df.index[-1] - df.index[0]).total_seconds()
+    freq_seconds = max(1, int(total_seconds / target_points))
+    freq = f"{freq_seconds}s"
+
+    agg_rules = {}
+    col_lower = {c.lower(): c for c in df.columns}
+
+    if "o" in col_lower:
+        agg_rules[col_lower["o"]] = "first"
+    if "h" in col_lower:
+        agg_rules[col_lower["h"]] = "max"
+    if "l" in col_lower:
+        agg_rules[col_lower["l"]] = "min"
+    if "c" in col_lower:
+        agg_rules[col_lower["c"]] = "last"
+    if "v" in col_lower:
+        agg_rules[col_lower["v"]] = "sum"
+
+    if not agg_rules:
+        return auto_downsample(df)
+
+    result = df.resample(freq).agg(agg_rules).dropna()
+
+    if len(result) > target_points:
+        step = len(result) / target_points
+        indices = [int(i * step) for i in range(target_points)]
+        indices[-1] = len(result) - 1
+        result = result.iloc[indices]
+
+    return result
+
+
+def _lttb_indices(data: list[float], target_points: int) -> list[int]:
+    """Compute indices for LTTB (Largest-Triangle-Three-Buckets) downsampling.
+
+    LTTB preserves visual shape by selecting the point in each bucket that
+    forms the largest triangle with its neighbors. This keeps trend reversals,
+    extremes, and significant changes while discarding redundant points.
+
+    Reference: https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf
+    """
+    n = len(data)
+    if n <= target_points or target_points <= 0:
+        return list(range(n))
+    if target_points == 1:
+        return [n - 1]  # just last point
+    if target_points == 2:
+        return [0, n - 1]  # first and last
+
+    indices = [0]
+    bucket_size = (n - 2) / (target_points - 2)
+
+    a_idx = 0
+    for i in range(target_points - 2):
+        bucket_start = int((i + 1) * bucket_size) + 1
+        bucket_end = int((i + 2) * bucket_size) + 1
+        bucket_end = min(bucket_end, n - 1)
+
+        next_bucket_start = int((i + 2) * bucket_size) + 1
+        next_bucket_end = int((i + 3) * bucket_size) + 1
+        next_bucket_end = min(next_bucket_end, n)
+
+        if next_bucket_start < n:
+            avg_next = sum(data[next_bucket_start:next_bucket_end]) / max(
+                1, next_bucket_end - next_bucket_start
+            )
+        else:
+            avg_next = data[-1]
+
+        max_area = -1.0
+        max_idx = bucket_start
+
+        a_val = data[a_idx]
+        for j in range(bucket_start, bucket_end):
+            area = abs(
+                (a_idx - next_bucket_start) * (data[j] - a_val) - (a_idx - j) * (avg_next - a_val)
+            )
+            if area > max_area:
+                max_area = area
+                max_idx = j
+
+        indices.append(max_idx)
+        a_idx = max_idx
+
+    indices.append(n - 1)
+    return indices
+
+
+def lttb_downsample(df: pd.DataFrame, target_points: int | None = None) -> pd.DataFrame:
+    """Downsample DataFrame using LTTB algorithm.
+
+    LTTB (Largest-Triangle-Three-Buckets) preserves visual shape by selecting
+    points that form the largest triangles with neighbors. This keeps:
+    - Trend reversals and direction changes
+    - Local extremes (peaks and troughs)
+    - Significant value changes
+
+    Ideal for indicator time-series where preserving crossovers and
+    signal patterns matters more than exact OHLC semantics.
+    """
+    if target_points is None:
+        target_points = TARGET_POINTS
+
+    if len(df) <= target_points:
+        return df
+
+    if df.empty:
+        return df
+
+    ref_col = df.columns[0]
+    ref_data = df[ref_col].tolist()
+
+    indices = _lttb_indices(ref_data, target_points)
+
+    return df.iloc[indices]

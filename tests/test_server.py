@@ -1248,3 +1248,132 @@ class TestAutoInterval:
         periods = get_valid_periods(1120)
         durations = [PERIOD_TO_DAYS.get(p, 0) for p in periods]
         assert durations == sorted(durations), "Periods should be sorted by duration"
+
+
+class TestOHLCResample:
+    """Test OHLC resampling for history tool."""
+
+    @pytest.mark.parametrize(
+        "n_rows,target,expected_min,expected_max",
+        [
+            (0, 10, 0, 0),  # empty
+            (1, 10, 1, 1),  # single row unchanged
+            (1, 1, 1, 1),  # single row, target=1
+            (2, 10, 2, 2),  # two rows unchanged
+            (100, 10, 5, 10),  # reduces to ~target
+            (100, 5, 3, 5),  # reduces to ~target
+            (100, 1, 1, 1),  # extreme reduction
+            (100, 200, 100, 100),  # target > input
+        ],
+    )
+    def test_output_size(self, n_rows, target, expected_min, expected_max) -> None:
+        from yfinance_mcp.helpers import ohlc_resample
+
+        if n_rows == 0:
+            df = pd.DataFrame(columns=["o", "h", "l", "c", "v"])
+        else:
+            df = pd.DataFrame(
+                {
+                    "o": [100] * n_rows,
+                    "h": [101] * n_rows,
+                    "l": [99] * n_rows,
+                    "c": [100] * n_rows,
+                    "v": [1000] * n_rows,
+                },
+                index=pd.date_range("2024-01-01", periods=n_rows, freq="D"),
+            )
+        result = ohlc_resample(df, target_points=target)
+        assert expected_min <= len(result) <= expected_max
+
+    def test_aggregation_preserves_extremes(self) -> None:
+        """High=max, Low=min within buckets."""
+        from yfinance_mcp.helpers import ohlc_resample
+
+        df = pd.DataFrame(
+            {
+                "o": list(range(100, 200)),
+                "h": list(range(200, 300)),
+                "l": list(range(50, 150)),
+                "c": list(range(150, 250)),
+                "v": [1000] * 100,
+            },
+            index=pd.date_range("2024-01-01", periods=100, freq="D"),
+        )
+        result = ohlc_resample(df, target_points=5)
+        assert result["h"].iloc[0] > 200, "High aggregates to max"
+        assert result["l"].iloc[0] < 100, "Low aggregates to min"
+
+    def test_handles_nan_values(self) -> None:
+        """NaN values should be handled gracefully."""
+        from yfinance_mcp.helpers import ohlc_resample
+
+        df = pd.DataFrame(
+            {
+                "o": [100, np.nan, 102],
+                "h": [101, np.nan, 103],
+                "l": [99, np.nan, 101],
+                "c": [100, np.nan, 102],
+                "v": [1000, np.nan, 1200],
+            },
+            index=pd.date_range("2024-01-01", periods=3, freq="D"),
+        )
+        result = ohlc_resample(df, target_points=10)
+        assert len(result) <= 3
+
+
+class TestLTTBDownsample:
+    """Test LTTB downsampling for technicals tool."""
+
+    @pytest.mark.parametrize(
+        "n_rows,target,expected_len",
+        [
+            (0, 10, 0),  # empty
+            (1, 10, 1),  # single row
+            (2, 10, 2),  # two rows
+            (3, 10, 3),  # small input unchanged
+            (10, 5, 5),  # reduces to target
+            (10, 3, 3),  # minimum for LTTB buckets
+            (10, 2, 2),  # first + last only
+            (10, 1, 1),  # just last point
+            (5, 100, 5),  # target > input
+        ],
+    )
+    def test_output_size(self, n_rows, target, expected_len) -> None:
+        from yfinance_mcp.helpers import lttb_downsample
+
+        df = pd.DataFrame(
+            {"rsi": list(range(n_rows))},
+            index=pd.date_range("2024-01-01", periods=max(1, n_rows))[:n_rows],
+        )
+        result = lttb_downsample(df, target_points=target)
+        assert len(result) == expected_len
+
+    def test_preserves_first_and_last(self) -> None:
+        from yfinance_mcp.helpers import lttb_downsample
+
+        values = [10, 11, 50, 12, 10, 9, 5, 10, 11, 12]
+        df = pd.DataFrame({"rsi": values}, index=pd.date_range("2024-01-01", periods=10))
+        result = lttb_downsample(df, target_points=5)
+        assert result["rsi"].iloc[0] == 10
+        assert result["rsi"].iloc[-1] == 12
+
+    def test_preserves_all_columns(self) -> None:
+        from yfinance_mcp.helpers import lttb_downsample
+
+        df = pd.DataFrame(
+            {"rsi": [10, 50, 20, 80, 30], "macd": [1, 2, 3, 4, 5]},
+            index=pd.date_range("2024-01-01", periods=5),
+        )
+        result = lttb_downsample(df, target_points=3)
+        assert set(result.columns) == {"rsi", "macd"}
+
+    def test_handles_nan_values(self) -> None:
+        """NaN in data should not crash."""
+        from yfinance_mcp.helpers import lttb_downsample
+
+        df = pd.DataFrame(
+            {"rsi": [10, np.nan, 30, 40, 50]},
+            index=pd.date_range("2024-01-01", periods=5),
+        )
+        result = lttb_downsample(df, target_points=3)
+        assert len(result) == 3

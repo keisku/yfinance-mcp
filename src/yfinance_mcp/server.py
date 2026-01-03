@@ -31,7 +31,6 @@ from .helpers import (
     DateRangeExceededError,
     adaptive_decimals,
     add_unknown,
-    auto_downsample,
     auto_interval,
     calculate_quality,
     calculate_span_days,
@@ -41,7 +40,9 @@ from .helpers import (
     fmt_toon,
     get_default_log_path,
     get_valid_periods,
+    lttb_downsample,
     normalize_df,
+    ohlc_resample,
     parse_moving_avg_period,
     period_to_date_range,
     round_result,
@@ -587,16 +588,15 @@ def _handle_history(args: dict) -> str:
         raise DataUnavailableError(f"No price data for {symbol}. Try different period.")
     logger.debug("price_fetched symbol=%s bars=%d", symbol, len(df))
 
-    # Downsample to stabilize output size
-    df = auto_downsample(df, period, start, end)
-    logger.debug("price_downsampled symbol=%s bars=%d", symbol, len(df))
-
     last_close = df["Close"].iloc[-1] if not df.empty else 1.0
     decimals = adaptive_decimals(float(last_close))
 
     col_map = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
     df = df.rename(columns=col_map)
     df = df[["o", "h", "l", "c", "v"]].round(decimals)
+
+    df = ohlc_resample(df)
+    logger.debug("price_resampled symbol=%s bars=%d", symbol, len(df))
 
     intraday_intervals = {"1m", "5m", "15m", "1h"}
     if interval in intraday_intervals:
@@ -831,7 +831,8 @@ def _handle_technicals(args: dict) -> str:
             else:
                 raise
 
-    result_df = auto_downsample(result_df, period, start, end)
+    result_df = lttb_downsample(result_df)
+    logger.debug("technicals_downsampled symbol=%s points=%d", symbol, len(result_df))
 
     toon_output = fmt_toon(result_df, wrapper_key="data")
     if meta:

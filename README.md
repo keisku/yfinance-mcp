@@ -92,27 +92,29 @@ uv run pip-audit                       # Security scan
 
 #### Data Point Optimization
 
-The `history` and `technicals` tools return data in [TOON format](https://github.com/toon-format/toon) (Token-Oriented Object Notation), achieving ~45% token reduction compared to JSON. Responses are downsampled to `YFINANCE_TARGET_POINTS` for consistent LLM token usage.
+Both `history` and `technicals` return data in [TOON format](https://github.com/toon-format/toon), a compact notation that cuts token usage by about 45% compared to JSON. Large datasets are downsampled to fit within `YFINANCE_TARGET_POINTS`.
 
-**Why 120 data points?**
+**How each tool samples data**
 
-- **Token estimation**: With TOON format, each OHLCV bar ≈ 25-35 tokens (vs 50-80 for JSON). 120 points × 30 tokens ≈ 3,600 tokens.
-- **Nyquist-Shannon theorem**: To capture a signal, sample at ≥2× its frequency. 120 points over 4.6 years (~1680 days) = biweekly sampling, sufficient for monthly/quarterly market cycles.
-- **LLM context efficiency**: Research shows LLMs perform optimally with focused context. 3-5K tokens for time-series leaves room for analysis instructions and responses.
+The `history` tool uses **OHLC resampling**, which combines multiple bars into one while keeping the semantics intact: the first Open, highest High, lowest Low, last Close, and total Volume. This approach preserves support and resistance levels that simple subsampling would miss.
 
-**Formula**: `YFINANCE_MAX_SPAN_DAYS = YFINANCE_TARGET_POINTS × 14 days` (biweekly resolution)
+The `technicals` tool uses the **[LTTB algorithm](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf)** (Largest-Triangle-Three-Buckets), which picks the points that best preserve the visual shape of the data. It's particularly good at keeping trend reversals and indicator crossovers.
 
-| Points | Tokens (TOON) | Max Span | Resolution | Use Case |
-|--------|---------------|----------|------------|----------|
-| 50 | ~1.5-2K | 700 days | biweekly | Cost-efficient, fast processing |
-| 80 | ~2.5-4K | 1120 days | biweekly | Compact analysis |
-| 120 | ~3.5-5K | 1680 days | biweekly | Default balance of detail and efficiency |
-| 150 | ~5-7K | 2100 days | biweekly | Detailed analysis |
+**Why default to 120 points?**
 
-References:
-- [TOON format](https://github.com/toon-format/toon) - Token-Oriented Object Notation for LLM efficiency
+Each TOON-formatted bar uses roughly 25–35 tokens, so 120 points comes out to about 3,600 tokens. That's enough detail for meaningful analysis while leaving plenty of room in the context window for instructions and responses.
+
+| Points | Tokens | Best for |
+|--------|--------|----------|
+| 50 | ~1.5–2K | Quick, low-cost queries |
+| 80 | ~2.5–4K | Compact analysis |
+| 120 | ~3.5–5K | Balanced detail (default) |
+| 150 | ~5–7K | In-depth analysis |
+
+**Further reading**
+- [TOON format](https://github.com/toon-format/toon) — Token-efficient serialization for LLMs
+- [LTTB paper](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf) — Sveinn Steinarsson's thesis on time-series downsampling
 - [Anthropic: Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting)
-- [OpenAI: What are tokens](https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them)
 
 ### Yahoo Finance API Constraints
 
