@@ -365,9 +365,12 @@ TOOLS = [
                 },
                 "freq": {"type": "string", "enum": ["annual", "quarterly"], "default": "annual"},
                 "periods": {
-                    "type": "integer",
-                    "default": 4,
-                    "description": "Number of periods (default 4)",
+                    "type": "string",
+                    "default": "now",
+                    "description": (
+                        '"now" for current (default), "YYYY" for fiscal year, '
+                        '"YYYY-QN" for quarter, or ranges like "YYYY:YYYY"'
+                    ),
                 },
                 "limit": {
                     "type": "integer",
@@ -1253,7 +1256,7 @@ def _handle_financials(args: dict) -> str:
     stmt = args.get("statement", "income")
     freq = args.get("freq", "annual")
     limit = max(1, args.get("limit", 10))
-    periods = max(1, args.get("periods", 4))
+    periods = args.get("periods", "now")
     fields = args.get("fields", [])
 
     freq_param = "quarterly" if freq == "quarterly" else "yearly"
@@ -1267,9 +1270,31 @@ def _handle_financials(args: dict) -> str:
     if df.empty:
         raise DataUnavailableError("No data")
 
-    total_periods = df.shape[1]
-    if periods < total_periods:
-        df = df.iloc[:, :periods]
+    if periods != "now":
+        available_annual: dict[int, pd.Timestamp] = {}
+        available_quarterly: dict[str, pd.Timestamp] = {}
+        for c in df.columns:
+            available_annual[c.year] = c
+            month = c.month
+            if month <= 3:
+                q = 1
+            elif month <= 6:
+                q = 2
+            elif month <= 9:
+                q = 3
+            else:
+                q = 4
+            available_quarterly[f"{c.year}-Q{q}"] = c
+
+        period_type, target_dates = _parse_valuation_period(
+            periods, available_annual, available_quarterly
+        )
+
+        if period_type != "now" and target_dates:
+            target_set = set(target_dates)
+            selected_cols = [c for c in df.columns if c in target_set]
+            if selected_cols:
+                df = df[selected_cols]
 
     if fields:
         available = set(df.index)

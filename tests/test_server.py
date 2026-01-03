@@ -742,6 +742,40 @@ class TestFinancialsTool:
 
         assert len(parsed) > 1
 
+    def _mock_financials_with_years(self) -> MagicMock:
+        """Create mock with multiple fiscal years for period filtering tests."""
+        from datetime import datetime
+
+        mock = MagicMock()
+        current_year = datetime.now().year
+        dates = pd.DatetimeIndex(
+            [
+                pd.Timestamp(f"{current_year}-12-31"),
+                pd.Timestamp(f"{current_year - 1}-12-31"),
+                pd.Timestamp(f"{current_year - 2}-12-31"),
+            ]
+        )
+        for stmt, row_data in [
+            ("get_income_stmt", {"TotalRevenue": [120000, 100000, 90000]}),
+            ("get_balance_sheet", {"TotalAssets": [600000, 500000, 450000]}),
+            ("get_cashflow", {"OperatingCashFlow": [30000, 25000, 22000]}),
+        ]:
+            df = pd.DataFrame(row_data, index=dates).T
+            getattr(mock, stmt).return_value = df
+        return mock
+
+    def test_periods_single_year_filters(self, call) -> None:
+        """periods='YYYY' should filter to that fiscal year only."""
+        from datetime import datetime
+
+        prev_year = datetime.now().year - 1
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials_with_years()):
+            parsed = call("financials", {"symbol": "AAPL", "periods": str(prev_year)})
+
+        date_cols = [k for k in parsed.keys() if not k.startswith("_")]
+        assert len(date_cols) == 1
+        assert str(prev_year) in date_cols[0]
+
 
 class TestErrorHandling:
     """Test error responses - how agents handle failures."""
