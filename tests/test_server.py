@@ -559,12 +559,13 @@ class TestValuationTool:
         assert parsed["peg"] == 0.5
         assert parsed["peg_signal"] == "undervalued"
 
-    def test_empty_metrics_error(self, call) -> None:
-        """Empty metrics should return validation error."""
+    def test_empty_metrics_defaults_to_all(self, call) -> None:
+        """Empty or omitted metrics should default to all."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
             parsed = call("valuation", {"symbol": "AAPL", "metrics": []})
 
-        assert parsed["err"] == "VALIDATION_ERROR"
+        assert "pe" in parsed or "trailing_pe" in parsed
+        assert "eps" in parsed or "trailing_eps" in parsed
 
     def _mock_historical_valuation(self) -> MagicMock:
         """Create mock with historical statements using relative dates."""

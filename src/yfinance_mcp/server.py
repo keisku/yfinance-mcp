@@ -342,8 +342,10 @@ TOOLS = [
                 "metrics": {
                     "type": "array",
                     "items": {"type": "string"},
+                    "default": ["all"],
                     "description": (
-                        "Options: pe, eps, peg, margins, growth, ratios, dividends, quality"
+                        "Default: ['all']. "
+                        "Options: all, pe, eps, peg, margins, growth, ratios, dividends, quality"
                     ),
                 },
                 "periods": {
@@ -355,7 +357,7 @@ TOOLS = [
                     ),
                 },
             },
-            "required": ["symbol", "metrics"],
+            "required": ["symbol"],
         },
     ),
     Tool(
@@ -611,6 +613,17 @@ ALL_INDICATORS = [
     "ema_26",
     "ema_50",
     "wma_20",
+]
+
+ALL_METRICS = [
+    "pe",
+    "eps",
+    "peg",
+    "margins",
+    "growth",
+    "ratios",
+    "dividends",
+    "quality",
 ]
 
 
@@ -1164,12 +1177,10 @@ def _handle_valuation(args: dict) -> str:
         raise ValidationError("symbol required")
 
     t = _ticker(symbol)
-    metrics = args.get("metrics", [])
+    metrics = args.get("metrics") or ["all"]
 
-    if not metrics:
-        raise ValidationError(
-            "metrics required. Options: pe, eps, margins, growth, ratios, dividends, quality"
-        )
+    if "all" in metrics:
+        metrics = ALL_METRICS
 
     periods = args.get("periods", "now")
 
