@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from toon_format import decode as toon_decode
 
 from yfinance_mcp.server import (
     ALL_INDICATORS,
@@ -19,6 +20,21 @@ from yfinance_mcp.server import (
 )
 
 
+def _parse_response(text: str) -> dict:
+    """Parse response, auto-detecting TOON or JSON format."""
+    text = text.strip()
+    if text.startswith("{") or text.startswith("["):
+        return json.loads(text)
+
+    if "\nmeta: " in text:
+        toon_part, meta_part = text.split("\nmeta: ", 1)
+        result = toon_decode(toon_part)
+        result["meta"] = json.loads(meta_part)
+        return result
+
+    return toon_decode(text)
+
+
 @pytest.fixture
 def call():
     """Fixture to call tool and parse JSON response."""
@@ -26,6 +42,17 @@ def call():
     def _call(name: str, args: dict) -> dict:
         result = asyncio.run(call_tool(name, args))
         return json.loads(result[0].text)
+
+    return _call
+
+
+@pytest.fixture
+def call_toon():
+    """Fixture to call tool and parse TOON or JSON response."""
+
+    def _call(name: str, args: dict) -> dict:
+        result = asyncio.run(call_tool(name, args))
+        return _parse_response(result[0].text)
 
     return _call
 
@@ -168,19 +195,19 @@ class TestHistoryTool:
         mock.history.return_value = df
         return mock
 
-    def test_returns_bars(self, call) -> None:
-        """History should return bars dict."""
+    def test_returns_bars(self, call_toon) -> None:
+        """History should return bars list in TOON format."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("history", {"symbol": "AAPL"})
+            parsed = call_toon("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
-        first_bar = list(parsed["bars"].values())[0]
-        assert set(first_bar.keys()) == {"o", "h", "l", "c", "v"}
+        first_bar = parsed["bars"][0]
+        assert set(first_bar.keys()) == {"d", "o", "h", "l", "c", "v"}
 
-    def test_start_and_end_date_range(self, call) -> None:
+    def test_start_and_end_date_range(self, call_toon) -> None:
         """start/end should fetch specific date range."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call(
+            parsed = call_toon(
                 "history",
                 {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-31"},
             )
@@ -188,18 +215,18 @@ class TestHistoryTool:
         assert "bars" in parsed
         assert len(parsed["bars"]) > 0
 
-    def test_start_only_defaults_end_to_today(self, call) -> None:
+    def test_start_only_defaults_end_to_today(self, call_toon) -> None:
         """start without end should fetch from start to today."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("history", {"symbol": "AAPL", "start": "2024-01-01"})
+            parsed = call_toon("history", {"symbol": "AAPL", "start": "2024-01-01"})
 
         assert "bars" in parsed
         assert len(parsed["bars"]) > 0
 
-    def test_end_only_computes_start_from_period(self, call) -> None:
+    def test_end_only_computes_start_from_period(self, call_toon) -> None:
         """end without start should compute start = end - period."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call(
+            parsed = call_toon(
                 "history",
                 {"symbol": "AAPL", "end": "2024-06-30", "period": "3mo"},
             )
@@ -207,16 +234,15 @@ class TestHistoryTool:
         assert "bars" in parsed
         assert len(parsed["bars"]) > 0
 
-    def test_intraday_datetime_strings(self, call) -> None:
+    def test_intraday_datetime_strings(self, call_toon) -> None:
         """Short time spans should auto-select intraday interval."""
         mock = self._mock_history()
-        # Create intraday-style index
         df = mock.history.return_value.copy()
         df.index = pd.date_range("2024-01-15 09:30", periods=len(df), freq="5min")
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call(
+            parsed = call_toon(
                 "history",
                 {
                     "symbol": "AAPL",
@@ -226,9 +252,8 @@ class TestHistoryTool:
             )
 
         assert "bars" in parsed
-        # Intraday format includes time
-        first_date = list(parsed["bars"].keys())[0]
-        assert " " in first_date  # Contains time component
+        first_bar = parsed["bars"][0]
+        assert " " in first_bar["d"]  # Contains time component
 
 
 class TestTechnicalsTool:
@@ -276,16 +301,16 @@ class TestTechnicalsTool:
         ],
     )
     def test_indicator_returns_expected_structure(
-        self, call, indicator, expected_data_keys, expected_meta_keys
+        self, call_toon, indicator, expected_data_keys, expected_meta_keys
     ) -> None:
         """Each indicator should return time series data or meta info."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
-            parsed = call("technicals", {"symbol": "AAPL", "indicators": [indicator]})
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": [indicator]})
 
         assert "data" in parsed, "Response should contain 'data' key"
 
         if expected_data_keys:
-            first_row = list(parsed["data"].values())[0]
+            first_row = parsed["data"][0]
             for key in expected_data_keys:
                 assert key in first_row, f"Missing key {key} in data for indicator {indicator}"
 
@@ -294,7 +319,7 @@ class TestTechnicalsTool:
             for key in expected_meta_keys:
                 assert key in parsed["meta"], f"Missing key {key} in meta for indicator {indicator}"
 
-    def test_trend_insufficient_data(self, call) -> None:
+    def test_trend_insufficient_data(self, call_toon) -> None:
         """Trend with <50 bars should return error message in meta."""
         mock = MagicMock()
         df = pd.DataFrame(
@@ -310,12 +335,12 @@ class TestTechnicalsTool:
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["trend"]})
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["trend"]})
 
         assert "meta" in parsed
         assert "_trend_error" in parsed["meta"]
 
-    def test_all_indicators(self, call) -> None:
+    def test_all_indicators(self, call_toon) -> None:
         """All supported indicators should work."""
         indicators = [
             "trend",
@@ -338,16 +363,16 @@ class TestTechnicalsTool:
             "obv",
         ]
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
-            parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         assert "data" in parsed
-        first_row = list(parsed["data"].values())[0]
+        first_row = parsed["data"][0]
         assert "rsi" in first_row
         assert "macd" in first_row
         assert "bb_upper" in first_row
         assert "sma50" in first_row
 
-    def test_all_keyword_expands_to_all_indicators(self, call) -> None:
+    def test_all_keyword_expands_to_all_indicators(self, call_toon) -> None:
         """indicators=['all'] should expand to ALL_INDICATORS constant."""
         mock = MagicMock()
         np.random.seed(42)
@@ -366,10 +391,10 @@ class TestTechnicalsTool:
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["all"]})
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["all"]})
 
         assert "data" in parsed
-        first_row = list(parsed["data"].values())[0]
+        first_row = parsed["data"][0]
 
         data_indicator_keys = {
             "rsi": "rsi",
@@ -409,20 +434,20 @@ class TestTechnicalsTool:
                     f"Missing {expected_key} in meta for indicator {ind}"
                 )
 
-    def test_empty_indicators_defaults_to_all(self, call) -> None:
+    def test_empty_indicators_defaults_to_all(self, call_toon) -> None:
         """Empty or omitted indicators should default to all."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
-            parsed = call("technicals", {"symbol": "AAPL", "indicators": []})
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": []})
 
         assert "data" in parsed
-        first_row = list(parsed["data"].values())[0]
+        first_row = parsed["data"][0]
         assert "rsi" in first_row
         assert "macd" in first_row
 
-    def test_start_end_historical_range(self, call) -> None:
+    def test_start_end_historical_range(self, call_toon) -> None:
         """start/end should fetch specific historical date range."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
-            parsed = call(
+            parsed = call_toon(
                 "technicals",
                 {
                     "symbol": "AAPL",
@@ -433,7 +458,7 @@ class TestTechnicalsTool:
             )
 
         assert "data" in parsed
-        first_row = list(parsed["data"].values())[0]
+        first_row = parsed["data"][0]
         assert "rsi" in first_row
 
 
@@ -932,7 +957,7 @@ class TestEdgeCases:
         ],
     )
     def test_invalid_indicators_handled_gracefully(
-        self, call, indicators, expected_unknown, should_have_valid
+        self, call_toon, indicators, expected_unknown, should_have_valid
     ) -> None:
         """Invalid indicators should be added to _unknown list in meta or return null."""
         mock = MagicMock()
@@ -949,7 +974,7 @@ class TestEdgeCases:
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         if expected_unknown:
             assert "meta" in parsed
@@ -957,7 +982,7 @@ class TestEdgeCases:
             assert expected_unknown in parsed["meta"]["_unknown"]
         if should_have_valid:
             assert "data" in parsed
-            first_row = list(parsed["data"].values())[0]
+            first_row = parsed["data"][0]
             assert "rsi" in first_row
 
     def test_invalid_statement_defaults_to_cashflow(self, call) -> None:
@@ -995,9 +1020,9 @@ class TestDataEdgeCases:
     )
 
     def _call(self, name: str, args: dict) -> dict:
-        """Call tool and parse JSON response."""
+        """Call tool and parse TOON or JSON response."""
         result = asyncio.run(call_tool(name, args))
-        return json.loads(result[0].text)
+        return _parse_response(result[0].text)
 
     def _mock_ticker(self, price: float, info_overrides: dict | None = None) -> MagicMock:
         """Create mock ticker with given price and optional info overrides."""
@@ -1078,7 +1103,7 @@ class TestDataEdgeCases:
             result = self._call("history", {"symbol": "TEST"})
 
         bars = result["bars"]
-        first_bar = list(bars.values())[0]
+        first_bar = bars[0]
         assert first_bar["c"] > 0, f"Close price {price} rounded to zero"
 
 

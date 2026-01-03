@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=2.2.0",
     "duckdb>=1.4.3",
     "holidays>=0.87",
+    "toon-format @ git+https://github.com/toon-format/toon-python.git",
 ]
 
 [project.scripts]
@@ -20,6 +21,9 @@ yfinance-mcp = "yfinance_mcp.server:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/yfinance_mcp"]

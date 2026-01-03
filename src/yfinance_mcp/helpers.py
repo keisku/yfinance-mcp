@@ -7,7 +7,6 @@ import os
 import platform
 import sys
 import tempfile
-import math
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -15,6 +14,7 @@ from typing import Any
 
 import pandas as pd
 import yfinance as yf
+from toon_format import encode as toon_encode
 
 from . import LOGGER_NAME
 from .errors import MCPError, ValidationError
@@ -159,6 +159,29 @@ def fmt(data: Any) -> str:
             data.index = data.index.strftime("%Y-%m-%d")
         return json.dumps(data.to_dict(), default=str, separators=(",", ":"))
     return json.dumps(data, default=str, separators=(",", ":"))
+
+
+def fmt_toon(df: pd.DataFrame, wrapper_key: str | None = None) -> str:
+    """Format DataFrame as TOON for token-efficient LLM responses.
+
+    Converts DataFrame to tabular TOON format with date index as 'd' column.
+    TOON eliminates repeated keys by using a header line that declares the schema,
+    followed by comma-separated rows, achieving ~45% token reduction vs JSON.
+    """
+    df = df.copy()
+
+    if isinstance(df.index, pd.DatetimeIndex):
+        df.index = df.index.strftime("%Y-%m-%d")
+
+    records = []
+    for idx, row in df.iterrows():
+        record = {"d": idx}
+        record.update(row.to_dict())
+        records.append(record)
+
+    if wrapper_key:
+        return toon_encode({wrapper_key: records})
+    return toon_encode(records)
 
 
 def err(e: Exception) -> str:

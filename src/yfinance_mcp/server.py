@@ -38,6 +38,7 @@ from .helpers import (
     configure_logging,
     err,
     fmt,
+    fmt_toon,
     get_default_log_path,
     get_valid_periods,
     normalize_df,
@@ -599,11 +600,11 @@ def _handle_history(args: dict) -> str:
 
     intraday_intervals = {"1m", "5m", "15m", "1h"}
     if interval in intraday_intervals:
-        df.index = df.index.strftime("%Y-%m-%d %H:%M")
+        df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d %H:%M")
     else:
-        df.index = df.index.strftime("%Y-%m-%d")
+        df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d")
 
-    return fmt({"bars": df.to_dict("index")})
+    return fmt_toon(df, wrapper_key="bars")
 
 
 ALL_INDICATORS = [
@@ -831,12 +832,11 @@ def _handle_technicals(args: dict) -> str:
                 raise
 
     result_df = auto_downsample(result_df, period, start, end)
-    result_df.index = result_df.index.strftime("%Y-%m-%d")
 
-    result: dict[str, Any] = {"data": result_df.to_dict("index")}
+    toon_output = fmt_toon(result_df, wrapper_key="data")
     if meta:
-        result["meta"] = meta
-    return fmt(result)
+        toon_output += "\nmeta: " + fmt(meta)
+    return toon_output
 
 
 def _parse_valuation_period(
