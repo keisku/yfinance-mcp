@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767428758485,
+  "lastUpdate": 1767428935988,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -2846,6 +2846,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0001537509170007961",
             "extra": "mean: 27.5845318333315 msec\nrounds: 6"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "1def161b2b94febdd1f84cc27f92598bf5914536",
+          "message": "fix(server): Standardize tool input schema consistency\n\nAdd missing enum and description to technicals.period parameter to\nmatch history.period. Add descriptions to financials.statement and\nfinancials.freq parameters. Standardize limit description format\nacross history and financials tools.",
+          "timestamp": "2026-01-03T17:27:48+09:00",
+          "tree_id": "b8eccc2b072e700553aba171d4ee28a48f937554",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/1def161b2b94febdd1f84cc27f92598bf5914536"
+        },
+        "date": 1767428935474,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 14.395818648099105,
+            "unit": "iter/sec",
+            "range": "stddev: 0.1453225901041361",
+            "extra": "mean: 69.46461499999828 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 228.2681840716933,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00036348241623424644",
+            "extra": "mean: 4.3808120000022654 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 219.78368801507906,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004027244414674875",
+            "extra": "mean: 4.549928200000863 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 87.67104372481606,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012625355999846863",
+            "extra": "mean: 11.40627460919507 msec\nrounds: 87"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 254.21148633196324,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00018974249258832903",
+            "extra": "mean: 3.933732556420151 msec\nrounds: 257"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 257.22483136382084,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020713731405821957",
+            "extra": "mean: 3.887649550387272 msec\nrounds: 258"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 34.864220803976025,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005868859824187148",
+            "extra": "mean: 28.682700400003114 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 37.00177239018064,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015314250229788573",
+            "extra": "mean: 27.025732428573487 msec\nrounds: 7"
           }
         ]
       }
