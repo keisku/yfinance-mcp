@@ -65,6 +65,20 @@ Each tool has a single responsibility with no overlap.
 | `dividends` | Yield, rate, payout ratio |
 | `quality` | 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE |
 
+#### Historical Valuation
+
+The `valuation` tool supports historical data via the `periods` parameter:
+
+| Value | Description |
+|-------|-------------|
+| `now` (default) | Current valuation from real-time data |
+| `YYYY` | Fiscal year (e.g., `2024`) |
+| `YYYY-QN` | Quarter (e.g., `2024-Q3`) |
+| `YYYY:YYYY` | Year range (e.g., `2023:2024`) |
+| `YYYY-QN:YYYY-QN` | Quarter range (e.g., `2024-Q1:2024-Q3`) |
+
+Historical mode computes P/E, P/B, P/S from financial statements. Data availability is limited to recent years (~4-5 years for annual, ~5 quarters for quarterly).
+
 ## Development
 
 ```bash
@@ -86,7 +100,7 @@ DuckDB-based local cache to reduce Yahoo Finance API calls and speed up repeated
 ### Yahoo Finance API Constraints
 
 - Intraday data (1m-1h): max 60 days history
-- Financial statements: max 4 years annual / 5 quarters
+- Financial statements: ~4-5 years annual / ~5 quarters (limits historical valuation)
 - Rate limiting: HTTP 429 handled by circuit breaker
 
 ## License

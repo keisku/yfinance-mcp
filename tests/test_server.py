@@ -498,6 +498,214 @@ class TestValuationTool:
 
         assert parsed["err"] == "VALIDATION_ERROR"
 
+    def _mock_historical_valuation(self) -> MagicMock:
+        """Create mock with historical statements using relative dates."""
+        from datetime import datetime
+
+        mock = MagicMock()
+
+        # Dynamic year computation - never hardcode years
+        current_year = datetime.now().year
+        prev_year = current_year - 1
+
+        # Fiscal year end dates (September 30 like Apple)
+        fy_current = pd.Timestamp(f"{current_year}-09-30")
+        fy_prev = pd.Timestamp(f"{prev_year}-09-30")
+
+        # Annual income statement
+        income_data = {
+            fy_current: {"Net Income": 93e9, "Total Revenue": 391e9},
+            fy_prev: {"Net Income": 97e9, "Total Revenue": 383e9},
+        }
+        income_df = pd.DataFrame(income_data).T
+        income_df.columns = pd.Index(["Net Income", "Total Revenue"])
+        mock.income_stmt = income_df.T
+
+        # Annual balance sheet
+        balance_data = {
+            fy_current: {"Stockholders Equity": 57e9, "Ordinary Shares Number": 15.1e9},
+            fy_prev: {"Stockholders Equity": 62e9, "Ordinary Shares Number": 15.5e9},
+        }
+        balance_df = pd.DataFrame(balance_data).T
+        balance_df.columns = pd.Index(["Stockholders Equity", "Ordinary Shares Number"])
+        mock.balance_sheet = balance_df.T
+
+        # Quarterly statements (5 quarters for TTM testing)
+        q_dates = [
+            pd.Timestamp(f"{current_year}-09-30"),
+            pd.Timestamp(f"{current_year}-06-30"),
+            pd.Timestamp(f"{current_year}-03-31"),
+            pd.Timestamp(f"{prev_year}-12-31"),
+            pd.Timestamp(f"{prev_year}-09-30"),
+        ]
+        q_income_data = {
+            q_dates[0]: {"Net Income": 27e9, "Total Revenue": 102e9},
+            q_dates[1]: {"Net Income": 23e9, "Total Revenue": 98e9},
+            q_dates[2]: {"Net Income": 24e9, "Total Revenue": 100e9},
+            q_dates[3]: {"Net Income": 35e9, "Total Revenue": 118e9},
+            q_dates[4]: {"Net Income": 22e9, "Total Revenue": 90e9},
+        }
+        q_income_df = pd.DataFrame(q_income_data).T
+        q_income_df.columns = pd.Index(["Net Income", "Total Revenue"])
+        mock.quarterly_income_stmt = q_income_df.T
+
+        q_balance_data = {
+            q_dates[0]: {"Stockholders Equity": 73e9, "Ordinary Shares Number": 14.8e9},
+            q_dates[1]: {"Stockholders Equity": 66e9, "Ordinary Shares Number": 14.9e9},
+            q_dates[2]: {"Stockholders Equity": 67e9, "Ordinary Shares Number": 15.0e9},
+            q_dates[3]: {"Stockholders Equity": 66e9, "Ordinary Shares Number": 15.0e9},
+            q_dates[4]: {"Stockholders Equity": 62e9, "Ordinary Shares Number": 15.1e9},
+        }
+        q_balance_df = pd.DataFrame(q_balance_data).T
+        q_balance_df.columns = pd.Index(["Stockholders Equity", "Ordinary Shares Number"])
+        mock.quarterly_balance_sheet = q_balance_df.T
+
+        # Mock info for current valuation
+        mock.info = {"regularMarketPrice": 150.0, "shortName": "Test"}
+
+        return mock
+
+    def _mock_history_for_date(self, target_date: pd.Timestamp, price: float) -> pd.DataFrame:
+        """Create mock price history around a target date."""
+        dates = pd.date_range(target_date - pd.Timedelta(days=3), target_date, freq="D")
+        return pd.DataFrame(
+            {
+                "Open": [price * 0.99] * len(dates),
+                "High": [price * 1.01] * len(dates),
+                "Low": [price * 0.98] * len(dates),
+                "Close": [price] * len(dates),
+                "Volume": [1000000] * len(dates),
+            },
+            index=dates,
+        )
+
+    def test_periods_now_uses_current_info(self, call) -> None:
+        """periods='now' should use existing t.info path."""
+        mock = self._mock_valuation()
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["pe"], "periods": "now"})
+
+        assert "pe" in parsed
+        assert parsed["pe"] == 25.5  # From mock.info
+
+    def test_periods_single_year(self, call) -> None:
+        """periods='YYYY' should return valuation for that fiscal year."""
+        from datetime import datetime
+
+        prev_year = datetime.now().year - 1
+        mock = self._mock_historical_valuation()
+        fy_date = pd.Timestamp(f"{prev_year}-09-30")
+        price_df = self._mock_history_for_date(fy_date, 170.0)
+
+        with (
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.history.get_history", return_value=price_df),
+        ):
+            parsed = call(
+                "valuation",
+                {"symbol": "AAPL", "metrics": ["pe", "ratios"], "periods": str(prev_year)},
+            )
+
+        # Assert on structure, not specific year values
+        assert len([k for k in parsed.keys() if not k.startswith("_")]) == 1
+        date_key = [k for k in parsed.keys() if not k.startswith("_")][0]
+        assert date_key.endswith("-09-30")
+        assert "pe" in parsed[date_key]
+        assert "pb" in parsed[date_key]
+        assert "ps" in parsed[date_key]
+
+    def test_periods_year_range(self, call) -> None:
+        """periods='YYYY:YYYY' should return valuations for both years."""
+        from datetime import datetime
+
+        current_year = datetime.now().year
+        prev_year = current_year - 1
+        mock = self._mock_historical_valuation()
+
+        def mock_history(symbol, start=None, end=None, interval="1d", **kwargs):
+            # Return price data for any date range
+            if start:
+                start_date = pd.Timestamp(start)
+                return self._mock_history_for_date(start_date + pd.Timedelta(days=3), 180.0)
+            return pd.DataFrame()
+
+        with (
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.history.get_history", side_effect=mock_history),
+        ):
+            parsed = call(
+                "valuation",
+                {"symbol": "AAPL", "metrics": ["pe"], "periods": f"{prev_year}:{current_year}"},
+            )
+
+        # Should have 2 date entries
+        date_keys = [k for k in parsed.keys() if not k.startswith("_")]
+        assert len(date_keys) == 2
+
+    def test_periods_single_quarter(self, call) -> None:
+        """periods='YYYY-QN' should return quarterly valuation with TTM."""
+        from datetime import datetime
+
+        current_year = datetime.now().year
+        mock = self._mock_historical_valuation()
+        q_date = pd.Timestamp(f"{current_year}-09-30")
+        price_df = self._mock_history_for_date(q_date, 250.0)
+
+        with (
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.history.get_history", return_value=price_df),
+        ):
+            parsed = call(
+                "valuation",
+                {"symbol": "AAPL", "metrics": ["pe"], "periods": f"{current_year}-Q3"},
+            )
+
+        date_keys = [k for k in parsed.keys() if not k.startswith("_")]
+        assert len(date_keys) == 1
+        date_key = date_keys[0]
+        assert "pe" in parsed[date_key]
+        # TTM note should be present for quarterly
+        assert "_note" in parsed[date_key]
+
+    def test_periods_unavailable_year_error(self, call) -> None:
+        """Unavailable year should return error with available years."""
+        mock = self._mock_historical_valuation()
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["pe"], "periods": "2005"})
+
+        assert parsed["err"] == "VALIDATION_ERROR"
+        assert "2005" in parsed["msg"]
+        assert "Available" in parsed["msg"]
+
+    def test_periods_invalid_format_error(self, call) -> None:
+        """Invalid format should return validation error."""
+        mock = self._mock_historical_valuation()
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["pe"], "periods": "invalid"})
+
+        assert parsed["err"] == "VALIDATION_ERROR"
+
+    def test_historical_unsupported_metrics(self, call) -> None:
+        """Metrics like 'quality' should be listed as unsupported in historical mode."""
+        from datetime import datetime
+
+        prev_year = datetime.now().year - 1
+        mock = self._mock_historical_valuation()
+        fy_date = pd.Timestamp(f"{prev_year}-09-30")
+        price_df = self._mock_history_for_date(fy_date, 170.0)
+
+        with (
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.history.get_history", return_value=price_df),
+        ):
+            parsed = call(
+                "valuation",
+                {"symbol": "AAPL", "metrics": ["pe", "quality"], "periods": str(prev_year)},
+            )
+
+        assert "_unsupported" in parsed
+        assert "quality" in parsed["_unsupported"]
+
 
 class TestFinancialsTool:
     """Test financials tool - financial statements."""

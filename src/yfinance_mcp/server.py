@@ -3,10 +3,11 @@
 import contextvars
 import logging
 import os
+import re
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -321,7 +322,8 @@ TOOLS = [
             "peg: PE-to-growth ratio (<1 undervalued, >2 overvalued). "
             "margins: gross/operating/net. growth: revenue/earnings. "
             "ratios: P/B, P/S, EV/EBITDA. dividends: yield, rate, payout. "
-            "quality: 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE."
+            "quality: 0-7 score based on ROA, cash flow, liquidity, leverage, margins, ROE. "
+            "Use periods parameter for historical valuation at fiscal year or quarter ends."
         ),
         inputSchema={
             "type": "object",
@@ -332,6 +334,14 @@ TOOLS = [
                     "items": {"type": "string"},
                     "description": (
                         "Options: pe, eps, peg, margins, growth, ratios, dividends, quality"
+                    ),
+                },
+                "periods": {
+                    "type": "string",
+                    "default": "now",
+                    "description": (
+                        '"now" for current (default), "YYYY" for fiscal year, '
+                        '"YYYY-QN" for quarter, or ranges like "YYYY:YYYY"'
                     ),
                 },
             },
@@ -820,6 +830,287 @@ def _handle_technicals(args: dict) -> str:
     return fmt(result)
 
 
+def _parse_valuation_period(
+    period_str: str,
+    available_annual: dict[int, pd.Timestamp],
+    available_quarterly: dict[str, pd.Timestamp],
+) -> tuple[str, list[pd.Timestamp]]:
+    """Parse period string and validate against available data.
+
+    Returns (period_type, target_dates) where period_type is 'annual' or 'quarterly'.
+    Raises ValidationError if format is invalid or period not available.
+    """
+    if period_str == "now":
+        return ("now", [])
+
+    # Range pattern: YYYY:YYYY or YYYY-QN:YYYY-QN
+    if ":" in period_str:
+        start_str, end_str = period_str.split(":", 1)
+        if re.match(r"^\d{4}-?Q\d$", start_str, re.I):
+            # Quarterly range
+            start_match = re.match(r"^(\d{4})-?Q(\d)$", start_str, re.I)
+            end_match = re.match(r"^(\d{4})-?Q(\d)$", end_str, re.I)
+            if not start_match or not end_match:
+                raise ValidationError(
+                    f"Invalid quarter range format: {period_str}. "
+                    "Use YYYY-QN:YYYY-QN (e.g., 2023-Q1:2024-Q3)"
+                )
+            start_key = f"{start_match.group(1)}-Q{start_match.group(2)}"
+            end_key = f"{end_match.group(1)}-Q{end_match.group(2)}"
+            dates = []
+            for key in sorted(available_quarterly.keys()):
+                if start_key <= key <= end_key:
+                    dates.append(available_quarterly[key])
+            if not dates:
+                raise ValidationError(
+                    f"No quarters available in range {period_str}. "
+                    f"Available: {sorted(available_quarterly.keys())}"
+                )
+            logger.debug(
+                "valuation_period_parsed periods=%s type=quarterly dates=%s",
+                period_str,
+                [str(d.date()) for d in dates],
+            )
+            return ("quarterly", dates)
+        else:
+            # Annual range
+            try:
+                start_year = int(start_str)
+                end_year = int(end_str)
+            except ValueError:
+                raise ValidationError(
+                    f"Invalid year range format: {period_str}. Use YYYY:YYYY (e.g., 2023:2024)"
+                )
+            dates = []
+            for year in sorted(available_annual.keys()):
+                if start_year <= year <= end_year:
+                    dates.append(available_annual[year])
+            if not dates:
+                raise ValidationError(
+                    f"No years available in range {period_str}. "
+                    f"Available: {sorted(available_annual.keys())}"
+                )
+            logger.debug(
+                "valuation_period_parsed periods=%s type=annual dates=%s",
+                period_str,
+                [str(d.date()) for d in dates],
+            )
+            return ("annual", dates)
+
+    # Single quarter: 2024-Q3 or 2024Q3
+    quarter_match = re.match(r"^(\d{4})-?Q(\d)$", period_str, re.I)
+    if quarter_match:
+        year, q = quarter_match.group(1), quarter_match.group(2)
+        key = f"{year}-Q{q}"
+        if key not in available_quarterly:
+            raise ValidationError(
+                f"Quarter {key} not available. Available: {sorted(available_quarterly.keys())}"
+            )
+        target_date = available_quarterly[key]
+        logger.debug(
+            "valuation_period_parsed periods=%s type=quarterly dates=%s",
+            period_str,
+            [str(target_date.date())],
+        )
+        return ("quarterly", [target_date])
+
+    # Single year: 2024
+    if re.match(r"^\d{4}$", period_str):
+        year = int(period_str)
+        if year not in available_annual:
+            raise ValidationError(
+                f"Year {year} not available. Available: {sorted(available_annual.keys())}"
+            )
+        target_date = available_annual[year]
+        logger.debug(
+            "valuation_period_parsed periods=%s type=annual dates=%s",
+            period_str,
+            [str(target_date.date())],
+        )
+        return ("annual", [target_date])
+
+    raise ValidationError(
+        f"Invalid period format: {period_str}. "
+        'Use "now", "YYYY", "YYYY-QN", "YYYY:YYYY", or "YYYY-QN:YYYY-QN"'
+    )
+
+
+def _compute_historical_valuation(
+    symbol: str,
+    ticker: Any,
+    period_type: str,
+    target_dates: list[pd.Timestamp],
+    metrics: list[str],
+) -> str:
+    """Compute historical valuation metrics from financial statements."""
+    if period_type == "annual":
+        income = ticker.income_stmt
+        balance = ticker.balance_sheet
+    else:
+        income = ticker.quarterly_income_stmt
+        balance = ticker.quarterly_balance_sheet
+
+    logger.debug(
+        "valuation_statements symbol=%s type=%s income_cols=%d balance_cols=%d",
+        symbol,
+        period_type,
+        len(income.columns),
+        len(balance.columns),
+    )
+
+    results: dict[str, dict[str, Any]] = {}
+    unsupported = []
+
+    # Check for unsupported metrics in historical mode
+    historical_supported = {"pe", "eps", "ratios"}
+    for m in metrics:
+        if m not in historical_supported and m != "all":
+            if m not in unsupported:
+                unsupported.append(m)
+
+    for target_date in target_dates:
+        date_key = str(target_date.date())
+
+        # Find matching column in statements
+        col = None
+        for c in income.columns:
+            if c == target_date:
+                col = c
+                break
+        if col is None:
+            logger.warning("historical_valuation_no_data date=%s", target_date)
+            continue
+
+        try:
+            net_income = float(income.loc["Net Income", col])
+            revenue = float(income.loc["Total Revenue", col])
+            equity = float(balance.loc["Stockholders Equity", col])
+            shares = float(balance.loc["Ordinary Shares Number", col])
+        except (KeyError, TypeError) as e:
+            logger.warning("historical_valuation_missing_field date=%s error=%s", target_date, e)
+            continue
+
+        if shares <= 0:
+            logger.warning("historical_valuation_invalid_shares date=%s", target_date)
+            continue
+
+        # Check for official EPS fields (more accurate than manual calculation)
+        has_diluted_eps = "Diluted EPS" in income.index
+        has_basic_eps = "Basic EPS" in income.index
+
+        # For quarterly, compute TTM if we have 4 quarters
+        if period_type == "quarterly":
+            col_idx = list(income.columns).index(col)
+            if col_idx + 4 <= len(income.columns):
+                ttm_cols = income.columns[col_idx : col_idx + 4]
+                ttm_revenue = sum(float(income.loc["Total Revenue", c]) for c in ttm_cols)
+                # Use official EPS if available (sum of 4 quarters)
+                if has_diluted_eps:
+                    eps = sum(float(income.loc["Diluted EPS", c]) for c in ttm_cols)
+                elif has_basic_eps:
+                    eps = sum(float(income.loc["Basic EPS", c]) for c in ttm_cols)
+                else:
+                    ttm_net_income = sum(float(income.loc["Net Income", c]) for c in ttm_cols)
+                    eps = ttm_net_income / shares
+                rev_per_share = ttm_revenue / shares
+                ttm_note = "ttm"
+            else:
+                # Annualize single quarter
+                if has_diluted_eps:
+                    eps = float(income.loc["Diluted EPS", col]) * 4
+                elif has_basic_eps:
+                    eps = float(income.loc["Basic EPS", col]) * 4
+                else:
+                    eps = (net_income * 4) / shares
+                rev_per_share = (revenue * 4) / shares
+                ttm_note = "annualized"
+                logger.debug(
+                    "valuation_ttm_fallback date=%s need=4 have=%d",
+                    target_date.date(),
+                    len(income.columns) - col_idx,
+                )
+        else:
+            # Annual: use official EPS if available
+            if has_diluted_eps:
+                eps = float(income.loc["Diluted EPS", col])
+            elif has_basic_eps:
+                eps = float(income.loc["Basic EPS", col])
+            else:
+                eps = net_income / shares
+            rev_per_share = revenue / shares
+            ttm_note = None
+
+        book_per_share = equity / shares
+
+        # Get price using history module (benefits from cache)
+        try:
+            start_str = (target_date.date() - timedelta(days=5)).isoformat()
+            end_str = (target_date.date() + timedelta(days=1)).isoformat()
+            price_df = history.get_history(symbol, start=start_str, end=end_str, interval="1d")
+
+            if price_df.empty:
+                logger.warning("historical_valuation_no_price date=%s", target_date)
+                continue
+
+            # Normalize timezone
+            if price_df.index.tz is not None:
+                price_df.index = price_df.index.tz_localize(None)
+
+            # Find closest price on or before target date
+            target_ts = pd.Timestamp(target_date.date())
+            mask = price_df.index <= target_ts
+            if mask.any():
+                close_price = float(price_df.loc[price_df.index[mask][-1], "Close"])
+            else:
+                close_price = float(price_df["Close"].iloc[0])
+        except Exception as e:
+            logger.warning("historical_valuation_price_error date=%s error=%s", target_date, e)
+            continue
+
+        # Compute ratios
+        entry: dict[str, Any] = {"price": round(close_price, 2)}
+
+        notes = []
+        if ttm_note:
+            notes.append(ttm_note)
+
+        if "all" in metrics or "pe" in metrics or "eps" in metrics:
+            entry["eps"] = round(eps, 2)
+            if eps > 0:
+                entry["pe"] = round(close_price / eps, 1)
+            else:
+                entry["pe"] = None
+                notes.append("pe:null (negative earnings)")
+
+        if "all" in metrics or "ratios" in metrics:
+            if book_per_share > 0:
+                entry["pb"] = round(close_price / book_per_share, 1)
+            else:
+                entry["pb"] = None
+                notes.append("pb:null (negative book value)")
+            entry["ps"] = round(close_price / rev_per_share, 1) if rev_per_share > 0 else None
+
+        if notes:
+            entry["_note"] = ", ".join(notes)
+
+        results[date_key] = entry
+
+    if not results:
+        raise DataUnavailableError("No historical valuation data available for requested periods")
+
+    if unsupported:
+        results["_unsupported"] = unsupported  # type: ignore[assignment]
+
+    logger.debug(
+        "valuation_historical_result symbol=%s attempted=%d succeeded=%d",
+        symbol,
+        len(target_dates),
+        len([k for k in results if not k.startswith("_")]),
+    )
+
+    return fmt(results)
+
+
 def _handle_valuation(args: dict) -> str:
     """Handle valuation tool - valuation metrics and quality score."""
     symbol = args.get("symbol")
@@ -827,7 +1118,6 @@ def _handle_valuation(args: dict) -> str:
         raise ValidationError("symbol required")
 
     t = _ticker(symbol)
-    info = t.info
     metrics = args.get("metrics", [])
 
     if not metrics:
@@ -835,6 +1125,45 @@ def _handle_valuation(args: dict) -> str:
             "metrics required. Options: pe, eps, margins, growth, ratios, dividends, quality"
         )
 
+    periods = args.get("periods", "now")
+
+    # Historical valuation mode
+    if periods != "now":
+        # Build available dates from statements
+        try:
+            income_annual = t.income_stmt
+            income_quarterly = t.quarterly_income_stmt
+        except Exception as e:
+            raise DataUnavailableError(f"Cannot fetch financial statements: {e}")
+
+        available_annual: dict[int, pd.Timestamp] = {}
+        for c in income_annual.columns:
+            available_annual[c.year] = c
+
+        available_quarterly: dict[str, pd.Timestamp] = {}
+        for c in income_quarterly.columns:
+            month = c.month
+            if month <= 3:
+                q = 1
+            elif month <= 6:
+                q = 2
+            elif month <= 9:
+                q = 3
+            else:
+                q = 4
+            available_quarterly[f"{c.year}-Q{q}"] = c
+
+        period_type, target_dates = _parse_valuation_period(
+            periods, available_annual, available_quarterly
+        )
+
+        if period_type == "now":
+            pass  # Fall through to current valuation
+        else:
+            return _compute_historical_valuation(symbol, t, period_type, target_dates, metrics)
+
+    # Current valuation mode (periods == "now")
+    info = t.info
     result: dict[str, Any] = {}
 
     if "all" in metrics or "pe" in metrics:
