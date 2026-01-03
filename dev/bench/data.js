@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767429043136,
+  "lastUpdate": 1767450409678,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -3006,6 +3006,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00042097309476913833",
             "extra": "mean: 27.327455599996142 msec\nrounds: 10"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "666e217954bb746d2efbe00c1f450a0d98ec50b0",
+          "message": "perf(mcp): Auto-downsample time-series for consistent LLM token usage\n\nStabilize data point output from history and technicals tools to prevent\nLLM processing slowdowns from large time-series responses.\n\nChanges:\n- Add auto-interval selection based on time span (calculate_span_days,\n  auto_interval, auto_downsample in helpers.py)\n- Remove explicit interval/format params from history tool schema\n- Apply auto-downsampling to technicals output after indicator calculation\n- Add MAX_SPAN_DAYS (1120 days) validation with DateRangeExceededError\n- Generate dynamic period enum options via get_valid_periods()\n- Make TARGET_DATA_POINTS/MAX_SPAN_DAYS configurable via environment\n\nDefault 80 data points (~4-8K tokens) at biweekly resolution balances\ndetail with LLM context efficiency.",
+          "timestamp": "2026-01-03T23:25:46+09:00",
+          "tree_id": "ed2df1e26e8b6a4d3c4d9a0e27b097b59f6b705a",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/666e217954bb746d2efbe00c1f450a0d98ec50b0"
+        },
+        "date": 1767450409440,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 30.16245461863855,
+            "unit": "iter/sec",
+            "range": "stddev: 0.06468631605824839",
+            "extra": "mean: 33.15380039998672 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 226.1522150052216,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004243250279405507",
+            "extra": "mean: 4.42180059999373 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 230.6182172270785,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002925028075204863",
+            "extra": "mean: 4.33617088894304 msec\nrounds: 9"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 88.13006029752286,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001784079558826445",
+            "extra": "mean: 11.346866172836464 msec\nrounds: 81"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 257.522640569674,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008107576068295385",
+            "extra": "mean: 3.883153721116979 msec\nrounds: 251"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 259.6045392324842,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010688463707021841",
+            "extra": "mean: 3.852012768946493 msec\nrounds: 264"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 34.93372189131934,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010568269943578202",
+            "extra": "mean: 28.625635800017335 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 36.931953167635186,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003630346284136022",
+            "extra": "mean: 27.076824111115155 msec\nrounds: 9"
           }
         ]
       }
