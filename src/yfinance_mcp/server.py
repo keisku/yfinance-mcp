@@ -311,7 +311,12 @@ TOOLS = [
                         "momentum, volume_profile, price_change, fibonacci, pivot"
                     ),
                 },
-                "period": {"type": "string", "default": "1y"},
+                "period": {
+                    "type": "string",
+                    "default": "1y",
+                    "enum": ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "ytd", "max"],
+                    "description": "Relative period. Ignored if start provided.",
+                },
                 "start": {
                     "type": "string",
                     "description": "Start date (YYYY-MM-DD).",
@@ -372,10 +377,16 @@ TOOLS = [
                 "symbol": {"type": "string", "description": "Stock ticker"},
                 "statement": {
                     "type": "string",
-                    "enum": ["income", "balance", "cashflow"],
                     "default": "income",
+                    "enum": ["income", "balance", "cashflow"],
+                    "description": "Statement type to retrieve.",
                 },
-                "freq": {"type": "string", "enum": ["annual", "quarterly"], "default": "annual"},
+                "freq": {
+                    "type": "string",
+                    "default": "annual",
+                    "enum": ["annual", "quarterly"],
+                    "description": "Reporting frequency.",
+                },
                 "periods": {
                     "type": "string",
                     "default": "now",
@@ -387,7 +398,7 @@ TOOLS = [
                 "limit": {
                     "type": "integer",
                     "default": 10,
-                    "description": "Max rows to return",
+                    "description": "Number of rows (max 100).",
                 },
                 "fields": {
                     "type": "array",
