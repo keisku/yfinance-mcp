@@ -385,6 +385,22 @@ class TestTechnicalsTool:
 
         assert parsed["err"] == "VALIDATION_ERROR"
 
+    def test_start_end_historical_range(self, call) -> None:
+        """start/end should fetch specific historical date range."""
+        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+            parsed = call(
+                "technicals",
+                {
+                    "symbol": "AAPL",
+                    "indicators": ["rsi"],
+                    "start": "2020-01-01",
+                    "end": "2020-12-31",
+                },
+            )
+
+        assert "rsi" in parsed
+        assert "rsi_signal" in parsed
+
 
 class TestValuationTool:
     """Test valuation tool - valuation metrics and quality score."""
