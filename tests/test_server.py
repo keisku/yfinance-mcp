@@ -11,6 +11,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from yfinance_mcp.server import (
+    ALL_INDICATORS,
     TOOLS,
     call_tool,
     list_tools,
@@ -378,12 +379,63 @@ class TestTechnicalsTool:
         assert "bb_upper" in parsed
         assert "trend" in parsed
 
-    def test_empty_indicators_error(self, call) -> None:
-        """Empty indicators should return validation error."""
+    def test_all_keyword_expands_to_all_indicators(self, call) -> None:
+        """indicators=['all'] should expand to ALL_INDICATORS constant."""
+        mock = MagicMock()
+        np.random.seed(42)
+        n = 250
+        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
+        df = pd.DataFrame(
+            {
+                "Open": close - 0.5,
+                "High": close + 1,
+                "Low": close - 1,
+                "Close": close,
+                "Volume": [1000000] * n,
+            },
+            index=pd.date_range("2024-01-01", periods=n),
+        )
+        mock.history.return_value = df
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("technicals", {"symbol": "AAPL", "indicators": ["all"]})
+
+        indicator_key_map = {
+            "rsi": "rsi",
+            "macd": "macd",
+            "bb": "bb_upper",
+            "stoch": "stoch_k",
+            "fast_stoch": "fast_stoch_k",
+            "trend": "trend",
+            "dmi": "dmi_plus",
+            "ichimoku": "ichimoku_conversion",
+            "volume_profile": "vp_poc",
+            "price_change": "price_change",
+            "fibonacci": "fib_levels",
+            "pivot": "pivot_levels",
+            "williams": "williams_r",
+            "cci": "cci",
+            "atr": "atr",
+            "obv": "obv",
+            "momentum": "momentum",
+        }
+
+        for ind in ALL_INDICATORS:
+            if ind.startswith("sma_") or ind.startswith("ema_") or ind.startswith("wma_"):
+                assert ind in parsed or f"{ind}_pos" in parsed, f"Missing MA indicator {ind}"
+            elif ind in indicator_key_map:
+                expected_key = indicator_key_map[ind]
+                assert expected_key in parsed, f"Missing {expected_key} for indicator {ind}"
+            else:
+                assert ind in parsed, f"Missing result for indicator {ind}"
+
+    def test_empty_indicators_defaults_to_all(self, call) -> None:
+        """Empty or omitted indicators should default to all."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": []})
 
-        assert parsed["err"] == "VALIDATION_ERROR"
+        assert "rsi" in parsed
+        assert "macd" in parsed
 
     def test_start_end_historical_range(self, call) -> None:
         """start/end should fetch specific historical date range."""

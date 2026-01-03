@@ -303,8 +303,10 @@ TOOLS = [
                 "indicators": {
                     "type": "array",
                     "items": {"type": "string"},
+                    "default": ["all"],
                     "description": (
-                        "Options: trend, rsi, macd, sma_N, ema_N, wma_N, bb, stoch, "
+                        "Default: ['all']. "
+                        "Options: all, trend, rsi, macd, sma_N, ema_N, wma_N, bb, stoch, "
                         "fast_stoch, cci, dmi, williams, ichimoku, atr, obv, "
                         "momentum, volume_profile, price_change, fibonacci, pivot"
                     ),
@@ -319,7 +321,7 @@ TOOLS = [
                     "description": "End date. Defaults to today.",
                 },
             },
-            "required": ["symbol", "indicators"],
+            "required": ["symbol"],
         },
     ),
     Tool(
@@ -582,26 +584,54 @@ def _handle_history(args: dict) -> str:
     return fmt(result)
 
 
+ALL_INDICATORS = [
+    "trend",
+    "rsi",
+    "macd",
+    "bb",
+    "stoch",
+    "fast_stoch",
+    "cci",
+    "dmi",
+    "williams",
+    "ichimoku",
+    "atr",
+    "obv",
+    "momentum",
+    "volume_profile",
+    "price_change",
+    "fibonacci",
+    "pivot",
+    "sma_20",
+    "sma_50",
+    "sma_100",
+    "sma_200",
+    "ema_9",
+    "ema_12",
+    "ema_26",
+    "ema_50",
+    "wma_20",
+]
+
+
 def _handle_technicals(args: dict) -> str:
     """Handle technicals tool - trading signals and indicators."""
     symbol, t = _require_symbol(args)
     period = args.get("period", "3mo")
     start = args.get("start")
     end = args.get("end")
-    inds = args.get("indicators", [])
+    inds = args.get("indicators") or ["all"]
 
-    if not inds:
-        logger.debug("technicals_no_indicators symbol=%s", symbol)
-        raise ValidationError(
-            "indicators required. "
-            "Options: trend, rsi, macd, sma_N, ema_N, wma_N, bb, stoch, "
-            "fast_stoch, cci, dmi, williams, ichimoku, atr, obv, "
-            "momentum, volume_profile, price_change, fibonacci, pivot"
-        )
+    if "all" in inds:
+        inds = ALL_INDICATORS
 
     logger.debug(
         "technicals_fetch symbol=%s period=%s start=%s end=%s indicators=%s",
-        symbol, period, start, end, inds,
+        symbol,
+        period,
+        start,
+        end,
+        inds,
     )
 
     df = history.get_history(symbol, period, "1d", ticker=t, start=start, end=end)
