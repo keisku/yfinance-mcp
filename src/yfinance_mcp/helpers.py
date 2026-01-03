@@ -585,8 +585,8 @@ def auto_interval(span_days: float) -> str:
     return "5m"
 
 
-TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "80"))
-MAX_SPAN_DAYS = int(os.environ.get("YFINANCE_MAX_SPAN_DAYS", "1120"))  # ~3 years
+TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "120"))
+MAX_SPAN_DAYS = int(os.environ.get("YFINANCE_MAX_SPAN_DAYS", "1680"))  # ~4.6 years
 
 
 class DateRangeExceededError(Exception):

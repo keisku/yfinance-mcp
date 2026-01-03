@@ -85,30 +85,32 @@ uv run pip-audit                       # Security scan
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `YFINANCE_TARGET_POINTS` | `80` | Target data points for `history` and `technicals`. Lower = fewer tokens, faster LLM processing. Range: 50-200. |
-| `YFINANCE_MAX_SPAN_DAYS` | `1120` | Maximum time range in days (~3 years). Optimized for 80 points at biweekly resolution. Longer ranges are truncated to keep most recent data. |
+| `YFINANCE_TARGET_POINTS` | `120` | Target data points for `history` and `technicals`. Lower = fewer tokens, faster LLM processing. Range: 50-200. |
+| `YFINANCE_MAX_SPAN_DAYS` | `1680` | Maximum time range in days (~4.6 years). Optimized for 120 points at biweekly resolution. Longer ranges are truncated to keep most recent data. |
 | `YFINANCE_CACHE_DISABLED` | `0` | Set to `1` to disable caching. Local cache to reduce Yahoo Finance API calls and speed up repeated queries. |
 | `YFINANCE_CACHE_DB` | `~/.cache/yfinance-mcp/market.duckdb` | Custom cache path. |
 
 #### Data Point Optimization
 
-The `history` and `technicals` tools automatically downsample responses to `YFINANCE_TARGET_POINTS` for consistent LLM token usage.
+The `history` and `technicals` tools return data in [TOON format](https://github.com/toon-format/toon) (Token-Oriented Object Notation), achieving ~45% token reduction compared to JSON. Responses are downsampled to `YFINANCE_TARGET_POINTS` for consistent LLM token usage.
 
-**Why 80 data points?**
+**Why 120 data points?**
 
-- **Token estimation**: Each OHLCV bar ≈ 50-80 tokens (date + 5 values + JSON formatting). 80 points × 60 tokens ≈ 4,800 tokens.
-- **Nyquist-Shannon theorem**: To capture a signal, sample at ≥2× its frequency. 80 points over 3 years (~1120 days) = biweekly sampling, sufficient for monthly/quarterly market cycles.
-- **LLM context efficiency**: Research shows LLMs perform optimally with focused context. 4-8K tokens for time-series leaves room for analysis instructions and responses.
+- **Token estimation**: With TOON format, each OHLCV bar ≈ 25-35 tokens (vs 50-80 for JSON). 120 points × 30 tokens ≈ 3,600 tokens.
+- **Nyquist-Shannon theorem**: To capture a signal, sample at ≥2× its frequency. 120 points over 4.6 years (~1680 days) = biweekly sampling, sufficient for monthly/quarterly market cycles.
+- **LLM context efficiency**: Research shows LLMs perform optimally with focused context. 3-5K tokens for time-series leaves room for analysis instructions and responses.
 
 **Formula**: `YFINANCE_MAX_SPAN_DAYS = YFINANCE_TARGET_POINTS × 14 days` (biweekly resolution)
 
-| Points | Tokens | Max Span | Resolution | Use Case |
-|--------|--------|----------|------------|----------|
-| 50 | ~2-4K | 700 days | biweekly | Cost-efficient, fast processing |
-| 80 | ~4-8K | 1120 days | biweekly | Default balance of detail and efficiency |
-| 150 | ~10-15K | 2100 days | biweekly | Detailed analysis, higher cost |
+| Points | Tokens (TOON) | Max Span | Resolution | Use Case |
+|--------|---------------|----------|------------|----------|
+| 50 | ~1.5-2K | 700 days | biweekly | Cost-efficient, fast processing |
+| 80 | ~2.5-4K | 1120 days | biweekly | Compact analysis |
+| 120 | ~3.5-5K | 1680 days | biweekly | Default balance of detail and efficiency |
+| 150 | ~5-7K | 2100 days | biweekly | Detailed analysis |
 
 References:
+- [TOON format](https://github.com/toon-format/toon) - Token-Oriented Object Notation for LLM efficiency
 - [Anthropic: Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting)
 - [OpenAI: What are tokens](https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them)
 
