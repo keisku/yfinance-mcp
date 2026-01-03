@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767322243527,
+  "lastUpdate": 1767428758485,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -2766,6 +2766,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0008447851903755111",
             "extra": "mean: 28.503189166668125 msec\nrounds: 6"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "f7530447d8dacfe60dca391dfc4904b84a20611d",
+          "message": "chore: Increase default period for history and technicals\n\n- history: 1mo -> 3mo (more useful context for price analysis)\n- technicals: 3mo -> 1y (ensures all indicators including SMA 200\n  have sufficient data points)",
+          "timestamp": "2026-01-03T17:22:59+09:00",
+          "tree_id": "0075f4f60ab10c0917cecddb14e1925b2a5f55cf",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/f7530447d8dacfe60dca391dfc4904b84a20611d"
+        },
+        "date": 1767428757588,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 17.15478232409986,
+            "unit": "iter/sec",
+            "range": "stddev: 0.12002967329984135",
+            "extra": "mean: 58.29278279999812 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 218.43663762565356,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00043908557482458336",
+            "extra": "mean: 4.577986600003214 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 214.83686598898663,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00046271295289949043",
+            "extra": "mean: 4.654694600000653 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 85.30427272945528,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00029543341284900986",
+            "extra": "mean: 11.722742226189842 msec\nrounds: 84"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 251.4875187224654,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010972376972412724",
+            "extra": "mean: 3.9763404763779633 msec\nrounds: 254"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 253.124706661203,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000055236671916822926",
+            "extra": "mean: 3.9506218622050944 msec\nrounds: 254"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 33.71512589136407,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007970472061414793",
+            "extra": "mean: 29.66027780000502 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 36.252201271426316,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001537509170007961",
+            "extra": "mean: 27.5845318333315 msec\nrounds: 6"
           }
         ]
       }
