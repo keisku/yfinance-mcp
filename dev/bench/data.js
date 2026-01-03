@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767450409678,
+  "lastUpdate": 1767455213838,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -3086,6 +3086,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0003630346284136022",
             "extra": "mean: 27.076824111115155 msec\nrounds: 9"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "ad7319746a9a36270a4f37e23258c9f020c20c8e",
+          "message": "refactor(sampling): Use domain-specific downsampling algorithms\n\nReplace uniform subsampling with algorithms suited to each data type:\n\n- history: OHLC resampling preserves price semantics (first open,\n  max high, min low, last close, sum volume)\n- technicals: LTTB algorithm preserves visual shape and keeps\n  trend reversals, crossovers, and significant changes\n\nAdd comprehensive tests covering edge cases (empty, single row,\ntarget=1/2, NaN values, target > input).",
+          "timestamp": "2026-01-04T00:42:15+09:00",
+          "tree_id": "1f9c9d5c22819b1d21a02ffc8609cd48db46506c",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/ad7319746a9a36270a4f37e23258c9f020c20c8e"
+        },
+        "date": 1767455213437,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 29.048552203329976,
+            "unit": "iter/sec",
+            "range": "stddev: 0.06625611048687029",
+            "extra": "mean: 34.42512359997636 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 211.57213242636098,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000595502886248009",
+            "extra": "mean: 4.7265204000723315 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 213.25092636222078,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005394440056269945",
+            "extra": "mean: 4.689311399761209 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 84.80589481400824,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002884077727274746",
+            "extra": "mean: 11.79163314287464 msec\nrounds: 84"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 250.49149072318767,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012532022250903566",
+            "extra": "mean: 3.99215157813515 msec\nrounds: 256"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 247.46512052294085,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011368877118920299",
+            "extra": "mean: 4.040973523407298 msec\nrounds: 235"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 31.9102644560012,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0011324258887188885",
+            "extra": "mean: 31.337878800059116 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 35.222615116669296,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005835015568843275",
+            "extra": "mean: 28.39085050010226 msec\nrounds: 8"
           }
         ]
       }
