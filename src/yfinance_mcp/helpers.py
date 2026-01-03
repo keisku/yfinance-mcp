@@ -9,6 +9,8 @@ import sys
 import tempfile
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+
+from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from typing import Any
 
@@ -258,21 +260,13 @@ def normalize_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def require_symbol(args: dict, ticker_fn: Any) -> tuple[str, yf.Ticker]:
-    """Validate symbol argument and return (symbol, ticker) tuple."""
-    symbol = args.get("symbol")
-    if not symbol:
-        raise ValidationError("symbol required")
-    return symbol, ticker_fn(symbol)
-
-
-def signal_level(value: float, high: float, low: float) -> str:
-    """Return overbought/oversold/neutral based on thresholds."""
-    if value > high:
-        return "overbought"
-    if value < low:
-        return "oversold"
-    return "neutral"
+def normalize_tz(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove timezone info from DataFrame index for consistent storage/comparison."""
+    if df.empty:
+        return df
+    if hasattr(df.index, "tz") and df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+    return df
 
 
 def add_unknown(result: dict, indicator: str, logger: logging.Logger) -> None:
@@ -288,13 +282,6 @@ def round_result(data: dict, decimals: int = 2) -> dict:
         for k, v in data.items()
         if v is not None
     }
-
-
-def safe_round(value: float, decimals: int = 2) -> float | None:
-    """Round value, returning None if NaN or infinite."""
-    if pd.isna(value) or not pd.api.types.is_number(value):
-        return None
-    return round(value, decimals)
 
 
 def adaptive_decimals(price: float) -> int:
@@ -463,6 +450,25 @@ PERIOD_TO_DAYS = {
     "10y": 3650,
     "max": 7300,  # ~20 years as fallback
 }
+
+PERIOD_DELTAS = {
+    "1d": relativedelta(days=1),
+    "5d": relativedelta(days=5),
+    "1mo": relativedelta(months=1),
+    "3mo": relativedelta(months=3),
+    "6mo": relativedelta(months=6),
+    "1y": relativedelta(years=1),
+    "2y": relativedelta(years=2),
+    "5y": relativedelta(years=5),
+    "10y": relativedelta(years=10),
+    "ytd": None,  # Special case: handled separately
+    "max": relativedelta(years=99),
+}
+
+OHLCV_COLS_TO_SHORT = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
+OHLCV_COLS_TO_LONG = {"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume"}
+
+INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "1h"}
 
 # Ordered by duration for generating valid options
 PERIOD_OPTIONS_ORDERED = [

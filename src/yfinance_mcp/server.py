@@ -26,7 +26,9 @@ from .errors import (
     ValidationError,
 )
 from .helpers import (
+    INTRADAY_INTERVALS,
     MAX_SPAN_DAYS,
+    OHLCV_COLS_TO_SHORT,
     TARGET_POINTS,
     DateRangeExceededError,
     adaptive_decimals,
@@ -42,6 +44,7 @@ from .helpers import (
     get_valid_periods,
     lttb_downsample,
     normalize_df,
+    normalize_tz,
     ohlc_resample,
     parse_moving_avg_period,
     period_to_date_range,
@@ -591,15 +594,13 @@ def _handle_history(args: dict) -> str:
     last_close = df["Close"].iloc[-1] if not df.empty else 1.0
     decimals = adaptive_decimals(float(last_close))
 
-    col_map = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
-    df = df.rename(columns=col_map)
+    df = df.rename(columns=OHLCV_COLS_TO_SHORT)
     df = df[["o", "h", "l", "c", "v"]].round(decimals)
 
     df = ohlc_resample(df)
     logger.debug("price_resampled symbol=%s bars=%d", symbol, len(df))
 
-    intraday_intervals = {"1m", "5m", "15m", "1h"}
-    if interval in intraday_intervals:
+    if interval in INTRADAY_INTERVALS:
         df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d %H:%M")
     else:
         df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d")
@@ -1062,9 +1063,7 @@ def _compute_historical_valuation(
                 logger.warning("historical_valuation_no_price date=%s", target_date)
                 continue
 
-            # Normalize timezone
-            if price_df.index.tz is not None:
-                price_df.index = price_df.index.tz_localize(None)
+            price_df = normalize_tz(price_df)
 
             # Find closest price on or before target date
             target_ts = pd.Timestamp(target_date.date())

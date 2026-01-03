@@ -10,24 +10,12 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
+from .helpers import INTRADAY_INTERVALS, OHLCV_COLS_TO_LONG, PERIOD_DELTAS
+
 if TYPE_CHECKING:
     from .cache import CachedPriceFetcher
 
 logger = logging.getLogger("yfinance_mcp.history")
-
-_PERIOD_DELTAS = {
-    "1d": relativedelta(days=1),
-    "5d": relativedelta(days=5),
-    "1mo": relativedelta(months=1),
-    "3mo": relativedelta(months=3),
-    "6mo": relativedelta(months=6),
-    "1y": relativedelta(years=1),
-    "2y": relativedelta(years=2),
-    "5y": relativedelta(years=5),
-    "10y": relativedelta(years=10),
-    "ytd": None,  # Special case: handled separately
-    "max": relativedelta(years=99),
-}
 
 _fetcher: "CachedPriceFetcher | None" = None
 _initialized = False
@@ -142,7 +130,7 @@ def get_history(
         if period == "ytd":
             start = date(end_date.year, 1, 1).isoformat()
         else:
-            delta = _PERIOD_DELTAS.get(period, relativedelta(months=1))
+            delta = PERIOD_DELTAS.get(period, relativedelta(months=1))
             start = (end_date - delta).isoformat()
         logger.debug(
             "get_history computed start=%s from end=%s period=%s",
@@ -166,8 +154,7 @@ def get_history(
             df = _fetcher.get_history_by_dates(symbol, start, end, interval)
         else:
             df = _fetcher.get_history(symbol, period, interval)
-        col_map = {"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume"}
-        result = df.rename(columns=col_map)
+        result = df.rename(columns=OHLCV_COLS_TO_LONG)
         logger.debug(
             "get_history symbol=%s interval=%s bars=%d source=cache",
             symbol,
@@ -176,8 +163,7 @@ def get_history(
         )
         return result
 
-    intraday_intervals = {"1m", "5m", "15m", "30m", "1h"}
-    if interval in intraday_intervals:
+    if interval in INTRADAY_INTERVALS:
         if ticker is not None:
             t = ticker
         elif _ticker_fn is not None:

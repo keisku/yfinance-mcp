@@ -12,6 +12,8 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
+from .helpers import OHLCV_COLS_TO_SHORT, PERIOD_DELTAS, normalize_tz
+
 logger = logging.getLogger("yfinance_mcp.cache")
 
 _cache_stats = {"hits": 0, "misses": 0}
@@ -62,19 +64,6 @@ def _is_holiday_in_memory(symbol: str, check_date: date) -> bool:
         calendar_cls = _MARKET_CALENDAR_MAP.get(suffix, holidays.NYSE)
         _in_memory_calendars[suffix] = calendar_cls()
     return check_date in _in_memory_calendars[suffix]
-
-
-_PERIOD_DELTAS = {
-    "1d": relativedelta(days=1),
-    "5d": relativedelta(days=5),
-    "1mo": relativedelta(months=1),
-    "3mo": relativedelta(months=3),
-    "6mo": relativedelta(months=6),
-    "1y": relativedelta(years=1),
-    "2y": relativedelta(years=2),
-    "5y": relativedelta(years=5),
-    "max": relativedelta(years=10),
-}
 
 
 class PriceCacheBackend(Protocol):
@@ -341,8 +330,8 @@ class CachedPriceFetcher:
 
         if period == "ytd":
             start_date = date(today.year, 1, 1)
-        elif period in _PERIOD_DELTAS:
-            start_date = today - _PERIOD_DELTAS[period]
+        elif period in PERIOD_DELTAS:
+            start_date = today - PERIOD_DELTAS[period]
         else:
             # Default to 1 month
             start_date = today - relativedelta(months=1)
@@ -372,18 +361,9 @@ class CachedPriceFetcher:
                     end=(end + timedelta(days=1)).isoformat(),
                     interval=interval,
                 )
-                # tz-naive for consistent storage/comparison
-                if not df.empty and df.index.tz is not None:
-                    df.index = df.index.tz_localize(None)
+                df = normalize_tz(df)
                 if not df.empty:
-                    col_map = {
-                        "Open": "o",
-                        "High": "h",
-                        "Low": "l",
-                        "Close": "c",
-                        "Volume": "v",
-                    }
-                    df = df.rename(columns=col_map)
+                    df = df.rename(columns=OHLCV_COLS_TO_SHORT)
                     df = df[[c for c in ["o", "h", "l", "c", "v"] if c in df.columns]]
                 elapsed_ms = (time.time() - fetch_start) * 1000
                 logger.debug(
@@ -420,15 +400,7 @@ class CachedPriceFetcher:
         if df.empty:
             return df
 
-        col_map = {
-            "Open": "o",
-            "High": "h",
-            "Low": "l",
-            "Close": "c",
-            "Volume": "v",
-        }
-        df = df.rename(columns=col_map)
-
+        df = df.rename(columns=OHLCV_COLS_TO_SHORT)
         keep_cols = ["o", "h", "l", "c", "v"]
         df = df[[c for c in keep_cols if c in df.columns]]
         return df

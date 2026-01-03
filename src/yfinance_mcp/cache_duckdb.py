@@ -8,6 +8,8 @@ from typing import Any
 
 import pandas as pd
 
+from .helpers import normalize_tz
+
 logger = logging.getLogger("yfinance_mcp.cache.duckdb")
 
 
@@ -100,7 +102,8 @@ class DuckDBCacheBackend:
 
         if not df.empty:
             df = df.set_index("date")
-            df.index = pd.to_datetime(df.index).tz_localize(None)
+            df.index = pd.to_datetime(df.index)
+            df = normalize_tz(df)
             df = df.rename(
                 columns={"open": "o", "high": "h", "low": "l", "close": "c", "volume": "v"}
             )
