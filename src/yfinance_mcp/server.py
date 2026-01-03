@@ -26,24 +26,31 @@ from .errors import (
     ValidationError,
 )
 from .helpers import (
+    MAX_SPAN_DAYS,
+    TARGET_POINTS,
+    DateRangeExceededError,
     adaptive_decimals,
     add_unknown,
+    auto_downsample,
+    auto_interval,
     calculate_quality,
+    calculate_span_days,
     configure_logging,
     err,
     fmt,
     get_default_log_path,
+    get_valid_periods,
     normalize_df,
     parse_moving_avg_period,
+    period_to_date_range,
     round_result,
     safe_get,
     safe_gt,
-    safe_round,
     safe_scalar,
-    signal_level,
     smart_search,
     summarize_args,
     to_scalar,
+    validate_date_range,
 )
 
 _request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
@@ -236,7 +243,10 @@ TOOLS = [
     Tool(
         name="history",
         description=(
-            "Historical OHLCV bars. Supports 1m-1mo intervals, arbitrary date ranges back to 1990s."
+            "Historical OHLCV bars. Interval is auto-selected based on time range "
+            f"to return ~{TARGET_POINTS} data points for optimal analysis. "
+            f"Max range: {MAX_SPAN_DAYS} days (~{MAX_SPAN_DAYS // 365}y). "
+            "For longer periods, split into multiple sequential requests."
         ),
         inputSchema={
             "type": "object",
@@ -245,7 +255,7 @@ TOOLS = [
                 "period": {
                     "type": "string",
                     "default": "3mo",
-                    "enum": ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "ytd", "max"],
+                    "enum": get_valid_periods(MAX_SPAN_DAYS),
                     "description": "Relative period. Ignored if start provided.",
                 },
                 "start": {
@@ -256,23 +266,6 @@ TOOLS = [
                     "type": "string",
                     "description": "End date. Defaults to today.",
                 },
-                "interval": {
-                    "type": "string",
-                    "default": "1d",
-                    "enum": ["1m", "5m", "15m", "1h", "1d", "1wk", "1mo"],
-                    "description": "Bar size. Intraday limited to 60 days.",
-                },
-                "limit": {
-                    "type": "integer",
-                    "default": 20,
-                    "description": "Number of bars (max 500).",
-                },
-                "format": {
-                    "type": "string",
-                    "enum": ["concise", "detailed"],
-                    "default": "concise",
-                    "description": "concise: o/h/l/c/v. detailed: full names.",
-                },
             },
             "required": ["symbol"],
         },
@@ -281,6 +274,10 @@ TOOLS = [
         name="technicals",
         description=(
             "Technical indicators and signals. "
+            "Interval is auto-selected based on time range "
+            f"to return ~{TARGET_POINTS} data points for optimal analysis. "
+            f"Max range: {MAX_SPAN_DAYS} days (~{MAX_SPAN_DAYS // 365}y). "
+            "For longer periods, split into multiple sequential requests. "
             "trend: SMA50-based trend direction. "
             "rsi: >70 overbought, <30 oversold. "
             "macd: histogram>0 bullish. "
@@ -314,7 +311,7 @@ TOOLS = [
                 "period": {
                     "type": "string",
                     "default": "1y",
-                    "enum": ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "ytd", "max"],
+                    "enum": get_valid_periods(MAX_SPAN_DAYS),
                     "description": "Relative period. Ignored if start provided.",
                 },
                 "start": {
@@ -452,6 +449,26 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             hit_rate,
         )
         return [TextContent(type="text", text=result)]
+    except DateRangeExceededError as e:
+        elapsed_ms = (time.time() - start_time) * 1000
+        max_years = e.max_days / 365
+        logger.warning(
+            "tool_call_error name=%s code=DATE_RANGE_EXCEEDED elapsed_ms=%.1f msg=%s",
+            name,
+            elapsed_ms,
+            str(e),
+        )
+        validation_err = ValidationError(
+            str(e),
+            {
+                "requested_days": e.requested_days,
+                "max_days": e.max_days,
+                "max_years": round(max_years, 1),
+                "hint": f"Use period='{e.suggested_period}' or "
+                f"specify start/end within {round(max_years, 1)} years.",
+            },
+        )
+        return [TextContent(type="text", text=err(validation_err))]
     except MCPError as e:
         elapsed_ms = (time.time() - start_time) * 1000
         logger.warning(
@@ -543,27 +560,27 @@ def _handle_search_stock(args: dict) -> str:
 def _handle_history(args: dict) -> str:
     """Handle history tool - historical OHLCV data."""
     symbol, t = _require_symbol(args)
+    period = args.get("period", "3mo")
     start = args.get("start")
     end = args.get("end")
-    period = args.get("period", "3mo")
-    interval = args.get("interval", "1d")
-    raw_limit = args.get("limit", 20)
 
-    try:
-        limit = max(1, min(int(raw_limit), 500))
-    except (TypeError, ValueError):
-        raise ValidationError(f"limit must be an integer, got {type(raw_limit).__name__}")
+    # Convert custom periods (e.g., "1w", "9mo") to date ranges
+    if not start and period:
+        period, start, end = period_to_date_range(period)
 
-    format_type = args.get("format", "concise")
+    validate_date_range(period, start, end)
+
+    span_days = calculate_span_days(period, start, end)
+    interval = auto_interval(span_days)
 
     logger.debug(
-        "price_fetch symbol=%s start=%s end=%s period=%s interval=%s limit=%d",
+        "price_fetch symbol=%s start=%s end=%s period=%s interval=%s span_days=%.1f",
         symbol,
         start,
         end,
         period,
         interval,
-        limit,
+        span_days,
     )
 
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
@@ -572,18 +589,16 @@ def _handle_history(args: dict) -> str:
         raise DataUnavailableError(f"No price data for {symbol}. Try different period.")
     logger.debug("price_fetched symbol=%s bars=%d", symbol, len(df))
 
-    total_bars = len(df)
-    df = df.tail(limit)
+    # Downsample to stabilize output size
+    df = auto_downsample(df, period, start, end)
+    logger.debug("price_downsampled symbol=%s bars=%d", symbol, len(df))
 
     last_close = df["Close"].iloc[-1] if not df.empty else 1.0
     decimals = adaptive_decimals(float(last_close))
 
-    if format_type == "concise":
-        col_map = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
-        df = df.rename(columns=col_map)
-        df = df[["o", "h", "l", "c", "v"]].round(decimals)
-    else:
-        df = df[["Open", "High", "Low", "Close", "Volume"]].round(decimals)
+    col_map = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
+    df = df.rename(columns=col_map)
+    df = df[["o", "h", "l", "c", "v"]].round(decimals)
 
     intraday_intervals = {"1m", "5m", "15m", "1h"}
     if interval in intraday_intervals:
@@ -591,10 +606,7 @@ def _handle_history(args: dict) -> str:
     else:
         df.index = df.index.strftime("%Y-%m-%d")
 
-    result: dict[str, Any] = {"bars": df.to_dict("index")}
-    if total_bars > limit:
-        result["_truncated"] = f"Showing {limit} of {total_bars}. Increase limit for more."
-    return fmt(result)
+    return fmt({"bars": df.to_dict("index")})
 
 
 ALL_INDICATORS = [
@@ -639,11 +651,18 @@ ALL_METRICS = [
 
 
 def _handle_technicals(args: dict) -> str:
-    """Handle technicals tool - trading signals and indicators."""
+    """Handle technicals tool - returns time series of technical indicators."""
     symbol, t = _require_symbol(args)
     period = args.get("period", "1y")
     start = args.get("start")
     end = args.get("end")
+
+    # Convert custom periods (e.g., "1w", "9mo") to date ranges
+    if not start and period:
+        period, start, end = period_to_date_range(period)
+
+    validate_date_range(period, start, end)
+
     inds = args.get("indicators") or ["all"]
 
     if "all" in inds:
@@ -665,238 +684,161 @@ def _handle_technicals(args: dict) -> str:
     df = normalize_df(df)
     logger.debug("technicals_data_ready symbol=%s bars=%d", symbol, len(df))
 
-    result: dict[str, Any] = {}
+    result_df = pd.DataFrame(index=df.index)
+    meta: dict[str, Any] = {}
 
     for ind in inds:
         try:
             if ind == "rsi":
-                rsi = indicators.calculate_rsi(df["Close"])
-                v = float(to_scalar(rsi.iloc[-1]))
-                result["rsi"] = round(v, 1)
-                result["rsi_signal"] = signal_level(v, 70, 30)
+                result_df["rsi"] = indicators.calculate_rsi(df["Close"]).round(1)
 
             elif ind == "macd":
                 m = indicators.calculate_macd(df["Close"])
-                hist = float(to_scalar(m["histogram"].iloc[-1]))
-                result["macd"] = round(float(to_scalar(m["macd"].iloc[-1])), 3)
-                result["macd_signal"] = round(float(to_scalar(m["signal"].iloc[-1])), 3)
-                result["macd_hist"] = round(hist, 3)
-                result["macd_trend"] = "bullish" if hist > 0 else "bearish"
+                result_df["macd"] = m["macd"].round(3)
+                result_df["macd_signal"] = m["signal"].round(3)
+                result_df["macd_hist"] = m["histogram"].round(3)
 
             elif ind.startswith("sma_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
-                    _add_unknown(result, ind)
+                    _add_unknown(meta, ind)
                     continue
-                sma = indicators.calculate_sma(df["Close"], p)
-                v = float(to_scalar(sma.iloc[-1]))
-                result[ind] = round(v, 2) if not pd.isna(v) else None
-                if not pd.isna(v):
-                    close = float(to_scalar(df["Close"].iloc[-1]))
-                    result[f"{ind}_pos"] = "above" if close > v else "below"
+                result_df[ind] = indicators.calculate_sma(df["Close"], p).round(2)
 
             elif ind.startswith("ema_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
-                    _add_unknown(result, ind)
+                    _add_unknown(meta, ind)
                     continue
-                ema = indicators.calculate_ema(df["Close"], p)
-                v = float(to_scalar(ema.iloc[-1]))
-                result[ind] = round(v, 2) if not pd.isna(v) else None
+                result_df[ind] = indicators.calculate_ema(df["Close"], p).round(2)
 
             elif ind.startswith("wma_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
-                    _add_unknown(result, ind)
+                    _add_unknown(meta, ind)
                     continue
-                wma = indicators.calculate_wma(df["Close"], p)
-                v = float(to_scalar(wma.iloc[-1]))
-                result[ind] = round(v, 2) if not pd.isna(v) else None
-                if not pd.isna(v):
-                    close = float(to_scalar(df["Close"].iloc[-1]))
-                    result[f"{ind}_pos"] = "above" if close > v else "below"
+                result_df[ind] = indicators.calculate_wma(df["Close"], p).round(2)
 
             elif ind == "momentum":
-                mom = indicators.calculate_momentum(df["Close"])
-                v = float(to_scalar(mom.iloc[-1]))
-                result["momentum"] = round(v, 2) if not pd.isna(v) else None
-                if not pd.isna(v):
-                    result["momentum_signal"] = "bullish" if v > 0 else "bearish"
+                result_df["momentum"] = indicators.calculate_momentum(df["Close"]).round(2)
 
             elif ind == "cci":
-                cci = indicators.calculate_cci(df["High"], df["Low"], df["Close"])
-                v = float(to_scalar(cci.iloc[-1]))
-                result["cci"] = round(v, 1) if not pd.isna(v) else None
-                if not pd.isna(v):
-                    result["cci_signal"] = signal_level(v, 100, -100)
+                result_df["cci"] = indicators.calculate_cci(
+                    df["High"], df["Low"], df["Close"]
+                ).round(1)
 
             elif ind == "dmi":
                 dmi = indicators.calculate_dmi(df["High"], df["Low"], df["Close"])
-                plus_di = float(to_scalar(dmi["plus_di"].iloc[-1]))
-                minus_di = float(to_scalar(dmi["minus_di"].iloc[-1]))
-                adx = float(to_scalar(dmi["adx"].iloc[-1]))
-                result["dmi_plus"] = round(plus_di, 1) if not pd.isna(plus_di) else None
-                result["dmi_minus"] = round(minus_di, 1) if not pd.isna(minus_di) else None
-                result["adx"] = round(adx, 1) if not pd.isna(adx) else None
-                if not pd.isna(adx):
-                    trend_strength = "strong" if adx > 25 else "weak" if adx < 20 else "moderate"
-                    trend_dir = "bullish" if plus_di > minus_di else "bearish"
-                    result["dmi_signal"] = f"{trend_strength}_{trend_dir}"
+                result_df["dmi_plus"] = dmi["plus_di"].round(1)
+                result_df["dmi_minus"] = dmi["minus_di"].round(1)
+                result_df["adx"] = dmi["adx"].round(1)
 
             elif ind == "williams":
-                wr = indicators.calculate_williams_r(df["High"], df["Low"], df["Close"])
-                v = float(to_scalar(wr.iloc[-1]))
-                result["williams_r"] = round(v, 1) if not pd.isna(v) else None
-                if not pd.isna(v):
-                    result["williams_signal"] = signal_level(v, -20, -80)
+                result_df["williams_r"] = indicators.calculate_williams_r(
+                    df["High"], df["Low"], df["Close"]
+                ).round(1)
 
             elif ind == "bb":
                 bb = indicators.calculate_bollinger_bands(df["Close"])
-                upper = float(to_scalar(bb["upper"].iloc[-1]))
-                lower = float(to_scalar(bb["lower"].iloc[-1]))
-                pctb = float(to_scalar(bb["percent_b"].iloc[-1]))
-
-                result["bb_upper"] = safe_round(upper, 2)
-                result["bb_lower"] = safe_round(lower, 2)
-
-                if pd.isna(pctb):
-                    result["bb_pctb"] = None
-                    result["bb_signal"] = "unavailable"
-                else:
-                    result["bb_pctb"] = round(pctb, 2)
-                    result["bb_signal"] = signal_level(pctb, 1, 0)
+                result_df["bb_upper"] = bb["upper"].round(2)
+                result_df["bb_middle"] = bb["middle"].round(2)
+                result_df["bb_lower"] = bb["lower"].round(2)
+                result_df["bb_pctb"] = bb["percent_b"].round(2)
 
             elif ind == "stoch":
                 s = indicators.calculate_stochastic(df["High"], df["Low"], df["Close"])
-                k = float(to_scalar(s["k"].iloc[-1]))
-                result["stoch_k"] = round(k, 1)
-                result["stoch_d"] = round(float(to_scalar(s["d"].iloc[-1])), 1)
-                result["stoch_signal"] = signal_level(k, 80, 20)
+                result_df["stoch_k"] = s["k"].round(1)
+                result_df["stoch_d"] = s["d"].round(1)
 
             elif ind == "fast_stoch":
                 s = indicators.calculate_fast_stochastic(df["High"], df["Low"], df["Close"])
-                k = float(to_scalar(s["k"].iloc[-1]))
-                result["fast_stoch_k"] = round(k, 1)
-                result["fast_stoch_d"] = round(float(to_scalar(s["d"].iloc[-1])), 1)
-                result["fast_stoch_signal"] = signal_level(k, 80, 20)
+                result_df["fast_stoch_k"] = s["k"].round(1)
+                result_df["fast_stoch_d"] = s["d"].round(1)
 
             elif ind == "ichimoku":
                 ich = indicators.calculate_ichimoku(df["High"], df["Low"], df["Close"])
-                conversion = float(to_scalar(ich["conversion_line"].iloc[-1]))
-                base = float(to_scalar(ich["base_line"].iloc[-1]))
-                leading_a = float(to_scalar(ich["leading_span_a"].iloc[-1]))
-                leading_b = float(to_scalar(ich["leading_span_b"].iloc[-1]))
-
-                result["ichimoku_conversion"] = safe_round(conversion, 2)
-                result["ichimoku_base"] = safe_round(base, 2)
-                result["ichimoku_leading_a"] = safe_round(leading_a, 2)
-                result["ichimoku_leading_b"] = safe_round(leading_b, 2)
-
-                close_val = float(to_scalar(df["Close"].iloc[-1]))
-                if not pd.isna(leading_a) and not pd.isna(leading_b):
-                    cloud_top = max(leading_a, leading_b)
-                    cloud_bottom = min(leading_a, leading_b)
-                    cloud_color = "bullish" if leading_a > leading_b else "bearish"
-                    if close_val > cloud_top:
-                        result["ichimoku_signal"] = f"above_{cloud_color}_cloud"
-                    elif close_val < cloud_bottom:
-                        result["ichimoku_signal"] = f"below_{cloud_color}_cloud"
-                    else:
-                        result["ichimoku_signal"] = f"in_{cloud_color}_cloud"
+                result_df["ichimoku_conversion"] = ich["conversion_line"].round(2)
+                result_df["ichimoku_base"] = ich["base_line"].round(2)
+                result_df["ichimoku_leading_a"] = ich["leading_span_a"].round(2)
+                result_df["ichimoku_leading_b"] = ich["leading_span_b"].round(2)
+                result_df["ichimoku_lagging"] = ich["lagging_span"].round(2)
 
             elif ind == "atr":
-                atr = indicators.calculate_atr(df["High"], df["Low"], df["Close"])
-                atr_val = float(to_scalar(atr.iloc[-1]))
-                close = float(to_scalar(df["Close"].iloc[-1]))
-                result["atr"] = round(atr_val, 3)
-                result["atr_pct"] = round(atr_val / close * 100, 2)
+                atr_series = indicators.calculate_atr(df["High"], df["Low"], df["Close"])
+                result_df["atr"] = atr_series.round(3)
+                result_df["atr_pct"] = (atr_series / df["Close"] * 100).round(2)
 
             elif ind == "obv":
-                obv = indicators.calculate_obv(df["Close"], df["Volume"])
-                obv_val = float(to_scalar(obv.iloc[-1]))
-                obv_sma = float(to_scalar(obv.rolling(20).mean().iloc[-1]))
+                result_df["obv"] = indicators.calculate_obv(df["Close"], df["Volume"]).round(0)
 
-                if pd.isna(obv_val):
-                    result["obv"] = None
-                    result["obv_trend"] = None
+            elif ind == "trend":
+                if len(df) >= 50:
+                    sma50 = indicators.calculate_sma(df["Close"], 50)
+                    result_df["sma50"] = sma50.round(2)
                 else:
-                    result["obv"] = int(obv_val)
-                    result["obv_trend"] = "bullish" if obv_val > obv_sma else "bearish"
+                    meta["_trend_error"] = f"need_50_bars_have_{len(df)}"
 
             elif ind == "volume_profile":
                 vp = indicators.calculate_volume_profile(df["Close"], df["Volume"])
-                result["vp_poc"] = vp["poc"]
-                result["vp_value_area_high"] = vp["value_area_high"]
-                result["vp_value_area_low"] = vp["value_area_low"]
-                close_val = float(to_scalar(df["Close"].iloc[-1]))
-                if close_val > vp["value_area_high"]:
-                    result["vp_signal"] = "above_value_area"
-                elif close_val < vp["value_area_low"]:
-                    result["vp_signal"] = "below_value_area"
-                else:
-                    result["vp_signal"] = "in_value_area"
+                meta["volume_profile"] = {
+                    "poc": vp["poc"],
+                    "value_area_high": vp["value_area_high"],
+                    "value_area_low": vp["value_area_low"],
+                }
 
             elif ind == "price_change":
                 pc = indicators.calculate_price_change(df["Close"])
-                result["price_change"] = round(pc["change"], 2)
-                result["price_change_pct"] = round(pc["change_pct"], 2)
-                result["price_change_signal"] = (
-                    "up" if pc["change"] > 0 else "down" if pc["change"] < 0 else "flat"
-                )
+                meta["price_change"] = {
+                    "change": round(pc["change"], 2),
+                    "change_pct": round(pc["change_pct"], 2),
+                }
 
             elif ind == "fibonacci":
                 period_high = float(to_scalar(df["High"].max()))
                 period_low = float(to_scalar(df["Low"].min()))
                 current_close = float(to_scalar(df["Close"].iloc[-1]))
                 is_uptrend = current_close > (period_high + period_low) / 2
-
                 fib = indicators.calculate_fibonacci_levels(period_high, period_low, is_uptrend)
-                result["fib_trend"] = "uptrend" if is_uptrend else "downtrend"
-                result["fib_levels"] = {k: round(v, 2) for k, v in fib.items()}
+                meta["fibonacci"] = {
+                    "trend": "uptrend" if is_uptrend else "downtrend",
+                    "levels": {k: round(v, 2) for k, v in fib.items()},
+                }
 
             elif ind == "pivot" or ind.startswith("pivot_"):
                 method = "standard"
                 if ind.startswith("pivot_"):
                     method = ind.split("_", 1)[1]
-
                 prev_high = float(to_scalar(df["High"].iloc[-2]))
                 prev_low = float(to_scalar(df["Low"].iloc[-2]))
                 prev_close = float(to_scalar(df["Close"].iloc[-2]))
-
                 pivot = indicators.calculate_pivot_points(prev_high, prev_low, prev_close, method)
-                result["pivot_method"] = method
-                result["pivot_levels"] = {k: round(v, 2) for k, v in pivot.items()}
-
-            elif ind == "trend":
-                if len(df) >= 50:
-                    sma50 = indicators.calculate_sma(df["Close"], 50)
-                    sma50_val = float(to_scalar(sma50.iloc[-1]))
-                    close = float(to_scalar(df["Close"].iloc[-1]))
-                    result["sma50"] = round(sma50_val, 2) if not pd.isna(sma50_val) else None
-                    if not pd.isna(sma50_val):
-                        result["trend"] = "uptrend" if close > sma50_val else "downtrend"
-                        result["price_vs_sma50"] = round((close / sma50_val - 1) * 100, 2)
-                else:
-                    result["trend"] = None
-                    result["_trend_error"] = f"need_50_bars_have_{len(df)}"
+                meta["pivot"] = {
+                    "method": method,
+                    "levels": {k: round(v, 2) for k, v in pivot.items()},
+                }
 
             else:
-                _add_unknown(result, ind)
+                _add_unknown(meta, ind)
 
         except CalculationError:
-            result[ind] = None
+            meta[f"_{ind}_error"] = "calculation_error"
         except (ValueError, TypeError) as e:
             logger.warning("technicals_conversion_error indicator=%s error=%s", ind, e)
-            result[ind] = None
+            meta[f"_{ind}_error"] = str(e)
         except Exception as e:
             error_msg = str(e)
             if "blk ref_locs" in error_msg or "internal" in error_msg.lower():
                 logger.warning("technicals_data_quality indicator=%s error=%s", ind, e)
-                result[ind] = None
-                result[f"_{ind}_error"] = "data_quality_issue"
+                meta[f"_{ind}_error"] = "data_quality_issue"
             else:
                 raise
 
+    result_df = auto_downsample(result_df, period, start, end)
+    result_df.index = result_df.index.strftime("%Y-%m-%d")
+
+    result: dict[str, Any] = {"data": result_df.to_dict("index")}
+    if meta:
+        result["meta"] = meta
     return fmt(result)
 
 

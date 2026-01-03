@@ -177,21 +177,6 @@ class TestHistoryTool:
         first_bar = list(parsed["bars"].values())[0]
         assert set(first_bar.keys()) == {"o", "h", "l", "c", "v"}
 
-    def test_limit_restricts_bars(self, call) -> None:
-        """Limit parameter should control number of bars."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("history", {"symbol": "AAPL", "limit": 5})
-
-        assert len(parsed["bars"]) == 5
-
-    def test_detailed_format(self, call) -> None:
-        """format=detailed should use full column names."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call("history", {"symbol": "AAPL", "format": "detailed"})
-
-        first_bar = list(parsed["bars"].values())[0]
-        assert "Open" in first_bar and "Close" in first_bar
-
     def test_start_and_end_date_range(self, call) -> None:
         """start/end should fetch specific date range."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
@@ -223,7 +208,7 @@ class TestHistoryTool:
         assert len(parsed["bars"]) > 0
 
     def test_intraday_datetime_strings(self, call) -> None:
-        """Intraday intervals should accept datetime strings."""
+        """Short time spans should auto-select intraday interval."""
         mock = self._mock_history()
         # Create intraday-style index
         df = mock.history.return_value.copy()
@@ -237,7 +222,6 @@ class TestHistoryTool:
                     "symbol": "AAPL",
                     "start": "2024-01-15 09:30",
                     "end": "2024-01-15 16:00",
-                    "interval": "5m",
                 },
             )
 
@@ -269,67 +253,49 @@ class TestTechnicalsTool:
         return mock
 
     @pytest.mark.parametrize(
-        "indicator,expected_keys,signal_key,valid_signals",
+        "indicator,expected_data_keys,expected_meta_keys",
         [
-            ("rsi", ["rsi"], "rsi_signal", ["overbought", "oversold", "neutral"]),
-            ("macd", ["macd"], "macd_trend", ["bullish", "bearish"]),
-            ("sma_20", ["sma_20", "sma_20_pos"], None, None),
-            ("wma_20", ["wma_20", "wma_20_pos"], None, None),
-            ("ema_12", ["ema_12"], None, None),
-            ("momentum", ["momentum"], "momentum_signal", ["bullish", "bearish"]),
-            ("cci", ["cci"], "cci_signal", ["overbought", "oversold", "neutral"]),
-            ("dmi", ["dmi_plus", "dmi_minus", "adx"], "dmi_signal", None),
-            ("williams", ["williams_r"], "williams_signal", ["overbought", "oversold", "neutral"]),
-            (
-                "fast_stoch",
-                ["fast_stoch_k", "fast_stoch_d"],
-                "fast_stoch_signal",
-                ["overbought", "oversold", "neutral"],
-            ),
-            (
-                "stoch",
-                ["stoch_k", "stoch_d"],
-                "stoch_signal",
-                ["overbought", "oversold", "neutral"],
-            ),
-            ("ichimoku", ["ichimoku_conversion", "ichimoku_base"], "ichimoku_signal", None),
-            (
-                "volume_profile",
-                ["vp_poc", "vp_value_area_high"],
-                "vp_signal",
-                ["above_value_area", "below_value_area", "in_value_area"],
-            ),
-            (
-                "price_change",
-                ["price_change", "price_change_pct"],
-                "price_change_signal",
-                ["up", "down", "flat"],
-            ),
-            ("bb", ["bb_upper", "bb_lower"], "bb_signal", None),
-            ("trend", ["sma50", "trend"], None, None),
-            ("atr", ["atr"], None, None),
-            ("obv", ["obv"], "obv_trend", ["bullish", "bearish"]),
+            ("rsi", ["rsi"], None),
+            ("macd", ["macd", "macd_signal", "macd_hist"], None),
+            ("sma_20", ["sma_20"], None),
+            ("wma_20", ["wma_20"], None),
+            ("ema_12", ["ema_12"], None),
+            ("momentum", ["momentum"], None),
+            ("cci", ["cci"], None),
+            ("dmi", ["dmi_plus", "dmi_minus", "adx"], None),
+            ("williams", ["williams_r"], None),
+            ("fast_stoch", ["fast_stoch_k", "fast_stoch_d"], None),
+            ("stoch", ["stoch_k", "stoch_d"], None),
+            ("ichimoku", ["ichimoku_conversion", "ichimoku_base"], None),
+            ("volume_profile", None, ["volume_profile"]),
+            ("price_change", None, ["price_change"]),
+            ("bb", ["bb_upper", "bb_lower", "bb_middle", "bb_pctb"], None),
+            ("trend", ["sma50"], None),
+            ("atr", ["atr", "atr_pct"], None),
+            ("obv", ["obv"], None),
         ],
     )
     def test_indicator_returns_expected_structure(
-        self, call, indicator, expected_keys, signal_key, valid_signals
+        self, call, indicator, expected_data_keys, expected_meta_keys
     ) -> None:
-        """Each indicator should return expected keys and valid signal values."""
+        """Each indicator should return time series data or meta info."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": [indicator]})
 
-        for key in expected_keys:
-            assert key in parsed, f"Missing key {key} for indicator {indicator}"
+        assert "data" in parsed, "Response should contain 'data' key"
 
-        if signal_key:
-            assert signal_key in parsed, f"Missing signal key {signal_key} for {indicator}"
-            if valid_signals:
-                assert parsed[signal_key] in valid_signals, (
-                    f"Invalid signal {parsed[signal_key]} for {indicator}"
-                )
+        if expected_data_keys:
+            first_row = list(parsed["data"].values())[0]
+            for key in expected_data_keys:
+                assert key in first_row, f"Missing key {key} in data for indicator {indicator}"
+
+        if expected_meta_keys:
+            assert "meta" in parsed, f"Missing 'meta' for indicator {indicator}"
+            for key in expected_meta_keys:
+                assert key in parsed["meta"], f"Missing key {key} in meta for indicator {indicator}"
 
     def test_trend_insufficient_data(self, call) -> None:
-        """Trend with <50 bars should return error message."""
+        """Trend with <50 bars should return error message in meta."""
         mock = MagicMock()
         df = pd.DataFrame(
             {
@@ -346,8 +312,8 @@ class TestTechnicalsTool:
         with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": ["trend"]})
 
-        assert parsed["trend"] is None
-        assert "_trend_error" in parsed
+        assert "meta" in parsed
+        assert "_trend_error" in parsed["meta"]
 
     def test_all_indicators(self, call) -> None:
         """All supported indicators should work."""
@@ -374,10 +340,12 @@ class TestTechnicalsTool:
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 
-        assert "rsi" in parsed
-        assert "macd" in parsed
-        assert "bb_upper" in parsed
-        assert "trend" in parsed
+        assert "data" in parsed
+        first_row = list(parsed["data"].values())[0]
+        assert "rsi" in first_row
+        assert "macd" in first_row
+        assert "bb_upper" in first_row
+        assert "sma50" in first_row
 
     def test_all_keyword_expands_to_all_indicators(self, call) -> None:
         """indicators=['all'] should expand to ALL_INDICATORS constant."""
@@ -400,19 +368,18 @@ class TestTechnicalsTool:
         with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": ["all"]})
 
-        indicator_key_map = {
+        assert "data" in parsed
+        first_row = list(parsed["data"].values())[0]
+
+        data_indicator_keys = {
             "rsi": "rsi",
             "macd": "macd",
             "bb": "bb_upper",
             "stoch": "stoch_k",
             "fast_stoch": "fast_stoch_k",
-            "trend": "trend",
+            "trend": "sma50",
             "dmi": "dmi_plus",
             "ichimoku": "ichimoku_conversion",
-            "volume_profile": "vp_poc",
-            "price_change": "price_change",
-            "fibonacci": "fib_levels",
-            "pivot": "pivot_levels",
             "williams": "williams_r",
             "cci": "cci",
             "atr": "atr",
@@ -420,22 +387,37 @@ class TestTechnicalsTool:
             "momentum": "momentum",
         }
 
+        meta_indicator_keys = {
+            "volume_profile": "volume_profile",
+            "price_change": "price_change",
+            "fibonacci": "fibonacci",
+            "pivot": "pivot",
+        }
+
         for ind in ALL_INDICATORS:
             if ind.startswith("sma_") or ind.startswith("ema_") or ind.startswith("wma_"):
-                assert ind in parsed or f"{ind}_pos" in parsed, f"Missing MA indicator {ind}"
-            elif ind in indicator_key_map:
-                expected_key = indicator_key_map[ind]
-                assert expected_key in parsed, f"Missing {expected_key} for indicator {ind}"
-            else:
-                assert ind in parsed, f"Missing result for indicator {ind}"
+                assert ind in first_row, f"Missing MA indicator {ind} in data"
+            elif ind in data_indicator_keys:
+                expected_key = data_indicator_keys[ind]
+                assert expected_key in first_row, (
+                    f"Missing {expected_key} in data for indicator {ind}"
+                )
+            elif ind in meta_indicator_keys:
+                expected_key = meta_indicator_keys[ind]
+                assert "meta" in parsed, f"Missing meta for indicator {ind}"
+                assert expected_key in parsed["meta"], (
+                    f"Missing {expected_key} in meta for indicator {ind}"
+                )
 
     def test_empty_indicators_defaults_to_all(self, call) -> None:
         """Empty or omitted indicators should default to all."""
         with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
             parsed = call("technicals", {"symbol": "AAPL", "indicators": []})
 
-        assert "rsi" in parsed
-        assert "macd" in parsed
+        assert "data" in parsed
+        first_row = list(parsed["data"].values())[0]
+        assert "rsi" in first_row
+        assert "macd" in first_row
 
     def test_start_end_historical_range(self, call) -> None:
         """start/end should fetch specific historical date range."""
@@ -450,8 +432,9 @@ class TestTechnicalsTool:
                 },
             )
 
-        assert "rsi" in parsed
-        assert "rsi_signal" in parsed
+        assert "data" in parsed
+        first_row = list(parsed["data"].values())[0]
+        assert "rsi" in first_row
 
 
 class TestValuationTool:
@@ -939,25 +922,10 @@ class TestEdgeCases:
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND", f"{description} should be rejected"
 
-    def test_negative_limit_clamped_to_one(self, call) -> None:
-        """Negative limit should be clamped to 1, not cause errors."""
-        mock = MagicMock()
-        df = pd.DataFrame(
-            {"Open": [100], "High": [101], "Low": [99], "Close": [100], "Volume": [1000]},
-            index=pd.date_range("2024-01-01", periods=1),
-        )
-        mock.history.return_value = df
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
-            parsed = call("history", {"symbol": "AAPL", "limit": -10})
-
-        assert "bars" in parsed
-        assert len(parsed["bars"]) >= 1  # At least 1 bar returned
-
     @pytest.mark.parametrize(
         "indicators,expected_unknown,should_have_valid",
         [
-            (["sma_999"], None, False),  # Large period returns null
+            (["sma_999"], None, False),  # Large period returns null in data
             (["sma_abc", "rsi"], "sma_abc", True),  # Invalid format
             (["sma_-5"], "sma_-5", False),  # Negative period
             (["nonexistent", "rsi"], "nonexistent", True),  # Unknown indicator
@@ -966,7 +934,7 @@ class TestEdgeCases:
     def test_invalid_indicators_handled_gracefully(
         self, call, indicators, expected_unknown, should_have_valid
     ) -> None:
-        """Invalid indicators should be added to _unknown list or return null."""
+        """Invalid indicators should be added to _unknown list in meta or return null."""
         mock = MagicMock()
         df = pd.DataFrame(
             {
@@ -984,10 +952,13 @@ class TestEdgeCases:
             parsed = call("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         if expected_unknown:
-            assert "_unknown" in parsed
-            assert expected_unknown in parsed["_unknown"]
+            assert "meta" in parsed
+            assert "_unknown" in parsed["meta"]
+            assert expected_unknown in parsed["meta"]["_unknown"]
         if should_have_valid:
-            assert "rsi" in parsed
+            assert "data" in parsed
+            first_row = list(parsed["data"].values())[0]
+            assert "rsi" in first_row
 
     def test_invalid_statement_defaults_to_cashflow(self, call) -> None:
         """Invalid statement type defaults to cashflow (graceful fallback)."""
@@ -1104,8 +1075,151 @@ class TestDataEdgeCases:
         mock.history.return_value = df
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
-            result = self._call("history", {"symbol": "TEST", "limit": 5})
+            result = self._call("history", {"symbol": "TEST"})
 
         bars = result["bars"]
         first_bar = list(bars.values())[0]
         assert first_bar["c"] > 0, f"Close price {price} rounded to zero"
+
+
+class TestAutoInterval:
+    """Test auto-interval selection and downsampling logic."""
+
+    @pytest.mark.parametrize(
+        "period,expected",
+        [
+            ("1d", 1),
+            ("5d", 5),
+            ("1mo", 30),
+            ("3mo", 90),
+            ("1y", 365),
+            ("5y", 1825),
+            ("ytd", 180),
+            ("max", 7300),
+            ("unknown", 90),
+            (None, 90),  # fallbacks
+        ],
+    )
+    def test_calculate_span_days_period(self, period, expected) -> None:
+        from yfinance_mcp.helpers import calculate_span_days
+
+        assert calculate_span_days(period) == expected
+
+    @pytest.mark.parametrize(
+        "start,end,expected",
+        [
+            ("2024-01-01", "2024-01-31", 30),
+            ("2024-01-01", "2024-12-31", 365),
+            ("2024-01-01", "2024-01-01", 0),
+        ],
+    )
+    def test_calculate_span_days_dates(self, start, end, expected) -> None:
+        from yfinance_mcp.helpers import calculate_span_days
+
+        assert calculate_span_days(start=start, end=end) == expected
+
+    @pytest.mark.parametrize(
+        "span_days,expected_interval",
+        [
+            # Boundaries
+            (0, "5m"),
+            (3, "15m"),
+            (12, "1h"),
+            (80, "1d"),
+            (400, "1wk"),
+            (1600, "1mo"),
+            # Within ranges
+            (1, "5m"),
+            (5, "15m"),
+            (20, "1h"),
+            (100, "1d"),
+            (500, "1wk"),
+            (2000, "1mo"),
+            # Floats
+            (0.5, "5m"),
+            (2.9, "5m"),
+            (79.9, "1h"),
+            (80.1, "1d"),
+        ],
+    )
+    def test_auto_interval(self, span_days, expected_interval) -> None:
+        from yfinance_mcp.helpers import auto_interval
+
+        assert auto_interval(span_days) == expected_interval
+
+    @pytest.mark.parametrize(
+        "size_multiplier,should_downsample",
+        [(0, False), (0.5, False), (1, False), (2, True), (5, True)],
+    )
+    def test_auto_downsample(self, size_multiplier, should_downsample) -> None:
+        import pandas as pd
+
+        from yfinance_mcp.helpers import TARGET_POINTS, auto_downsample
+
+        size = max(0, int(TARGET_POINTS * size_multiplier))
+        df = pd.DataFrame({"a": range(size)}) if size > 0 else pd.DataFrame()
+        result = auto_downsample(df)
+
+        if should_downsample:
+            assert len(result) == TARGET_POINTS
+            assert result.iloc[0]["a"] == 0  # first preserved
+            assert result.iloc[-1]["a"] == size - 1  # last preserved
+        else:
+            assert len(result) == size
+
+    @pytest.mark.parametrize(
+        "period,start,end,should_error",
+        [
+            ("1y", None, None, False),  # 1 year period - within limit
+            ("2y", None, None, False),  # 2 year period - within limit
+            ("5y", None, None, True),  # 5 year period - exceeds limit
+            ("max", None, None, True),  # max period - exceeds limit
+            (None, "2023-01-01", "2025-01-01", False),  # 2y date range - within limit
+            (None, "2015-01-01", "2025-01-01", True),  # 10y date range - exceeds
+            (None, "2024-01-01", "2024-06-01", False),  # 5mo date range - within
+        ],
+    )
+    def test_validate_date_range(self, period, start, end, should_error) -> None:
+        from yfinance_mcp.helpers import DateRangeExceededError, validate_date_range
+
+        if should_error:
+            with pytest.raises(DateRangeExceededError) as exc_info:
+                validate_date_range(period, start, end)
+            assert exc_info.value.max_days > 0
+            assert exc_info.value.suggested_period in ("1y", "2y")
+        else:
+            validate_date_range(period, start, end)  # Should not raise
+
+    @pytest.mark.parametrize(
+        "max_days,expected_count,must_include,must_exclude",
+        [
+            (30, 5, ["1d", "5d", "1w", "2w", "1mo"], ["ytd", "1y"]),
+            (100, 7, ["1d", "3mo"], ["ytd", "1y"]),
+            (200, 7, ["1d", "ytd"], ["1y", "2y"]),
+            (400, 7, ["1d", "ytd", "1y"], ["2y", "5y"]),
+            (1120, 7, ["1d", "ytd", "3y"], ["5y", "10y"]),
+            (2000, 7, ["1d", "ytd", "5y"], ["10y", "max"]),
+            (4000, 7, ["1d", "ytd", "10y"], ["max"]),
+            (8000, 7, ["1d", "ytd", "max"], []),
+        ],
+    )
+    def test_get_valid_periods(self, max_days, expected_count, must_include, must_exclude) -> None:
+        from yfinance_mcp.helpers import MAX_PERIOD_OPTIONS, get_valid_periods
+
+        periods = get_valid_periods(max_days)
+
+        assert len(periods) <= MAX_PERIOD_OPTIONS
+        assert len(periods) == expected_count
+
+        for p in must_include:
+            assert p in periods, f"Expected {p} in {periods} for max_days={max_days}"
+
+        for p in must_exclude:
+            assert p not in periods, f"Expected {p} NOT in {periods} for max_days={max_days}"
+
+    def test_get_valid_periods_sorted_by_duration(self) -> None:
+        from yfinance_mcp.helpers import PERIOD_TO_DAYS, get_valid_periods
+
+        periods = get_valid_periods(1120)
+        durations = [PERIOD_TO_DAYS.get(p, 0) for p in periods]
+        assert durations == sorted(durations), "Periods should be sorted by duration"

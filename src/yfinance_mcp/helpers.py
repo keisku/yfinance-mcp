@@ -418,3 +418,210 @@ def smart_search(
     if logger:
         logger.debug("search_not_found query=%r", query)
     return []
+
+
+PERIOD_TO_DAYS = {
+    "1d": 1,
+    "5d": 5,
+    "1w": 7,
+    "2w": 14,
+    "1mo": 30,
+    "2mo": 60,
+    "3mo": 90,
+    "6mo": 180,
+    "9mo": 270,
+    "ytd": 180,  # approximate, varies by date
+    "1y": 365,
+    "18mo": 548,
+    "2y": 730,
+    "3y": 1095,
+    "5y": 1825,
+    "10y": 3650,
+    "max": 7300,  # ~20 years as fallback
+}
+
+# Ordered by duration for generating valid options
+PERIOD_OPTIONS_ORDERED = [
+    "1d",
+    "5d",
+    "1w",
+    "2w",
+    "1mo",
+    "2mo",
+    "3mo",
+    "6mo",
+    "9mo",
+    "ytd",
+    "1y",
+    "18mo",
+    "2y",
+    "3y",
+    "5y",
+    "10y",
+    "max",
+]
+
+# Periods natively supported by yfinance (others convert to start/end dates)
+YFINANCE_NATIVE_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
+
+MAX_PERIOD_OPTIONS = 7
+
+
+def get_valid_periods(max_span_days: int) -> list[str]:
+    """Return up to MAX_PERIOD_OPTIONS period options that fit within max_span_days.
+
+    Always includes "ytd" if it fits. Selects evenly distributed options.
+    """
+    valid = [p for p in PERIOD_OPTIONS_ORDERED if PERIOD_TO_DAYS.get(p, 0) <= max_span_days]
+
+    if len(valid) <= MAX_PERIOD_OPTIONS:
+        return valid
+
+    # Select evenly distributed options, always including ytd and the longest
+    result = []
+    step = len(valid) / (MAX_PERIOD_OPTIONS - 1)  # -1 to ensure we include last
+
+    for i in range(MAX_PERIOD_OPTIONS - 1):
+        idx = int(i * step)
+        if valid[idx] not in result:
+            result.append(valid[idx])
+
+    # Always include the longest valid period
+    if valid[-1] not in result:
+        result.append(valid[-1])
+
+    # Ensure ytd is included if valid
+    if "ytd" in valid and "ytd" not in result:
+        # Replace the closest duration option with ytd
+        ytd_days = PERIOD_TO_DAYS["ytd"]
+        closest_idx = 0
+        closest_diff = float("inf")
+        for i, p in enumerate(result):
+            if p != result[-1]:  # don't replace the longest
+                diff = abs(PERIOD_TO_DAYS.get(p, 0) - ytd_days)
+                if diff < closest_diff:
+                    closest_diff = diff
+                    closest_idx = i
+        result[closest_idx] = "ytd"
+
+    # Sort by duration
+    return sorted(result, key=lambda p: PERIOD_TO_DAYS.get(p, 0))
+
+
+def period_to_date_range(period: str) -> tuple[str | None, str | None, str | None]:
+    """Convert period to (period, start, end) tuple.
+
+    Native yfinance periods return (period, None, None).
+    Custom periods convert to (None, start_date, end_date).
+    """
+    if period in YFINANCE_NATIVE_PERIODS:
+        return (period, None, None)
+
+    days = PERIOD_TO_DAYS.get(period)
+    if days is None:
+        return (period, None, None)  # let yfinance handle unknown periods
+
+    end_date = pd.Timestamp.now()
+    start_date = end_date - pd.Timedelta(days=days)
+    return (None, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+
+
+def calculate_span_days(
+    period: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> float:
+    """Calculate the time span in days from period or start/end dates."""
+    if start:
+        start_date = pd.to_datetime(start)
+        end_date = pd.to_datetime(end) if end else pd.Timestamp.now()
+        return (end_date - start_date).days
+    if period:
+        return PERIOD_TO_DAYS.get(period, 90)
+    return 90  # default 3 months
+
+
+INTERVAL_CONFIG = [
+    # (interval, points_per_day, max_days, min_span_days)
+    ("5m", 78, 60, 0),
+    ("15m", 26, 60, 3),
+    ("1h", 6.5, 730, 12),
+    ("1d", 1, None, 80),
+    ("1wk", 0.2, None, 400),
+    ("1mo", 0.048, None, 1600),
+]
+
+
+def auto_interval(span_days: float) -> str:
+    """Select optimal interval to produce approximately 80 data points."""
+    for interval, _ppd, max_days, min_span in reversed(INTERVAL_CONFIG):
+        if span_days >= min_span:
+            if max_days is None or span_days <= max_days:
+                return interval
+    return "5m"
+
+
+TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "80"))
+MAX_SPAN_DAYS = int(os.environ.get("YFINANCE_MAX_SPAN_DAYS", "1120"))  # ~3 years
+
+
+class DateRangeExceededError(Exception):
+    """Raised when requested date range exceeds MAX_SPAN_DAYS."""
+
+    def __init__(self, requested_days: int, max_days: int, suggested_period: str):
+        self.requested_days = requested_days
+        self.max_days = max_days
+        self.suggested_period = suggested_period
+        super().__init__(
+            f"Requested range ({requested_days} days) exceeds maximum ({max_days} days). "
+            f"Try period='{suggested_period}' or a shorter date range."
+        )
+
+
+def validate_date_range(
+    period: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> None:
+    """Validate that date range does not exceed MAX_SPAN_DAYS.
+
+    Raises DateRangeExceededError if the range is too long.
+    """
+    max_years = MAX_SPAN_DAYS / 365
+
+    if start:
+        start_date = pd.to_datetime(start)
+        end_date = pd.to_datetime(end) if end else pd.Timestamp.now()
+        span_days = (end_date - start_date).days
+
+        if span_days > MAX_SPAN_DAYS:
+            suggested = "2y" if max_years >= 2 else "1y"
+            raise DateRangeExceededError(span_days, MAX_SPAN_DAYS, suggested)
+    elif period:
+        period_days = PERIOD_TO_DAYS.get(period, 90)
+        if period_days > MAX_SPAN_DAYS:
+            suggested = "2y" if max_years >= 2 else "1y"
+            raise DateRangeExceededError(period_days, MAX_SPAN_DAYS, suggested)
+
+
+def auto_downsample(
+    df: pd.DataFrame,
+    period: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> pd.DataFrame:
+    """Downsample DataFrame to approximately TARGET_POINTS rows.
+
+    Selects evenly spaced rows to maintain trend visibility while
+    reducing token usage for LLM processing.
+    """
+    _ = period, start, end  # unused, kept for API consistency
+
+    if len(df) <= TARGET_POINTS:
+        return df
+
+    step = len(df) / TARGET_POINTS
+    indices = [int(i * step) for i in range(TARGET_POINTS)]
+    indices[-1] = len(df) - 1  # always include the last row
+
+    return df.iloc[indices]

@@ -81,13 +81,36 @@ uv run ruff check .                    # Lint
 uv run pip-audit                       # Security scan
 ```
 
-### Cache
+### Configuration
 
-DuckDB-based local cache to reduce Yahoo Finance API calls and speed up repeated queries.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `YFINANCE_TARGET_POINTS` | `80` | Target data points for `history` and `technicals`. Lower = fewer tokens, faster LLM processing. Range: 50-200. |
+| `YFINANCE_MAX_SPAN_DAYS` | `1120` | Maximum time range in days (~3 years). Optimized for 80 points at biweekly resolution. Longer ranges are truncated to keep most recent data. |
+| `YFINANCE_CACHE_DISABLED` | `0` | Set to `1` to disable caching. Local cache to reduce Yahoo Finance API calls and speed up repeated queries. |
+| `YFINANCE_CACHE_DB` | `~/.cache/yfinance-mcp/market.duckdb` | Custom cache path. |
 
-- Location: `~/.cache/yfinance-mcp/market.duckdb`
-- Disable: `YFINANCE_CACHE_DISABLED=1`
-- Custom path: `YFINANCE_CACHE_DB=/path/to/cache.db`
+#### Data Point Optimization
+
+The `history` and `technicals` tools automatically downsample responses to `YFINANCE_TARGET_POINTS` for consistent LLM token usage.
+
+**Why 80 data points?**
+
+- **Token estimation**: Each OHLCV bar ≈ 50-80 tokens (date + 5 values + JSON formatting). 80 points × 60 tokens ≈ 4,800 tokens.
+- **Nyquist-Shannon theorem**: To capture a signal, sample at ≥2× its frequency. 80 points over 3 years (~1120 days) = biweekly sampling, sufficient for monthly/quarterly market cycles.
+- **LLM context efficiency**: Research shows LLMs perform optimally with focused context. 4-8K tokens for time-series leaves room for analysis instructions and responses.
+
+**Formula**: `YFINANCE_MAX_SPAN_DAYS = YFINANCE_TARGET_POINTS × 14 days` (biweekly resolution)
+
+| Points | Tokens | Max Span | Resolution | Use Case |
+|--------|--------|----------|------------|----------|
+| 50 | ~2-4K | 700 days | biweekly | Cost-efficient, fast processing |
+| 80 | ~4-8K | 1120 days | biweekly | Default balance of detail and efficiency |
+| 150 | ~10-15K | 2100 days | biweekly | Detailed analysis, higher cost |
+
+References:
+- [Anthropic: Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting)
+- [OpenAI: What are tokens](https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them)
 
 ### Yahoo Finance API Constraints
 
