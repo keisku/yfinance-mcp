@@ -244,7 +244,7 @@ TOOLS = [
                 "symbol": {"type": "string", "description": "Stock ticker"},
                 "period": {
                     "type": "string",
-                    "default": "1mo",
+                    "default": "3mo",
                     "enum": ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "ytd", "max"],
                     "description": "Relative period. Ignored if start provided.",
                 },
@@ -311,7 +311,7 @@ TOOLS = [
                         "momentum, volume_profile, price_change, fibonacci, pivot"
                     ),
                 },
-                "period": {"type": "string", "default": "3mo"},
+                "period": {"type": "string", "default": "1y"},
                 "start": {
                     "type": "string",
                     "description": "Start date (YYYY-MM-DD).",
@@ -534,7 +534,7 @@ def _handle_history(args: dict) -> str:
     symbol, t = _require_symbol(args)
     start = args.get("start")
     end = args.get("end")
-    period = args.get("period", "1mo")
+    period = args.get("period", "3mo")
     interval = args.get("interval", "1d")
     raw_limit = args.get("limit", 20)
 
@@ -630,7 +630,7 @@ ALL_METRICS = [
 def _handle_technicals(args: dict) -> str:
     """Handle technicals tool - trading signals and indicators."""
     symbol, t = _require_symbol(args)
-    period = args.get("period", "3mo")
+    period = args.get("period", "1y")
     start = args.get("start")
     end = args.get("end")
     inds = args.get("indicators") or ["all"]
