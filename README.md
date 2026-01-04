@@ -56,6 +56,12 @@ Defaults work well for most use cases. Override only if needed:
 - `YFINANCE_CACHE_DB` (default: `~/.cache/yfinance-mcp/market.duckdb`) - Cache database path.
 - `YFINANCE_INTRADAY_TTL_MINUTES` (default: `30`) - Intraday cache TTL in minutes.
 
+Logging:
+- `YFINANCE_LOG_LEVEL` (default: `WARNING`) - Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
+- `YFINANCE_LOG_FILE` (default: `/tmp/yfinance-mcp.log` on Unix, `%LOCALAPPDATA%/yfinance-mcp/logs/yfinance-mcp.log` on Windows) - Log file path. Set to empty string to disable file logging.
+- `YFINANCE_LOG_CONSOLE` (default: disabled) - Set to `1`, `true`, or `yes` to enable console logging.
+- `YFINANCE_LOG_STREAM` (default: `stderr`) - Set to `stdout` to log to stdout instead of stderr.
+
 ---
 
 ## Reference

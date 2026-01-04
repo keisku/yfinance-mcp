@@ -7,7 +7,7 @@ import os
 import platform
 import sys
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -41,17 +41,15 @@ def get_default_log_path() -> str:
 
 def get_log_level() -> int:
     """Determine log level from environment."""
-    level_str = os.environ.get("MCP_LOG_LEVEL", "").upper()
+    level_str = os.environ.get("YFINANCE_LOG_LEVEL", "").upper()
     valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
     if level_str in valid_levels:
         return getattr(logging, level_str)
     if level_str:
         sys.stderr.write(
-            f"[yfinance-mcp] Invalid MCP_LOG_LEVEL='{level_str}', "
+            f"[yfinance-mcp] Invalid YFINANCE_LOG_LEVEL='{level_str}', "
             f"expected one of {valid_levels}. Using WARNING.\n"
         )
-    if os.environ.get("MCP_DEBUG"):
-        return logging.DEBUG
     return logging.WARNING
 
 
@@ -82,30 +80,12 @@ class NDJSONFormatter(logging.Formatter):
         return json.dumps(entry)
 
 
-class ConsoleFormatter(logging.Formatter):
-    """Human-readable formatter for console output."""
-
-    COLORS = {
-        "DEBUG": "\033[36m",  # Cyan
-        "INFO": "\033[32m",  # Green
-        "WARNING": "\033[33m",  # Yellow
-        "ERROR": "\033[31m",  # Red
-        "CRITICAL": "\033[35m",  # Magenta
-    }
-    RESET = "\033[0m"
-
-    def format(self, record: logging.LogRecord) -> str:
-        color = self.COLORS.get(record.levelname, "")
-        reset = self.RESET if color else ""
-        ts = datetime.fromtimestamp(record.created).strftime("%H:%M:%S.%f")[:-3]
-        return f"{ts} {color}{record.levelname:7}{reset} {record.name}: {record.getMessage()}"
-
-
 def configure_logging(request_id_getter: Any = None, stats_getter: Any = None) -> logging.Logger:
     """Configure logging with platform support and rotation."""
-    log_file = os.environ.get("MCP_LOG_FILE") or get_default_log_path()
+    log_file_env = os.environ.get("YFINANCE_LOG_FILE")
+    log_file = log_file_env if log_file_env is not None else get_default_log_path()
     log_level = get_log_level()
-    enable_console = os.environ.get("MCP_LOG_CONSOLE", "").lower() in ("1", "true", "yes")
+    enable_console = os.environ.get("YFINANCE_LOG_CONSOLE", "").lower() in ("1", "true", "yes")
 
     handlers: list[logging.Handler] = []
 
@@ -122,11 +102,13 @@ def configure_logging(request_id_getter: Any = None, stats_getter: Any = None) -
         handlers.append(file_handler)
 
     if enable_console:
-        console_handler = logging.StreamHandler(sys.stderr)
-        if hasattr(sys.stderr, "isatty") and sys.stderr.isatty():
-            console_handler.setFormatter(ConsoleFormatter())
-        else:
-            console_handler.setFormatter(NDJSONFormatter(request_id_getter, stats_getter))
+        log_stream = (
+            sys.stdout
+            if os.environ.get("YFINANCE_LOG_STREAM", "").lower() == "stdout"
+            else sys.stderr
+        )
+        console_handler = logging.StreamHandler(log_stream)
+        console_handler.setFormatter(NDJSONFormatter(request_id_getter, stats_getter))
         handlers.append(console_handler)
 
     if not handlers:
