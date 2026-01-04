@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767495641877,
+  "lastUpdate": 1767496460651,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -3566,6 +3566,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0007290347949542331",
             "extra": "mean: 23.070847833333612 msec\nrounds: 6"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "c52f14f6a8dbf329e1385e1732012dbd1e6f7fce",
+          "message": "fix(search): Return actionable error when exchange filter has no matches\n\nPreviously, when search_stock was called with an exchange filter that\nhad no matches, it would silently fall back to results from other\nexchanges. This caused confusing behavior where searching for \"INPEX\"\nwith exchange=\"JPX\" returned a NASDAQ fund instead.\n\nNow, when the exchange filter has no matches:\n- Returns SYMBOL_NOT_FOUND error instead of wrong results\n- Lists available exchanges where the stock was found\n- Enables users to correct their query with accurate information",
+          "timestamp": "2026-01-04T12:12:30+09:00",
+          "tree_id": "964baab3df3d50cefbe69433f411af6e0954418b",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/c52f14f6a8dbf329e1385e1732012dbd1e6f7fce"
+        },
+        "date": 1767496460254,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 211.01705705741122,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004531271683007089",
+            "extra": "mean: 4.738953399998991 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 222.0869536413265,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002216389381250299",
+            "extra": "mean: 4.5027408571464935 msec\nrounds: 7"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 217.16848947780656,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00037156431859218026",
+            "extra": "mean: 4.604719599996088 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 84.18747435699338,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00027791710005956104",
+            "extra": "mean: 11.878251576470188 msec\nrounds: 85"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 305.8239523401735,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006258982552009599",
+            "extra": "mean: 3.2698550664458157 msec\nrounds: 301"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 307.4500510094997,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010084053319849839",
+            "extra": "mean: 3.2525608524589305 msec\nrounds: 305"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 7.128913527757505,
+            "unit": "iter/sec",
+            "range": "stddev: 0.047527252370487647",
+            "extra": "mean: 140.27382939999882 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 44.23654467748431,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020067173378811984",
+            "extra": "mean: 22.60574389999732 msec\nrounds: 10"
           }
         ]
       }
