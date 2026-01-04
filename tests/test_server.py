@@ -153,7 +153,6 @@ class TestSearchStockTool:
         [
             ("JPX", "2871.T"),  # exact match
             ("jpx", "2871.T"),  # case insensitive
-            ("NYSE", "NI3.F"),  # no match falls back to first
         ],
     )
     def test_exchange_filter(
@@ -178,6 +177,25 @@ class TestSearchStockTool:
 
         assert parsed["symbol"] == expected_symbol
 
+    def test_exchange_filter_no_match_returns_actionable_error(self, call) -> None:
+        """search_stock should return actionable error with available exchanges."""
+
+        def search_side_effect(query, **kwargs):
+            result = MagicMock()
+            result.quotes = [
+                {"symbol": "NI3.F", "exchange": "FRA"},
+                {"symbol": "2871.T", "exchange": "JPX"},
+            ]
+            return result
+
+        with patch("yfinance.Search", side_effect=search_side_effect):
+            parsed = call("search_stock", {"query": "Nichirei", "exchange": "NYSE"})
+
+        assert parsed["err"] == "SYMBOL_NOT_FOUND"
+        assert "NYSE" in parsed["msg"]
+        assert "FRA" in parsed["msg"] or "JPX" in parsed["msg"]
+        assert "Available:" in parsed["msg"]
+
 
 class TestFilterByExchange:
     """Unit tests for _filter_by_exchange helper."""
@@ -199,12 +217,12 @@ class TestFilterByExchange:
                 1,
                 "2871.T",
             ),
-            # no match returns original
+            # no match returns empty list
             (
                 [{"symbol": "NI3.F", "exchange": "FRA"}, {"symbol": "2871.T", "exchange": "JPX"}],
                 "NYSE",
-                2,
-                "NI3.F",
+                0,
+                None,
             ),
             # None exchange returns original
             (

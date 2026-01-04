@@ -382,12 +382,32 @@ SEARCH_STRIP_SUFFIXES = (
 
 
 def _filter_by_exchange(quotes: list[dict], exchange: str | None) -> list[dict]:
-    """Filter search results by exchange if specified."""
+    """Filter search results by exchange if specified.
+
+    Returns empty list if exchange filter is specified but no results match,
+    rather than falling back to unfiltered results.
+    """
     if not exchange or not quotes:
         return quotes
     exchange_upper = exchange.upper()
-    filtered = [q for q in quotes if q.get("exchange", "").upper() == exchange_upper]
-    return filtered if filtered else quotes
+    return [q for q in quotes if q.get("exchange", "").upper() == exchange_upper]
+
+
+class SearchResult:
+    """Result from smart_search with optional metadata about available exchanges."""
+
+    def __init__(self, quotes: list[dict], available_exchanges: list[str] | None = None):
+        self.quotes = quotes
+        self.available_exchanges = available_exchanges
+
+    def __bool__(self) -> bool:
+        return bool(self.quotes)
+
+    def __iter__(self):
+        return iter(self.quotes)
+
+    def __getitem__(self, index):
+        return self.quotes[index]
 
 
 def smart_search(
@@ -395,7 +415,7 @@ def smart_search(
     max_results: int = 1,
     exchange: str | None = None,
     logger: logging.Logger | None = None,
-) -> list[dict]:
+) -> SearchResult:
     """Search with fallback strategies for better results.
 
     1. Try original query
@@ -403,11 +423,14 @@ def smart_search(
     3. If still no results, try first word only
 
     When exchange is specified, filters results to match that exchange.
+    Returns SearchResult with quotes and available_exchanges if exchange filter had no matches.
     """
     fetch_count = max(max_results, 10) if exchange else max_results
+    all_quotes: list[dict] = []
 
     search = yf.Search(query, max_results=fetch_count)
     if search.quotes:
+        all_quotes.extend(search.quotes)
         results = _filter_by_exchange(search.quotes, exchange)[:max_results]
         if results:
             if logger:
@@ -417,7 +440,7 @@ def smart_search(
                     exchange,
                     len(results),
                 )
-            return results
+            return SearchResult(results)
 
     words = query.lower().split()
     stripped = [w for w in words if w not in SEARCH_STRIP_SUFFIXES]
@@ -425,6 +448,7 @@ def smart_search(
         stripped_query = " ".join(stripped)
         search = yf.Search(stripped_query, max_results=fetch_count)
         if search.quotes:
+            all_quotes.extend(search.quotes)
             results = _filter_by_exchange(search.quotes, exchange)[:max_results]
             if results:
                 if logger:
@@ -435,13 +459,14 @@ def smart_search(
                         exchange,
                         len(results),
                     )
-                return results
+                return SearchResult(results)
 
     if len(words) > 1:
         first_word = words[0]
         if first_word not in SEARCH_STRIP_SUFFIXES and len(first_word) >= 3:
             search = yf.Search(first_word, max_results=fetch_count)
             if search.quotes:
+                all_quotes.extend(search.quotes)
                 results = _filter_by_exchange(search.quotes, exchange)[:max_results]
                 if results:
                     if logger:
@@ -452,11 +477,23 @@ def smart_search(
                             exchange,
                             len(results),
                         )
-                    return results
+                    return SearchResult(results)
 
-    if logger:
-        logger.debug("search_not_found query=%r exchange=%r", query, exchange)
-    return []
+    # No matches found - collect available exchanges if we had quotes but exchange filter failed
+    available_exchanges = None
+    if exchange and all_quotes:
+        exchanges_found = sorted(set(q.get("exchange", "") for q in all_quotes if q.get("exchange")))
+        if exchanges_found:
+            available_exchanges = exchanges_found
+            if logger:
+                logger.debug(
+                    "search_exchange_mismatch query=%r requested=%r available=%r",
+                    query,
+                    exchange,
+                    exchanges_found,
+                )
+
+    return SearchResult([], available_exchanges)
 
 
 PERIOD_TO_DAYS = {

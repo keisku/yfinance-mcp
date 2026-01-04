@@ -43,10 +43,15 @@ class ValidationError(MCPError):
 class SymbolNotFoundError(MCPError):
     """Symbol not found error."""
 
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str, hint: str | None = None):
+        message = f"No results for '{symbol}'."
+        if hint:
+            message = f"{message} {hint}"
+        else:
+            message = f"{message} Try a more specific query."
         super().__init__(
             ErrorCode.SYMBOL_NOT_FOUND,
-            f"No results for '{symbol}'. Try a more specific query.",
+            message,
             {"symbol": symbol},
         )
 

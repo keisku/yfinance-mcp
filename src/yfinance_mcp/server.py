@@ -511,10 +511,16 @@ def _handle_search_stock(args: dict) -> str:
         raise ValidationError("Either symbol or query required")
 
     if query and not symbol:
-        quotes = smart_search(query, max_results=10, exchange=exchange, logger=logger)
-        if not quotes:
+        search_result = smart_search(query, max_results=10, exchange=exchange, logger=logger)
+        if not search_result:
+            if search_result.available_exchanges:
+                hint = (
+                    f"No results on '{exchange}'. "
+                    f"Available: {', '.join(search_result.available_exchanges)}."
+                )
+                raise SymbolNotFoundError(query, hint=hint)
             raise SymbolNotFoundError(query)
-        symbol = quotes[0].get("symbol")
+        symbol = search_result[0].get("symbol")
         if not symbol:
             raise SymbolNotFoundError(query)
 
