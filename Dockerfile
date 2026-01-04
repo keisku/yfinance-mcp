@@ -1,13 +1,14 @@
-FROM python:3.13-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-trixie AS builder
 WORKDIR /app
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock* README.md ./
 COPY src/ ./src/
 RUN uv sync --frozen --no-dev
 
 FROM python:3.13-slim
+RUN useradd --create-home --shell /bin/bash app
 WORKDIR /app
-COPY --from=builder /app/.venv /app/.venv
-COPY src/ ./src/
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --chown=app:app src/ ./src/
+USER app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 ENTRYPOINT ["python", "-m", "yfinance_mcp.server"]

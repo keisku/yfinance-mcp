@@ -13,7 +13,7 @@ Add to your MCP client configuration:
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "yfinance-cache:/root/.cache/yfinance-mcp",
+        "-v", "yfinance-cache:/home/app/.cache/yfinance-mcp",
         "ghcr.io/keisku/yfinance-mcp:latest"
       ]
     }
