@@ -69,12 +69,6 @@ def _is_holiday_in_memory(symbol: str, check_date: date) -> bool:
 class PriceCacheBackend(Protocol):
     """Protocol for price cache backends."""
 
-    def get_cached_range(
-        self, symbol: str, interval: str = "1d"
-    ) -> tuple[date | None, date | None]:
-        """Get the date range cached for a symbol and interval."""
-        ...
-
     def get_prices(self, symbol: str, start: date, end: date, interval: str = "1d") -> pd.DataFrame:
         """Get cached prices for a date range and interval."""
         ...
@@ -94,11 +88,6 @@ class PriceCacheBackend(Protocol):
 
 class NullCacheBackend:
     """No-op cache backend - always returns empty/None."""
-
-    def get_cached_range(
-        self, symbol: str, interval: str = "1d"
-    ) -> tuple[date | None, date | None]:
-        return None, None
 
     def get_prices(self, symbol: str, start: date, end: date, interval: str = "1d") -> pd.DataFrame:
         return pd.DataFrame()
@@ -197,9 +186,9 @@ class CachedPriceFetcher:
             end_date,
         )
 
-        cached_start, cached_end = self.cache.get_cached_range(symbol, interval)
+        cached_df = self.cache.get_prices(symbol, start_date, end_date, interval)
 
-        if cached_start is None:
+        if cached_df.empty:
             _cache_stats["misses"] += 1
             logger.debug(
                 "cache_miss symbol=%s interval=%s reason=no_cache range=%s..%s",
@@ -220,21 +209,31 @@ class CachedPriceFetcher:
             )
             return self._format_output(df)
 
-        result_parts = []
-        fetch_early = False
-        fetch_late = False
+        _cache_stats["hits"] += 1
+
+        if hasattr(cached_df.index, "date"):
+            cached_dates = set(cached_df.index.date)
+        else:
+            cached_dates = set(pd.to_datetime(cached_df.index).date)
+
+        cached_start = min(cached_dates)
+        cached_end = max(cached_dates)
 
         logger.debug(
-            "cache_range symbol=%s interval=%s cached=%s..%s requested=%s..%s",
+            "cache_hit symbol=%s interval=%s bars=%d cached=%s..%s requested=%s..%s",
             symbol,
             interval,
+            len(cached_df),
             cached_start,
             cached_end,
             start_date,
             end_date,
         )
 
-        # skip fetch for weekly/monthly if gap is within one period (boundary alignment)
+        result_parts = [cached_df]
+        fetched_any = False
+
+        # early gap: requested start is before cached start
         should_fetch_early = start_date < cached_start
         if should_fetch_early and interval == "1wk":
             gap_days = (cached_start - start_date).days
@@ -248,7 +247,7 @@ class CachedPriceFetcher:
                 should_fetch_early = False
 
         if should_fetch_early:
-            fetch_early = True
+            fetched_any = True
             logger.debug(
                 "cache_fetch_early symbol=%s interval=%s range=%s..%s",
                 symbol,
@@ -263,27 +262,28 @@ class CachedPriceFetcher:
                 self.cache.store_prices(symbol, early_df, interval)
                 result_parts.append(early_df)
 
-        cache_start = max(start_date, cached_start)
-        cache_end = min(end_date, cached_end)
-        if cache_start <= cache_end:
-            cached_df = self.cache.get_prices(symbol, cache_start, cache_end, interval)
-            if not cached_df.empty:
-                result_parts.append(cached_df)
-                _cache_stats["hits"] += 1
+        # interior gaps: missing trading days within cached range (daily interval only)
+        if interval == "1d":
+            gaps = self._find_gaps(cached_dates, cached_start, cached_end, symbol)
+            for gap_start, gap_end in gaps:
+                fetched_any = True
                 logger.debug(
-                    "cache_hit symbol=%s interval=%s bars=%d range=%s..%s",
+                    "cache_fetch_gap symbol=%s interval=%s range=%s..%s",
                     symbol,
                     interval,
-                    len(cached_df),
-                    cache_start,
-                    cache_end,
+                    gap_start,
+                    gap_end,
                 )
+                gap_df = self._fetch_from_api(symbol, gap_start, gap_end, interval)
+                if not gap_df.empty:
+                    self.cache.store_prices(symbol, gap_df, interval)
+                    result_parts.append(gap_df)
 
-        # only fetch if completed periods exist after cached_end
+        # late gap: requested end is after cached end
         if end_date > cached_end and self._has_completed_periods_since(
             cached_end, today, symbol, interval
         ):
-            fetch_late = True
+            fetched_any = True
             fetch_start = cached_end + timedelta(days=1)
             logger.debug(
                 "cache_fetch_late symbol=%s interval=%s range=%s..%s",
@@ -297,10 +297,6 @@ class CachedPriceFetcher:
                 self.cache.store_prices(symbol, late_df, interval)
                 result_parts.append(late_df)
 
-        if not result_parts:
-            logger.debug("cache_empty symbol=%s", symbol)
-            return pd.DataFrame()
-
         df = pd.concat(result_parts)
         df = df[~df.index.duplicated(keep="last")]
         df = df.sort_index()
@@ -312,15 +308,13 @@ class CachedPriceFetcher:
         df = df[mask]
 
         elapsed_ms = (time.time() - start_time) * 1000
-        source = "cache" if not (fetch_early or fetch_late) else "cache+api"
+        source = "cache" if not fetched_any else "cache+api"
         logger.debug(
-            "cache_fetch_complete symbol=%s bars=%d ms=%.1f src=%s early=%s late=%s",
+            "cache_fetch_complete symbol=%s bars=%d ms=%.1f src=%s",
             symbol,
             len(df),
             elapsed_ms,
             source,
-            fetch_early,
-            fetch_late,
         )
         return self._format_output(df)
 
@@ -408,6 +402,37 @@ class CachedPriceFetcher:
     def _is_trading_day(self, d: date, symbol: str) -> bool:
         """Check if a date is a trading day for the given symbol's market."""
         return d.weekday() < 5 and not _is_holiday_in_memory(symbol, d)
+
+    def _find_gaps(
+        self,
+        cached_dates: set[date],
+        start: date,
+        end: date,
+        symbol: str,
+    ) -> list[tuple[date, date]]:
+        """Find gaps in cached data that need to be fetched."""
+        gaps: list[tuple[date, date]] = []
+        gap_start: date | None = None
+        current = start
+
+        while current <= end:
+            is_trading = self._is_trading_day(current, symbol)
+            in_cache = current in cached_dates
+
+            if is_trading and not in_cache:
+                if gap_start is None:
+                    gap_start = current
+            else:
+                if gap_start is not None:
+                    gaps.append((gap_start, current - timedelta(days=1)))
+                    gap_start = None
+
+            current += timedelta(days=1)
+
+        if gap_start is not None:
+            gaps.append((gap_start, end))
+
+        return gaps
 
     def _has_completed_periods_since(
         self, cached_end: date, today: date, symbol: str, interval: str

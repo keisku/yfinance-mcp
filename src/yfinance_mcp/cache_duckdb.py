@@ -63,30 +63,6 @@ class DuckDBCacheBackend:
         """)
         logger.debug("duckdb_schema_ready")
 
-    def get_cached_range(
-        self, symbol: str, interval: str = "1d"
-    ) -> tuple[date | None, date | None]:
-        """Get the date range we have cached for a symbol and interval."""
-        conn = self._get_conn()
-        result = conn.execute(
-            """
-            SELECT MIN(date), MAX(date) FROM prices 
-            WHERE symbol = ? AND interval = ?
-        """,
-            [symbol.upper(), interval],
-        ).fetchone()
-        if result and result[0]:
-            logger.debug(
-                "duckdb_range symbol=%s interval=%s start=%s end=%s",
-                symbol.upper(),
-                interval,
-                result[0],
-                result[1],
-            )
-            return result[0], result[1]
-        logger.debug("duckdb_range symbol=%s interval=%s empty=true", symbol.upper(), interval)
-        return None, None
-
     def get_prices(self, symbol: str, start: date, end: date, interval: str = "1d") -> pd.DataFrame:
         """Get cached prices for a date range and interval."""
         conn = self._get_conn()
