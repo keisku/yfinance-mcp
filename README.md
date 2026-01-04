@@ -45,18 +45,16 @@ Docker:
 - `history` - Historical OHLCV bars with auto-computed interval. [more](#architecture)
 - `technicals` - Technical indicators: RSI, MACD, Bollinger Bands, Ichimoku, and [more](#technical-indicators)
 - `valuation` - P/E, PEG, margins, growth, quality score, and [more](#valuation-metrics)
-- `financials` - Income, balance sheet, and cash flow statements
+- `financials` - Income, balance sheet, cash flow (Yahoo Finance API provides ~4-5 years annual, ~5 quarters)
 
 ## Configuration
 
-- `YFINANCE_TARGET_POINTS` (default: `120`) - Data points per response. Lower = fewer tokens. Range: 50-200.
+Defaults work well for most use cases. Override only if needed:
+
+- `YFINANCE_TARGET_POINTS` (default: `120`) - Data points per response. [more](#architecture).
 - `YFINANCE_CACHE_DISABLED` (default: unset) - Set to `1` to disable caching.
 - `YFINANCE_CACHE_DB` (default: `~/.cache/yfinance-mcp/market.duckdb`) - Cache database path.
 - `YFINANCE_INTRADAY_TTL_MINUTES` (default: `30`) - Intraday cache TTL in minutes.
-
-## Limitations
-
-- `financials`: ~4-5 years annual, ~5 quarters available per statement type
 
 ---
 
