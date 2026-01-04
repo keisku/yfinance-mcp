@@ -248,8 +248,8 @@ TOOLS = [
     Tool(
         name="history",
         description=(
-            f"Historical OHLCV bars. Returns ~{TARGET_POINTS} data points regardless of time range. "
-            f"Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
+            f"Historical OHLCV bars. Returns ~{TARGET_POINTS} data points regardless of time "
+            f"range. Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
             "For longer periods, split into multiple sequential requests."
         ),
         inputSchema={
@@ -277,8 +277,9 @@ TOOLS = [
     Tool(
         name="technicals",
         description=(
-            f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points regardless of time range. "
-            f"Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
+            f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points regardless "
+            f"of time range. Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} "
+            "years). "
             "For longer periods, split into multiple sequential requests. "
             "trend: SMA50-based trend direction. "
             "rsi: >70 overbought, <30 oversold. "

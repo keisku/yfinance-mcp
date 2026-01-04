@@ -604,7 +604,8 @@ class DateRangeExceededError(Exception):
         max_years = round(max_days / 365, 1)
         num_calls = math.ceil(requested_days / max_days)
         super().__init__(
-            f"Range too long: {requested_days} days requested, max is {max_days} days (~{max_years} years). "
+            f"Range too long: {requested_days} days requested, "
+            f"max is {max_days} days (~{max_years} years). "
             f"Please make {num_calls} separate requests covering ~{max_years} years each."
         )
 
