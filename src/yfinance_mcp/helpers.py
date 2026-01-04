@@ -381,52 +381,81 @@ SEARCH_STRIP_SUFFIXES = (
 )
 
 
+def _filter_by_exchange(quotes: list[dict], exchange: str | None) -> list[dict]:
+    """Filter search results by exchange if specified."""
+    if not exchange or not quotes:
+        return quotes
+    exchange_upper = exchange.upper()
+    filtered = [q for q in quotes if q.get("exchange", "").upper() == exchange_upper]
+    return filtered if filtered else quotes
+
+
 def smart_search(
-    query: str, max_results: int = 1, logger: logging.Logger | None = None
+    query: str,
+    max_results: int = 1,
+    exchange: str | None = None,
+    logger: logging.Logger | None = None,
 ) -> list[dict]:
     """Search with fallback strategies for better results.
 
     1. Try original query
     2. If no results, strip common suffixes (Bank, Inc, Corp, etc.)
     3. If still no results, try first word only
+
+    When exchange is specified, filters results to match that exchange.
     """
-    search = yf.Search(query, max_results=max_results)
+    fetch_count = max(max_results, 10) if exchange else max_results
+
+    search = yf.Search(query, max_results=fetch_count)
     if search.quotes:
-        if logger:
-            logger.debug("search_found query=%r results=%d", query, len(search.quotes))
-        return search.quotes
+        results = _filter_by_exchange(search.quotes, exchange)[:max_results]
+        if results:
+            if logger:
+                logger.debug(
+                    "search_found query=%r exchange=%r results=%d",
+                    query,
+                    exchange,
+                    len(results),
+                )
+            return results
 
     words = query.lower().split()
     stripped = [w for w in words if w not in SEARCH_STRIP_SUFFIXES]
     if stripped and stripped != words:
         stripped_query = " ".join(stripped)
-        search = yf.Search(stripped_query, max_results=max_results)
+        search = yf.Search(stripped_query, max_results=fetch_count)
         if search.quotes:
-            if logger:
-                logger.debug(
-                    "search_found_stripped query=%r stripped=%r results=%d",
-                    query,
-                    stripped_query,
-                    len(search.quotes),
-                )
-            return search.quotes
+            results = _filter_by_exchange(search.quotes, exchange)[:max_results]
+            if results:
+                if logger:
+                    logger.debug(
+                        "search_found_stripped query=%r stripped=%r exchange=%r results=%d",
+                        query,
+                        stripped_query,
+                        exchange,
+                        len(results),
+                    )
+                return results
 
     if len(words) > 1:
         first_word = words[0]
         if first_word not in SEARCH_STRIP_SUFFIXES and len(first_word) >= 3:
-            search = yf.Search(first_word, max_results=max_results)
+            search = yf.Search(first_word, max_results=fetch_count)
             if search.quotes:
-                if logger:
-                    logger.debug(
-                        "search_found_first_word query=%r first=%r results=%d",
-                        query,
-                        first_word,
-                        len(search.quotes),
-                    )
-                return search.quotes
+                results = _filter_by_exchange(search.quotes, exchange)[:max_results]
+                if results:
+                    if logger:
+                        logger.debug(
+                            "search_found_first_word query=%r first=%r exchange=%r results=%d",
+                            query,
+                            first_word,
+                            exchange,
+                            len(results),
+                        )
+                    return results
 
     if logger:
-        logger.debug("search_not_found query=%r", query)
+        logger.debug("search_not_found query=%r exchange=%r", query, exchange)
     return []
 
 

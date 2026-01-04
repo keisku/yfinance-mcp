@@ -174,6 +174,89 @@ class TestSearchStockTool:
         assert parsed["symbol"] == "D05.SI"
         assert "price" in parsed
 
+    @pytest.mark.parametrize(
+        "exchange_filter,expected_symbol",
+        [
+            ("JPX", "2871.T"),  # exact match
+            ("jpx", "2871.T"),  # case insensitive
+            ("NYSE", "NI3.F"),  # no match falls back to first
+        ],
+    )
+    def test_exchange_filter(self, call, exchange_filter, expected_symbol) -> None:
+        """search_stock should filter results by exchange when specified."""
+        mock = self._mock_ticker()
+
+        def search_side_effect(query, **kwargs):
+            result = MagicMock()
+            result.quotes = [
+                {"symbol": "NI3.F", "exchange": "FRA"},
+                {"symbol": "NI3.SG", "exchange": "STU"},
+                {"symbol": "2871.T", "exchange": "JPX"},
+            ]
+            return result
+
+        with (
+            patch("yfinance.Search", side_effect=search_side_effect),
+            patch("yfinance_mcp.server._ticker", return_value=mock),
+        ):
+            parsed = call(
+                "search_stock", {"query": "Nichirei", "exchange": exchange_filter}
+            )
+
+        assert parsed["symbol"] == expected_symbol
+
+
+class TestFilterByExchange:
+    """Unit tests for _filter_by_exchange helper."""
+
+    @pytest.mark.parametrize(
+        "quotes,exchange,expected_len,expected_first",
+        [
+            # exact match
+            (
+                [{"symbol": "NI3.F", "exchange": "FRA"}, {"symbol": "2871.T", "exchange": "JPX"}],
+                "JPX",
+                1,
+                "2871.T",
+            ),
+            # case insensitive
+            (
+                [{"symbol": "2871.T", "exchange": "JPX"}],
+                "jpx",
+                1,
+                "2871.T",
+            ),
+            # no match returns original
+            (
+                [{"symbol": "NI3.F", "exchange": "FRA"}, {"symbol": "2871.T", "exchange": "JPX"}],
+                "NYSE",
+                2,
+                "NI3.F",
+            ),
+            # None exchange returns original
+            (
+                [{"symbol": "AAPL", "exchange": "NMS"}],
+                None,
+                1,
+                "AAPL",
+            ),
+            # empty quotes
+            (
+                [],
+                "JPX",
+                0,
+                None,
+            ),
+        ],
+    )
+    def test_filter_by_exchange(self, quotes, exchange, expected_len, expected_first) -> None:
+        from yfinance_mcp.helpers import _filter_by_exchange
+
+        result = _filter_by_exchange(quotes, exchange)
+        assert len(result) == expected_len
+        if expected_first:
+            assert result[0]["symbol"] == expected_first
+
 
 class TestHistoryTool:
     """Test price tool - historical OHLCV data."""

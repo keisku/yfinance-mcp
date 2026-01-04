@@ -241,6 +241,13 @@ TOOLS = [
                         "(e.g., 'Toyota' instead of 'Toyota Motor Corporation')."
                     ),
                 },
+                "exchange": {
+                    "type": "string",
+                    "description": (
+                        "Filter by exchange (e.g., 'JPX', 'NYSE', 'NMS'). "
+                        "Use when query returns wrong exchange listing."
+                    ),
+                },
             },
         },
     ),
@@ -498,19 +505,20 @@ def _handle_search_stock(args: dict) -> str:
     """Handle search_stock tool - find stock and return identity + current price."""
     symbol = args.get("symbol")
     query = args.get("query")
+    exchange = args.get("exchange")
 
     if not symbol and not query:
         raise ValidationError("Either symbol or query required")
 
     if query and not symbol:
-        quotes = smart_search(query, max_results=1, logger=logger)
+        quotes = smart_search(query, max_results=10, exchange=exchange, logger=logger)
         if not quotes:
             raise SymbolNotFoundError(query)
         symbol = quotes[0].get("symbol")
         if not symbol:
             raise SymbolNotFoundError(query)
 
-    logger.debug("search_stock symbol=%s query=%s", symbol, query)
+    logger.debug("search_stock symbol=%s query=%s exchange=%s", symbol, query, exchange)
 
     t = _ticker(symbol)
     try:
