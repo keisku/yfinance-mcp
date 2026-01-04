@@ -6,6 +6,24 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 
 Add to your MCP client configuration:
 
+uv:
+
+```json
+{
+  "mcpServers": {
+    "yfinance": {
+      "command": "uvx",
+      "args": [
+        "--from", "git+https://github.com/keisku/yfinance-mcp",
+        "yfinance-mcp"
+      ]
+    }
+  }
+}
+```
+
+Docker:
+
 ```json
 {
   "mcpServers": {
