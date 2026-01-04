@@ -664,16 +664,19 @@ def _handle_technicals(args: dict) -> str:
     if "all" in inds:
         inds = ALL_INDICATORS
 
+    interval = select_interval(period, start, end)
+
     logger.debug(
-        "technicals_fetch symbol=%s period=%s start=%s end=%s indicators=%s",
+        "technicals_fetch symbol=%s period=%s start=%s end=%s interval=%s indicators=%s",
         symbol,
         period,
         start,
         end,
+        interval,
         inds,
     )
 
-    df = history.get_history(symbol, period, "1d", ticker=t, start=start, end=end)
+    df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
     if df.empty:
         logger.warning("technicals_no_data symbol=%s period=%s", symbol, period)
         raise DataUnavailableError(f"No price data for {symbol}. Try period='6mo' for more data.")
