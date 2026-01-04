@@ -96,6 +96,11 @@ class TestFindGaps:
     def test_find_gaps(self, fetcher, cached_dates, start, end, expected_gaps):
         gaps = fetcher._find_gaps(cached_dates, start, end)
         assert gaps == expected_gaps
+        merged = fetcher._merge_gaps(gaps)
+        if not expected_gaps:
+            assert len(merged) == 0
+        else:
+            assert 1 <= len(merged) <= len(expected_gaps)
 
     def test_find_gaps_ten_year_range(self, fetcher):
         """10-year range with sparse cache points produces gaps between each pair."""
@@ -128,6 +133,9 @@ class TestFindGaps:
         assert all(start <= end for start, end in gaps)
         assert gaps[0] == (date(2015, 1, 3), date(2015, 6, 30))
         assert gaps[-1] == (date(2024, 7, 2), date(2025, 1, 1))
+
+        merged = fetcher._merge_gaps(gaps)
+        assert len(merged) == 3
 
 
 class TestCacheFillGaps:

@@ -11,7 +11,7 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
-from .helpers import OHLCV_COLS_TO_SHORT, PERIOD_DELTAS, normalize_tz
+from .helpers import MAX_SPAN_DAYS, OHLCV_COLS_TO_SHORT, PERIOD_DELTAS, normalize_tz
 
 logger = logging.getLogger("yfinance_mcp.cache")
 
@@ -228,6 +228,7 @@ class CachedPriceFetcher:
         # interior gaps: missing dates within cached range (daily interval only)
         if interval == "1d":
             gaps = self._find_gaps(cached_dates, cached_start, cached_end)
+            gaps = self._merge_gaps(gaps)
             for gap_start, gap_end in gaps:
                 fetched_any = True
                 logger.debug(
@@ -396,6 +397,27 @@ class CachedPriceFetcher:
                 gaps.append((gap_start, gap_end))
 
         return gaps
+
+    def _merge_gaps(
+        self, gaps: list[tuple[date, date]], max_days: int = MAX_SPAN_DAYS
+    ) -> list[tuple[date, date]]:
+        """Merge consecutive gaps to reduce API calls."""
+        if not gaps:
+            return []
+
+        merged = []
+        current_start, current_end = gaps[0]
+
+        for gap_start, gap_end in gaps[1:]:
+            range_days = (gap_end - current_start).days + 1
+            if range_days <= max_days:
+                current_end = gap_end
+            else:
+                merged.append((current_start, current_end))
+                current_start, current_end = gap_start, gap_end
+
+        merged.append((current_start, current_end))
+        return merged
 
     def _has_completed_periods_since(self, cached_end: date, today: date, interval: str) -> bool:
         """Check if there are any completed periods after cached_end."""
