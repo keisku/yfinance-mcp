@@ -482,7 +482,9 @@ def smart_search(
     # No matches found - collect available exchanges if we had quotes but exchange filter failed
     available_exchanges = None
     if exchange and all_quotes:
-        exchanges_found = sorted(set(q.get("exchange", "") for q in all_quotes if q.get("exchange")))
+        exchanges_found = sorted(
+            set(q.get("exchange", "") for q in all_quotes if q.get("exchange"))
+        )
         if exchanges_found:
             available_exchanges = exchanges_found
             if logger:
