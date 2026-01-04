@@ -713,8 +713,8 @@ def ohlc_resample(df: pd.DataFrame, target_points: int | None = None) -> pd.Data
     - Close: last close in bucket (exit price)
     - Volume: sum of all volumes (total activity)
 
-    This preserves support/resistance levels and accurate trend direction,
-    unlike uniform subsampling which can miss price extremes.
+    Uses data-point-based bucketing (not time-based) to correctly handle
+    trading gaps like weekends and non-market hours.
     """
     if target_points is None:
         target_points = TARGET_POINTS
@@ -722,36 +722,44 @@ def ohlc_resample(df: pd.DataFrame, target_points: int | None = None) -> pd.Data
     if len(df) <= target_points:
         return df
 
-    total_seconds = (df.index[-1] - df.index[0]).total_seconds()
-    freq_seconds = max(1, int(total_seconds / target_points))
-    freq = f"{freq_seconds}s"
-
-    agg_rules = {}
     col_lower = {c.lower(): c for c in df.columns}
+    o_col = col_lower.get("o")
+    h_col = col_lower.get("h")
+    l_col = col_lower.get("l")
+    c_col = col_lower.get("c")
+    v_col = col_lower.get("v")
 
-    if "o" in col_lower:
-        agg_rules[col_lower["o"]] = "first"
-    if "h" in col_lower:
-        agg_rules[col_lower["h"]] = "max"
-    if "l" in col_lower:
-        agg_rules[col_lower["l"]] = "min"
-    if "c" in col_lower:
-        agg_rules[col_lower["c"]] = "last"
-    if "v" in col_lower:
-        agg_rules[col_lower["v"]] = "sum"
-
-    if not agg_rules:
+    if not any([o_col, h_col, l_col, c_col]):
         return auto_downsample(df)
 
-    result = df.resample(freq).agg(agg_rules).dropna()
+    bucket_size = len(df) / target_points
+    rows = []
+    indices = []
 
-    if len(result) > target_points:
-        step = len(result) / target_points
-        indices = [int(i * step) for i in range(target_points)]
-        indices[-1] = len(result) - 1
-        result = result.iloc[indices]
+    for i in range(target_points):
+        start_idx = int(i * bucket_size)
+        end_idx = int((i + 1) * bucket_size) if i < target_points - 1 else len(df)
+        bucket = df.iloc[start_idx:end_idx]
 
-    return result
+        if bucket.empty:
+            continue
+
+        row = {}
+        if o_col:
+            row[o_col] = bucket[o_col].iloc[0]
+        if h_col:
+            row[h_col] = bucket[h_col].max()
+        if l_col:
+            row[l_col] = bucket[l_col].min()
+        if c_col:
+            row[c_col] = bucket[c_col].iloc[-1]
+        if v_col:
+            row[v_col] = bucket[v_col].sum()
+
+        rows.append(row)
+        indices.append(bucket.index[0])
+
+    return pd.DataFrame(rows, index=indices)
 
 
 def _lttb_indices(data: list[float], target_points: int) -> list[int]:
