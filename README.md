@@ -42,7 +42,7 @@ Docker:
 ## Tools
 
 - `search_stock` - Find stock by symbol or company name, returns identity + current price
-- `history` - Historical OHLCV bars (up to 1680 days ≈ 14 days * 120 points, chosen for biweekly resolution at 120 points)
+- `history` - Historical OHLCV bars with auto-computed interval. [more](#architecture)
 - `technicals` - Technical indicators: RSI, MACD, Bollinger Bands, Ichimoku, and [more](#technical-indicators)
 - `valuation` - P/E, PEG, margins, growth, quality score, and [more](#valuation-metrics)
 - `financials` - Income, balance sheet, and cash flow statements
@@ -50,16 +50,13 @@ Docker:
 ## Configuration
 
 - `YFINANCE_TARGET_POINTS` (default: `120`) - Data points per response. Lower = fewer tokens. Range: 50-200.
-- `YFINANCE_MAX_SPAN_DAYS` (default: `1680`) - Maximum history in days (~4.6 years).
 - `YFINANCE_CACHE_DISABLED` (default: unset) - Set to `1` to disable caching.
 - `YFINANCE_CACHE_DB` (default: `~/.cache/yfinance-mcp/market.duckdb`) - Cache database path.
 - `YFINANCE_INTRADAY_TTL_MINUTES` (default: `30`) - Intraday cache TTL in minutes.
 
 ## Limitations
 
-- Intraday data (1m-1h): max 60 days history
-- Financial statements: ~4-5 years annual / ~5 quarters
-- Rate limiting: HTTP 429 handled by circuit breaker
+- `financials`: ~4-5 years annual, ~5 quarters available per statement type
 
 ---
 
@@ -121,19 +118,24 @@ uv run pip-audit                       # Security scan
 
 ### Architecture
 
-**Caching** - Local cache reduces Yahoo Finance API calls. The cache detects gaps in cached data and fetches only missing ranges. Consecutive gaps are merged to minimize API calls while respecting `YFINANCE_MAX_SPAN_DAYS`.
+**Data points & tokens** - Each response returns ~120 data points by default, using ~3.8K tokens. This balances chart detail with LLM context efficiency. The server auto-selects resolution based on date range:
 
-**Token optimization** - Data is returned in [TOON format](https://github.com/toon-format/toon), cutting token usage by ~45% vs JSON. Large datasets are downsampled:
+| Date Range | Interval | Why |
+|------------|----------|-----|
+| 1-3 days | 5-minute | 78 bars/day × 1.5 days ≈ 120 |
+| 3-12 days | 15-30 min | 13-26 bars/day × 5-9 days ≈ 120 |
+| 12-80 days | Hourly | 6.5 bars/day × 18 days ≈ 120 |
+| 80+ days | Daily/Weekly | 1 bar/day × 120 days = 120 |
 
-- `history` uses OHLC resampling (preserves support/resistance levels)
-- `technicals` uses [LTTB algorithm](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf) (preserves trend reversals)
+Configure via `YFINANCE_TARGET_POINTS` (50-200 range):
 
-Each TOON bar (e.g., `2024-01-04,100.5,101.2,99.8,100.9,1000000`) uses ~30 tokens:
+- 50 points → ~1.6K tokens (quick queries)
+- 120 points → ~3.8K tokens (default)
+- 200 points → ~6.4K tokens (detailed analysis)
 
-- 50 points (~1.6K tokens) - Quick, low-cost queries
-- 80 points (~2.6K tokens) - Compact analysis
-- 120 points (~3.8K tokens) - Balanced detail (default)
-- 150 points (~4.8K tokens) - In-depth analysis
+Data is returned in [TOON format](https://github.com/toon-format/toon), cutting token usage by ~45% vs JSON. Downsampling preserves key features: `history` uses OHLC resampling (support/resistance), `technicals` uses [LTTB](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf) (trend reversals).
+
+**Caching** - Local cache reduces Yahoo Finance API calls. The cache detects gaps in cached data and fetches only missing ranges.
 
 ## License
 

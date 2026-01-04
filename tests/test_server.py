@@ -1111,66 +1111,123 @@ class TestAutoInterval:
     """Test auto-interval selection and downsampling logic."""
 
     @pytest.mark.parametrize(
-        "period,expected",
+        "period,expected_interval",
         [
-            ("1d", 1),
-            ("5d", 5),
-            ("1mo", 30),
-            ("3mo", 90),
-            ("1y", 365),
-            ("5y", 1825),
-            ("ytd", 180),
-            ("max", 7300),
-            ("unknown", 90),
-            (None, 90),  # fallbacks
+            # Common periods (tests PERIOD_TO_DAYS + interval selection)
+            ("1d", "5m"),
+            ("1mo", "1h"),
+            ("3mo", "1d"),
+            ("2y", "1wk"),
+            ("5y", "1mo"),
+            # Fallbacks
+            ("unknown_period", "1d"),  # Unknown → 90 days default → 1d
+            (None, "1d"),  # None → 90 days default → 1d
         ],
     )
-    def test_calculate_span_days_period(self, period, expected) -> None:
-        from yfinance_mcp.helpers import calculate_span_days
+    def test_select_interval_period(self, period, expected_interval) -> None:
+        from yfinance_mcp.helpers import select_interval
 
-        assert calculate_span_days(period) == expected
+        assert select_interval(period) == expected_interval
 
     @pytest.mark.parametrize(
-        "start,end,expected",
+        "start,end,expected_interval",
         [
-            ("2024-01-01", "2024-01-31", 30),
-            ("2024-01-01", "2024-12-31", 365),
-            ("2024-01-01", "2024-01-01", 0),
+            # Thresholds computed as: (TARGET_POINTS × multiplier) / prev_ppd
+            # 15m: (120 × 1.95) / 78 = 3d, 30m: (120 × 1.083) / 26 ≈ 5d
+            # 1h: (120 × 1.3) / 13 = 12d, 1d: (120 × 4.33) / 6.5 ≈ 80d
+            # 1wk: (120 × 3.33) / 1 ≈ 400d, 1mo: (120 × 8/3) / 0.2 = 1600d
+            ("2024-01-01", "2024-01-01", "5m"),  # 0d < 3d
+            ("2024-01-01", "2024-01-04", "15m"),  # 3d = threshold
+            ("2024-01-01", "2024-01-06", "30m"),  # 5d = threshold
+            ("2024-01-01", "2024-01-13", "1h"),  # 12d = threshold
+            ("2024-01-01", "2024-03-21", "1d"),  # 80d = threshold
+            ("2024-01-01", "2025-02-04", "1wk"),  # 400d = threshold
+            ("2020-01-01", "2024-05-20", "1mo"),  # 1600d = threshold
+            # Just below thresholds (stays in previous tier)
+            ("2024-01-01", "2024-01-03", "5m"),  # 2d < 3d
+            ("2024-01-01", "2024-01-05", "15m"),  # 4d < 5d
+            ("2024-01-01", "2024-01-12", "30m"),  # 11d < 12d
+            ("2024-01-01", "2024-03-20", "1h"),  # 79d < 80d
+            ("2024-01-01", "2025-02-03", "1d"),  # 399d < 400d
         ],
     )
-    def test_calculate_span_days_dates(self, start, end, expected) -> None:
-        from yfinance_mcp.helpers import calculate_span_days
+    def test_select_interval_dates(self, start, end, expected_interval) -> None:
+        from yfinance_mcp.helpers import select_interval
 
-        assert calculate_span_days(start=start, end=end) == expected
+        assert select_interval(start=start, end=end) == expected_interval
+
+    def test_select_interval_start_without_end_uses_now(self) -> None:
+        """Start without end should use current timestamp."""
+        from datetime import datetime, timedelta
+
+        from yfinance_mcp.helpers import select_interval
+
+        # 30 days ago should use 1h interval
+        start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        assert select_interval(start=start) == "1h"
+
+    def test_select_interval_start_overrides_period(self) -> None:
+        """When both start and period provided, start takes precedence."""
+        from yfinance_mcp.helpers import select_interval
+
+        # period=5y would give 1mo, but 30-day date range gives 1h
+        result = select_interval(
+            period="5y",
+            start="2024-01-01",
+            end="2024-01-31",
+        )
+        assert result == "1h"
+
+    def test_select_interval_negative_span_returns_5m(self) -> None:
+        """End before start (negative span) should return finest interval."""
+        from yfinance_mcp.helpers import select_interval
+
+        result = select_interval(start="2024-12-31", end="2024-01-01")
+        assert result == "5m"
 
     @pytest.mark.parametrize(
-        "span_days,expected_interval",
+        "target_points,span_days,expected_interval",
         [
-            # Boundaries
-            (0, "5m"),
-            (3, "15m"),
-            (12, "1h"),
-            (80, "1d"),
-            (400, "1wk"),
-            (1600, "1mo"),
-            # Within ranges
-            (1, "5m"),
-            (5, "15m"),
-            (20, "1h"),
-            (100, "1d"),
-            (500, "1wk"),
-            (2000, "1mo"),
-            # Floats
-            (0.5, "5m"),
-            (2.9, "5m"),
-            (79.9, "1h"),
-            (80.1, "1d"),
+            # TARGET_POINTS=60 (half of default) → thresholds halve
+            # 15m threshold: (60 × 1.95) / 78 ≈ 1.5 days
+            # 30m threshold: (60 × 1.083) / 26 ≈ 2.5 days
+            # 1h threshold:  (60 × 1.3) / 13 = 6 days
+            # 1d threshold:  (60 × 4.33) / 6.5 ≈ 40 days
+            (60, 1, "5m"),
+            (60, 2, "15m"),
+            (60, 3, "30m"),
+            (60, 10, "1h"),
+            (60, 50, "1d"),
+            # TARGET_POINTS=200 (higher) → thresholds increase
+            # 15m threshold: (200 × 1.95) / 78 = 5 days
+            # 30m threshold: (200 × 1.083) / 26 ≈ 8.3 days
+            # 1h threshold:  (200 × 1.3) / 13 = 20 days
+            # 1d threshold:  (200 × 4.33) / 6.5 ≈ 133 days
+            (200, 4, "5m"),
+            (200, 6, "15m"),
+            (200, 10, "30m"),
+            (200, 30, "1h"),
+            (200, 150, "1d"),
         ],
     )
-    def test_auto_interval(self, span_days, expected_interval) -> None:
-        from yfinance_mcp.helpers import auto_interval
+    def test_select_interval_with_custom_target_points(
+        self, target_points, span_days, expected_interval
+    ) -> None:
+        """Verify interval selection adapts to different TARGET_POINTS values."""
+        from datetime import date, timedelta
 
-        assert auto_interval(span_days) == expected_interval
+        from yfinance_mcp.helpers import build_interval_config, select_interval
+
+        config = build_interval_config(target_points)
+        start = date(2024, 1, 1)
+        end = start + timedelta(days=span_days)
+
+        result = select_interval(
+            start=start.isoformat(),
+            end=end.isoformat(),
+            _config=config,
+        )
+        assert result == expected_interval
 
     @pytest.mark.parametrize(
         "size_multiplier,should_downsample",
@@ -1195,13 +1252,22 @@ class TestAutoInterval:
     @pytest.mark.parametrize(
         "period,start,end,should_error",
         [
-            ("1y", None, None, False),  # 1 year period - within limit
-            ("2y", None, None, False),  # 2 year period - within limit
-            ("5y", None, None, True),  # 5 year period - exceeds limit
-            ("max", None, None, True),  # max period - exceeds limit
-            (None, "2023-01-01", "2025-01-01", False),  # 2y date range - within limit
-            (None, "2015-01-01", "2025-01-01", True),  # 10y date range - exceeds
-            (None, "2024-01-01", "2024-06-01", False),  # 5mo date range - within
+            # Period-based tests
+            ("1y", None, None, False),  # 365 days - within limit
+            ("2y", None, None, False),  # 730 days - within limit
+            ("5y", None, None, False),  # 1825 days - within limit (MAX_SPAN_DAYS ≈ 2500)
+            ("10y", None, None, True),  # 3650 days - exceeds limit
+            ("max", None, None, True),  # 7300 days - exceeds limit
+            ("unknown_period", None, None, False),  # defaults to 90 days
+            # Date-based tests
+            (None, "2023-01-01", "2025-01-01", False),  # 2y range - within limit
+            (None, "2015-01-01", "2025-01-01", True),  # 10y range - exceeds
+            (None, "2024-01-01", "2024-06-01", False),  # 5mo range - within
+            (None, "2024-01-01", "2024-01-01", False),  # same day (0 days)
+            (None, "2024-01-01", None, False),  # end defaults to today
+            # Boundary tests (~2500 day limit with TARGET_POINTS=120)
+            (None, "2018-03-01", "2024-12-31", False),  # 2497 days - just under
+            (None, "2018-01-01", "2025-01-01", True),  # 2557 days - exceeds
         ],
     )
     def test_validate_date_range(self, period, start, end, should_error) -> None:
@@ -1211,9 +1277,31 @@ class TestAutoInterval:
             with pytest.raises(DateRangeExceededError) as exc_info:
                 validate_date_range(period, start, end)
             assert exc_info.value.max_days > 0
-            assert exc_info.value.suggested_period in ("1y", "2y")
+            assert exc_info.value.requested_days > exc_info.value.max_days
         else:
             validate_date_range(period, start, end)  # Should not raise
+
+    def test_date_range_error_contains_actionable_splits(self) -> None:
+        """Verify error message provides specific date ranges for sequential requests."""
+        from yfinance_mcp.helpers import DateRangeExceededError, validate_date_range
+
+        with pytest.raises(DateRangeExceededError) as exc_info:
+            validate_date_range(start="2015-01-01", end="2025-01-01")
+
+        msg = str(exc_info.value)
+        assert "Split into" in msg
+        assert "start=" in msg and "end=" in msg
+        assert "YFINANCE_TARGET_POINTS" in msg
+
+    def test_period_error_suggests_alternative(self) -> None:
+        """Verify period-based error provides helpful suggestion."""
+        from yfinance_mcp.helpers import DateRangeExceededError, validate_date_range
+
+        with pytest.raises(DateRangeExceededError) as exc_info:
+            validate_date_range(period="max")
+
+        msg = str(exc_info.value)
+        assert "5y" in msg or "split" in msg.lower()
 
     @pytest.mark.parametrize(
         "max_days,expected_count,must_include,must_exclude",
@@ -1248,6 +1336,18 @@ class TestAutoInterval:
         periods = get_valid_periods(1120)
         durations = [PERIOD_TO_DAYS.get(p, 0) for p in periods]
         assert durations == sorted(durations), "Periods should be sorted by duration"
+
+    def test_get_valid_periods_with_max_span_days(self) -> None:
+        """Verify tool schema shows correct periods for current MAX_SPAN_DAYS."""
+        from yfinance_mcp.helpers import MAX_SPAN_DAYS, get_valid_periods
+
+        periods = get_valid_periods(MAX_SPAN_DAYS)
+
+        # MAX_SPAN_DAYS ≈ 2500 (TARGET_POINTS=120 / 0.048)
+        assert "5y" in periods  # 1825 days < 2500
+        assert "10y" not in periods  # 3650 days > 2500
+        assert "max" not in periods  # 7300 days > 2500
+        assert "ytd" in periods  # always included when valid
 
 
 class TestOHLCResample:

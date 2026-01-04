@@ -7,7 +7,7 @@ import os
 import platform
 import sys
 import tempfile
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -555,59 +555,110 @@ def period_to_date_range(period: str) -> tuple[str | None, str | None, str | Non
     return (None, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
 
 
-def calculate_span_days(
-    period: str | None = None,
-    start: str | None = None,
-    end: str | None = None,
-) -> float:
-    """Calculate the time span in days from period or start/end dates."""
-    if start:
-        start_date = pd.to_datetime(start)
-        end_date = pd.to_datetime(end) if end else pd.Timestamp.now()
-        return (end_date - start_date).days
-    if period:
-        return PERIOD_TO_DAYS.get(period, 90)
-    return 90  # default 3 months
+TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "120"))
 
-
-INTERVAL_CONFIG = [
-    # (interval, points_per_day, max_days, min_span_days)
-    ("5m", 78, 60, 0),
-    ("15m", 26, 60, 3),
-    ("1h", 6.5, 730, 12),
-    ("1d", 1, None, 80),
-    ("1wk", 0.2, None, 400),
-    ("1mo", 0.048, None, 1600),
+# Interval base config: (interval, points_per_day, max_days, switch_multiplier)
+#
+# points_per_day: trading hours (6.5h) × intervals per hour
+# max_days: Yahoo Finance API limit (None = unlimited)
+# switch_multiplier: switch when prev interval produces this × TARGET_POINTS
+#   - Intraday: lower multiplier (minimize wasted API fetches)
+#   - Daily+: higher multiplier (downsampling cached data is cheap)
+#
+# min_span_days is computed as: (TARGET_POINTS × multiplier) / prev_points_per_day
+_INTERVAL_BASE: list[tuple[str, float, int | None, float]] = [
+    ("5m", 78, 60, 1.0),
+    ("15m", 26, 60, 1.95),
+    ("30m", 13, 60, 1.083),
+    ("1h", 6.5, 730, 1.3),
+    ("1d", 1, None, 4.33),
+    ("1wk", 0.2, None, 3.33),
+    ("1mo", 0.048, None, 8 / 3),
 ]
 
 
-def auto_interval(span_days: float) -> str:
-    """Select optimal interval to produce approximately 80 data points."""
-    for interval, _ppd, max_days, min_span in reversed(INTERVAL_CONFIG):
+def build_interval_config(
+    target_points: int,
+) -> list[tuple[str, float, int | None, float]]:
+    """Build interval config with min_span_days computed from target_points."""
+    result: list[tuple[str, float, int | None, float]] = []
+    for i, (interval, ppd, max_days, mult) in enumerate(_INTERVAL_BASE):
+        min_span = 0.0 if i == 0 else (target_points * mult) / _INTERVAL_BASE[i - 1][1]
+        result.append((interval, ppd, max_days, min_span))
+    return result
+
+
+INTERVAL_CONFIG = build_interval_config(TARGET_POINTS)
+
+MAX_SPAN_DAYS = int(TARGET_POINTS / _INTERVAL_BASE[-1][1])
+
+
+def select_interval(
+    period: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    *,
+    _config: list[tuple[str, float, int | None, float]] | None = None,
+) -> str:
+    """Select optimal interval to produce approximately TARGET_POINTS data points."""
+    config = _config if _config is not None else INTERVAL_CONFIG
+
+    if start:
+        start_date = pd.to_datetime(start)
+        end_date = pd.to_datetime(end) if end else pd.Timestamp.now()
+        span_days = float((end_date - start_date).days)
+    elif period:
+        span_days = float(PERIOD_TO_DAYS.get(period, 90))
+    else:
+        span_days = 90.0
+
+    for interval, _ppd, max_days, min_span in reversed(config):
         if span_days >= min_span:
             if max_days is None or span_days <= max_days:
                 return interval
     return "5m"
 
 
-TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "120"))
-MAX_SPAN_DAYS = int(os.environ.get("YFINANCE_MAX_SPAN_DAYS", "1680"))  # ~4.6 years
-
-
 class DateRangeExceededError(Exception):
     """Raised when requested date range exceeds MAX_SPAN_DAYS."""
 
-    def __init__(self, requested_days: int, max_days: int, suggested_period: str):
+    def __init__(
+        self,
+        requested_days: int,
+        max_days: int,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ):
         self.requested_days = requested_days
         self.max_days = max_days
-        self.suggested_period = suggested_period
+
         max_years = round(max_days / 365, 1)
         num_calls = math.ceil(requested_days / max_days)
-        super().__init__(
-            f"Range too long: {requested_days} days requested, "
-            f"max is {max_days} days (~{max_years} years). "
-            f"Please make {num_calls} separate requests covering ~{max_years} years each."
-        )
+
+        # Build actionable message with specific date ranges
+        msg_parts = [
+            f"Date range too long: {requested_days} days exceeds {max_days}-day limit "
+            f"(~{max_years} years, derived from YFINANCE_TARGET_POINTS={TARGET_POINTS})."
+        ]
+
+        if start_date and end_date and num_calls > 1:
+            msg_parts.append(f"Split into {num_calls} sequential requests:")
+            chunk_days = max_days
+            current = start_date
+            for i in range(num_calls):
+                chunk_end = min(current + timedelta(days=chunk_days), end_date)
+                msg_parts.append(
+                    f"  {i + 1}. start={current.isoformat()}, end={chunk_end.isoformat()}"
+                )
+                current = chunk_end + timedelta(days=1)
+                if current > end_date:
+                    break
+        else:
+            msg_parts.append(
+                f"Use period='5y' or split into {num_calls} requests of ~{max_years} years each."
+            )
+
+        super().__init__(" ".join(msg_parts))
 
 
 def validate_date_range(
@@ -615,25 +666,18 @@ def validate_date_range(
     start: str | None = None,
     end: str | None = None,
 ) -> None:
-    """Validate that date range does not exceed MAX_SPAN_DAYS.
-
-    Raises DateRangeExceededError if the range is too long.
-    """
-    max_years = MAX_SPAN_DAYS / 365
-
+    """Validate that date range does not exceed MAX_SPAN_DAYS."""
     if start:
-        start_date = pd.to_datetime(start)
-        end_date = pd.to_datetime(end) if end else pd.Timestamp.now()
+        start_date = pd.to_datetime(start).date()
+        end_date = pd.to_datetime(end).date() if end else date.today()
         span_days = (end_date - start_date).days
 
         if span_days > MAX_SPAN_DAYS:
-            suggested = "2y" if max_years >= 2 else "1y"
-            raise DateRangeExceededError(span_days, MAX_SPAN_DAYS, suggested)
+            raise DateRangeExceededError(span_days, MAX_SPAN_DAYS, start_date, end_date)
     elif period:
         period_days = PERIOD_TO_DAYS.get(period, 90)
         if period_days > MAX_SPAN_DAYS:
-            suggested = "2y" if max_years >= 2 else "1y"
-            raise DateRangeExceededError(period_days, MAX_SPAN_DAYS, suggested)
+            raise DateRangeExceededError(period_days, MAX_SPAN_DAYS)
 
 
 def auto_downsample(

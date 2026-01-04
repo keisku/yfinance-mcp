@@ -33,10 +33,9 @@ from .helpers import (
     DateRangeExceededError,
     adaptive_decimals,
     add_unknown,
-    auto_interval,
     calculate_quality,
-    calculate_span_days,
     configure_logging,
+    select_interval,
     err,
     fmt,
     fmt_toon,
@@ -573,17 +572,15 @@ def _handle_history(args: dict) -> str:
 
     validate_date_range(period, start, end)
 
-    span_days = calculate_span_days(period, start, end)
-    interval = auto_interval(span_days)
+    interval = select_interval(period, start, end)
 
     logger.debug(
-        "price_fetch symbol=%s start=%s end=%s period=%s interval=%s span_days=%.1f",
+        "price_fetch symbol=%s start=%s end=%s period=%s interval=%s",
         symbol,
         start,
         end,
         period,
         interval,
-        span_days,
     )
 
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
