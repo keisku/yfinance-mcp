@@ -84,54 +84,33 @@ class TestToolDiscovery:
 class TestSearchStockTool:
     """Test search_stock tool - entry point for stock identification."""
 
-    def _mock_ticker(self, **overrides) -> MagicMock:
-        """Create mock with sensible defaults."""
-        mock = MagicMock()
-        mock.fast_info.last_price = overrides.get("price", 150.0)
-        mock.fast_info.previous_close = 148.0
-        mock.fast_info.market_cap = 3e12
-        mock.fast_info.day_high = 152.0
-        mock.fast_info.day_low = 147.0
-        mock.fast_info.last_volume = 50000000
-        mock.info = {
-            "regularMarketPrice": overrides.get("price", 150.0),
-            "shortName": "Apple Inc.",
-            "sector": "Technology",
-            "industry": "Consumer Electronics",
-            "exchange": "NMS",
-            "currency": "USD",
-        }
-        return mock
-
-    def test_returns_identity_and_price(self, call) -> None:
+    def test_returns_identity_and_price(self, call, mock_ticker_factory) -> None:
         """search_stock should return identity + current price only."""
-        mock = self._mock_ticker()
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()):
             parsed = call("search_stock", {"symbol": "AAPL"})
 
-        assert "symbol" in parsed
-        assert "name" in parsed
-        assert "sector" in parsed
-        assert "industry" in parsed
-        assert "exchange" in parsed
-        assert "price" in parsed
-        assert "change_pct" in parsed
-        assert "market_cap" in parsed
-        assert "volume" in parsed
-        # Should NOT contain valuation or technical analysis
-        assert "pe" not in parsed
-        assert "peg" not in parsed
-        assert "trend" not in parsed
-        assert "quality_score" not in parsed
+        expected_keys = [
+            "symbol",
+            "name",
+            "sector",
+            "industry",
+            "exchange",
+            "price",
+            "change_pct",
+            "market_cap",
+            "volume",
+        ]
+        for key in expected_keys:
+            assert key in parsed
+        excluded_keys = ["pe", "peg", "trend", "quality_score"]
+        for key in excluded_keys:
+            assert key not in parsed
 
-    def test_search_by_query(self, call) -> None:
+    def test_search_by_query(self, call, mock_ticker_factory) -> None:
         """search_stock should work with company name query."""
-        mock = self._mock_ticker()
-
         with (
             patch("yfinance.Search") as mock_search,
-            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()),
         ):
             mock_search.return_value.quotes = [{"symbol": "AAPL"}]
             parsed = call("search_stock", {"query": "Apple"})
@@ -152,22 +131,17 @@ class TestSearchStockTool:
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND"
 
-    def test_smart_search_strips_suffix(self, call) -> None:
+    def test_smart_search_strips_suffix(self, call, mock_ticker_factory) -> None:
         """search_stock should strip common suffixes and retry (e.g., 'DBS Bank' -> 'DBS')."""
-        mock = self._mock_ticker()
 
         def search_side_effect(query, **kwargs):
             result = MagicMock()
-            # "DBS Bank" returns empty, but "DBS" (stripped) succeeds
-            if query.lower() == "dbs":
-                result.quotes = [{"symbol": "D05.SI"}]
-            else:
-                result.quotes = []
+            result.quotes = [{"symbol": "D05.SI"}] if query.lower() == "dbs" else []
             return result
 
         with (
             patch("yfinance.Search", side_effect=search_side_effect),
-            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()),
         ):
             parsed = call("search_stock", {"query": "DBS Bank"})
 
@@ -182,9 +156,10 @@ class TestSearchStockTool:
             ("NYSE", "NI3.F"),  # no match falls back to first
         ],
     )
-    def test_exchange_filter(self, call, exchange_filter, expected_symbol) -> None:
+    def test_exchange_filter(
+        self, call, mock_ticker_factory, exchange_filter, expected_symbol
+    ) -> None:
         """search_stock should filter results by exchange when specified."""
-        mock = self._mock_ticker()
 
         def search_side_effect(query, **kwargs):
             result = MagicMock()
@@ -197,11 +172,9 @@ class TestSearchStockTool:
 
         with (
             patch("yfinance.Search", side_effect=search_side_effect),
-            patch("yfinance_mcp.server._ticker", return_value=mock),
+            patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()),
         ):
-            parsed = call(
-                "search_stock", {"query": "Nichirei", "exchange": exchange_filter}
-            )
+            parsed = call("search_stock", {"query": "Nichirei", "exchange": exchange_filter})
 
         assert parsed["symbol"] == expected_symbol
 
@@ -261,65 +234,35 @@ class TestFilterByExchange:
 class TestHistoryTool:
     """Test price tool - historical OHLCV data."""
 
-    def _mock_history(self, n: int = 50) -> MagicMock:
-        mock = MagicMock()
-        np.random.seed(42)
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        df = pd.DataFrame(
-            {
-                "Open": close - 0.5,
-                "High": close + 1,
-                "Low": close - 1,
-                "Close": close,
-                "Volume": [1000000] * n,
-            },
-            index=pd.date_range("2024-01-01", periods=n),
-        )
-        mock.history.return_value = df
-        return mock
-
-    def test_returns_bars(self, call_toon) -> None:
+    def test_returns_bars(self, call_toon, mock_ticker_with_history) -> None:
         """History should return bars list in TOON format."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history()):
             parsed = call_toon("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
-        first_bar = parsed["bars"][0]
-        assert set(first_bar.keys()) == {"d", "o", "h", "l", "c", "v"}
+        assert set(parsed["bars"][0].keys()) == {"d", "o", "h", "l", "c", "v"}
 
-    def test_start_and_end_date_range(self, call_toon) -> None:
-        """start/end should fetch specific date range."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call_toon(
-                "history",
-                {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-31"},
-            )
-
-        assert "bars" in parsed
-        assert len(parsed["bars"]) > 0
-
-    def test_start_only_defaults_end_to_today(self, call_toon) -> None:
-        """start without end should fetch from start to today."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call_toon("history", {"symbol": "AAPL", "start": "2024-01-01"})
+    @pytest.mark.parametrize(
+        "args,description",
+        [
+            ({"start": "2024-01-01", "end": "2024-01-31"}, "date range"),
+            ({"start": "2024-01-01"}, "start only defaults end to today"),
+            ({"end": "2024-06-30", "period": "3mo"}, "end only computes start from period"),
+        ],
+    )
+    def test_date_range_variations(
+        self, call_toon, mock_ticker_with_history, args, description
+    ) -> None:
+        """Various date range specifications should return bars."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history()):
+            parsed = call_toon("history", {"symbol": "AAPL", **args})
 
         assert "bars" in parsed
         assert len(parsed["bars"]) > 0
 
-    def test_end_only_computes_start_from_period(self, call_toon) -> None:
-        """end without start should compute start = end - period."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_history()):
-            parsed = call_toon(
-                "history",
-                {"symbol": "AAPL", "end": "2024-06-30", "period": "3mo"},
-            )
-
-        assert "bars" in parsed
-        assert len(parsed["bars"]) > 0
-
-    def test_intraday_datetime_strings(self, call_toon) -> None:
+    def test_intraday_datetime_strings(self, call_toon, mock_ticker_with_history) -> None:
         """Short time spans should auto-select intraday interval."""
-        mock = self._mock_history()
+        mock = mock_ticker_with_history()
         df = mock.history.return_value.copy()
         df.index = pd.date_range("2024-01-15 09:30", periods=len(df), freq="5min")
         mock.history.return_value = df
@@ -327,38 +270,15 @@ class TestHistoryTool:
         with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call_toon(
                 "history",
-                {
-                    "symbol": "AAPL",
-                    "start": "2024-01-15 09:30",
-                    "end": "2024-01-15 16:00",
-                },
+                {"symbol": "AAPL", "start": "2024-01-15 09:30", "end": "2024-01-15 16:00"},
             )
 
         assert "bars" in parsed
-        first_bar = parsed["bars"][0]
-        assert " " in first_bar["d"]  # Contains time component
+        assert " " in parsed["bars"][0]["d"]  # Contains time component
 
 
 class TestTechnicalsTool:
     """Test technicals tool - trading signals."""
-
-    def _mock_prices(self) -> MagicMock:
-        mock = MagicMock()
-        np.random.seed(42)
-        n = 100  # Need 78+ for Ichimoku (52 + 26)
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        df = pd.DataFrame(
-            {
-                "Open": close - 0.5,
-                "High": close + 1,
-                "Low": close - 1,
-                "Close": close,
-                "Volume": [1000000] * n,
-            },
-            index=pd.date_range("2024-01-01", periods=n),
-        )
-        mock.history.return_value = df
-        return mock
 
     @pytest.mark.parametrize(
         "indicator,expected_data_keys,expected_meta_keys",
@@ -384,46 +304,30 @@ class TestTechnicalsTool:
         ],
     )
     def test_indicator_returns_expected_structure(
-        self, call_toon, indicator, expected_data_keys, expected_meta_keys
+        self, call_toon, mock_ticker_with_history, indicator, expected_data_keys, expected_meta_keys
     ) -> None:
         """Each indicator should return time series data or meta info."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": [indicator]})
 
-        assert "data" in parsed, "Response should contain 'data' key"
-
+        assert "data" in parsed
         if expected_data_keys:
-            first_row = parsed["data"][0]
             for key in expected_data_keys:
-                assert key in first_row, f"Missing key {key} in data for indicator {indicator}"
-
+                assert key in parsed["data"][0], f"Missing {key} for {indicator}"
         if expected_meta_keys:
-            assert "meta" in parsed, f"Missing 'meta' for indicator {indicator}"
+            assert "meta" in parsed
             for key in expected_meta_keys:
-                assert key in parsed["meta"], f"Missing key {key} in meta for indicator {indicator}"
+                assert key in parsed["meta"], f"Missing {key} in meta for {indicator}"
 
-    def test_trend_insufficient_data(self, call_toon) -> None:
+    def test_trend_insufficient_data(self, call_toon, mock_ticker_with_history) -> None:
         """Trend with <50 bars should return error message in meta."""
-        mock = MagicMock()
-        df = pd.DataFrame(
-            {
-                "Open": [100] * 30,
-                "High": [101] * 30,
-                "Low": [99] * 30,
-                "Close": [100] * 30,
-                "Volume": [1000000] * 30,
-            },
-            index=pd.date_range("2024-01-01", periods=30),
-        )
-        mock.history.return_value = df
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=30)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["trend"]})
 
         assert "meta" in parsed
         assert "_trend_error" in parsed["meta"]
 
-    def test_all_indicators(self, call_toon) -> None:
+    def test_all_indicators(self, call_toon, mock_ticker_with_history) -> None:
         """All supported indicators should work."""
         indicators = [
             "trend",
@@ -445,41 +349,24 @@ class TestTechnicalsTool:
             "atr",
             "obv",
         ]
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         assert "data" in parsed
-        first_row = parsed["data"][0]
-        assert "rsi" in first_row
-        assert "macd" in first_row
-        assert "bb_upper" in first_row
-        assert "sma50" in first_row
+        for key in ["rsi", "macd", "bb_upper", "sma50"]:
+            assert key in parsed["data"][0]
 
-    def test_all_keyword_expands_to_all_indicators(self, call_toon) -> None:
+    def test_all_keyword_expands_to_all_indicators(
+        self, call_toon, mock_ticker_with_history
+    ) -> None:
         """indicators=['all'] should expand to ALL_INDICATORS constant."""
-        mock = MagicMock()
-        np.random.seed(42)
-        n = 250
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-        df = pd.DataFrame(
-            {
-                "Open": close - 0.5,
-                "High": close + 1,
-                "Low": close - 1,
-                "Close": close,
-                "Volume": [1000000] * n,
-            },
-            index=pd.date_range("2024-01-01", periods=n),
-        )
-        mock.history.return_value = df
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=250)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["all"]})
 
         assert "data" in parsed
         first_row = parsed["data"][0]
 
-        data_indicator_keys = {
+        data_keys = {
             "rsi": "rsi",
             "macd": "macd",
             "bb": "bb_upper",
@@ -494,8 +381,7 @@ class TestTechnicalsTool:
             "obv": "obv",
             "momentum": "momentum",
         }
-
-        meta_indicator_keys = {
+        meta_keys = {
             "volume_profile": "volume_profile",
             "price_change": "price_change",
             "fibonacci": "fibonacci",
@@ -503,33 +389,24 @@ class TestTechnicalsTool:
         }
 
         for ind in ALL_INDICATORS:
-            if ind.startswith("sma_") or ind.startswith("ema_") or ind.startswith("wma_"):
-                assert ind in first_row, f"Missing MA indicator {ind} in data"
-            elif ind in data_indicator_keys:
-                expected_key = data_indicator_keys[ind]
-                assert expected_key in first_row, (
-                    f"Missing {expected_key} in data for indicator {ind}"
-                )
-            elif ind in meta_indicator_keys:
-                expected_key = meta_indicator_keys[ind]
-                assert "meta" in parsed, f"Missing meta for indicator {ind}"
-                assert expected_key in parsed["meta"], (
-                    f"Missing {expected_key} in meta for indicator {ind}"
-                )
+            if ind.startswith(("sma_", "ema_", "wma_")):
+                assert ind in first_row, f"Missing MA {ind}"
+            elif ind in data_keys:
+                assert data_keys[ind] in first_row, f"Missing {data_keys[ind]} for {ind}"
+            elif ind in meta_keys:
+                assert "meta" in parsed and meta_keys[ind] in parsed["meta"]
 
-    def test_empty_indicators_defaults_to_all(self, call_toon) -> None:
+    def test_empty_indicators_defaults_to_all(self, call_toon, mock_ticker_with_history) -> None:
         """Empty or omitted indicators should default to all."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": []})
 
         assert "data" in parsed
-        first_row = parsed["data"][0]
-        assert "rsi" in first_row
-        assert "macd" in first_row
+        assert all(k in parsed["data"][0] for k in ["rsi", "macd"])
 
-    def test_start_end_historical_range(self, call_toon) -> None:
+    def test_start_end_historical_range(self, call_toon, mock_ticker_with_history) -> None:
         """start/end should fetch specific historical date range."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_prices()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
             parsed = call_toon(
                 "technicals",
                 {
@@ -541,108 +418,44 @@ class TestTechnicalsTool:
             )
 
         assert "data" in parsed
-        first_row = parsed["data"][0]
-        assert "rsi" in first_row
+        assert "rsi" in parsed["data"][0]
 
 
 class TestValuationTool:
     """Test valuation tool - valuation metrics and quality score."""
 
-    def _mock_valuation(self) -> MagicMock:
-        mock = MagicMock()
-        mock.info = {
-            "trailingPE": 25.5,
-            "forwardPE": 22.0,
-            "pegRatio": 1.5,
-            "trailingEps": 6.0,
-            "forwardEps": 7.0,
-            "grossMargins": 0.45,
-            "operatingMargins": 0.30,
-            "profitMargins": 0.25,
-            "revenueGrowth": 0.15,
-            "earningsGrowth": 0.20,
-            "priceToBook": 35.0,
-            "priceToSalesTrailing12Months": 7.5,
-            "enterpriseToEbitda": 20.0,
-            "dividendYield": 0.005,
-            "dividendRate": 0.96,
-            "payoutRatio": 0.15,
-            "returnOnAssets": 0.15,
-            "operatingCashflow": 100e9,
-            "netIncomeToCommon": 80e9,
-            "currentRatio": 1.5,
-            "debtToEquity": 50,
-            "returnOnEquity": 0.2,
-        }
-        return mock
+    @pytest.mark.parametrize(
+        "metrics,expected_keys",
+        [
+            (["pe", "eps", "margins"], ["pe", "eps", "margin_gross"]),
+            (["growth"], ["growth_rev", "growth_earn"]),
+            (["ratios"], ["pb", "ps", "ev_ebitda"]),
+            (["dividends"], ["div_yield", "div_rate", "payout_ratio"]),
+            (["peg"], ["peg", "peg_source", "peg_signal"]),
+        ],
+    )
+    def test_valuation_metrics(self, call, mock_ticker_factory, metrics, expected_keys) -> None:
+        """Valuation metrics should return expected keys."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()):
+            parsed = call("valuation", {"symbol": "AAPL", "metrics": metrics})
 
-    def test_pe_eps_margins(self, call) -> None:
-        """Basic metrics should be returned."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
-            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["pe", "eps", "margins"]})
+        for key in expected_keys:
+            assert key in parsed, f"Missing {key} for metrics {metrics}"
 
-        assert "pe" in parsed
-        assert "eps" in parsed
-        assert "margin_gross" in parsed
-
-    def test_growth_metrics(self, call) -> None:
-        """Growth option should return growth rates."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
-            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["growth"]})
-
-        assert "growth_rev" in parsed
-        assert "growth_earn" in parsed
-
-    def test_ratios_metrics(self, call) -> None:
-        """Ratios option should return valuation ratios."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
-            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["ratios"]})
-
-        assert "pb" in parsed
-        assert "ps" in parsed
-        assert "ev_ebitda" in parsed
-
-    def test_dividends_metrics(self, call) -> None:
-        """Dividends option should return yield, rate, payout."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
-            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["dividends"]})
-
-        assert "div_yield" in parsed
-        assert "div_rate" in parsed
-        assert "payout_ratio" in parsed
-
-    def test_quality_metric(self, call) -> None:
+    def test_quality_metric(self, call, mock_ticker_factory) -> None:
         """Quality returns score, signal, and details."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()):
             parsed = call("valuation", {"symbol": "AAPL", "metrics": ["quality"]})
 
-        # Structure assertions
-        assert "quality_score" in parsed
-        assert "quality_max" in parsed
         assert parsed["quality_max"] == 7
-        assert "quality_signal" in parsed
         assert parsed["quality_signal"] in ["strong", "neutral", "weak"]
-        assert "quality_details" in parsed
-        # Value assertions (mock has strong fundamentals)
+        assert all(k in parsed for k in ["quality_score", "quality_details"])
         assert parsed["quality_score"] >= 6
         assert parsed["quality_signal"] == "strong"
 
-    def test_peg_metric(self, call) -> None:
-        """PEG returns value, source, and signal."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
-            parsed = call("valuation", {"symbol": "AAPL", "metrics": ["peg"]})
-
-        assert "peg" in parsed
-        assert "peg_source" in parsed
-        assert parsed["peg_source"] in ["earnings", "revenue"]
-        assert "peg_signal" in parsed
-        assert parsed["peg_signal"] in ["undervalued", "fair", "overvalued"]
-
-    def test_peg_undervalued_signal(self, call) -> None:
+    def test_peg_undervalued_signal(self, call, mock_ticker_factory) -> None:
         """Low PE with high growth should signal undervalued."""
-        mock = self._mock_valuation()
-        mock.info["trailingPE"] = 10
-        mock.info["earningsGrowth"] = 0.20  # PEG = 10/20 = 0.5
+        mock = mock_ticker_factory(trailingPE=10, earningsGrowth=0.20)
 
         with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("valuation", {"symbol": "AAPL", "metrics": ["peg"]})
@@ -650,9 +463,9 @@ class TestValuationTool:
         assert parsed["peg"] == 0.5
         assert parsed["peg_signal"] == "undervalued"
 
-    def test_empty_metrics_defaults_to_all(self, call) -> None:
+    def test_empty_metrics_defaults_to_all(self, call, mock_ticker_factory) -> None:
         """Empty or omitted metrics should default to all."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_valuation()):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()):
             parsed = call("valuation", {"symbol": "AAPL", "metrics": []})
 
         assert "pe" in parsed or "trailing_pe" in parsed
@@ -739,14 +552,13 @@ class TestValuationTool:
             index=dates,
         )
 
-    def test_periods_now_uses_current_info(self, call) -> None:
+    def test_periods_now_uses_current_info(self, call, mock_ticker_factory) -> None:
         """periods='now' should use existing t.info path."""
-        mock = self._mock_valuation()
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()):
             parsed = call("valuation", {"symbol": "AAPL", "metrics": ["pe"], "periods": "now"})
 
         assert "pe" in parsed
-        assert parsed["pe"] == 25.5  # From mock.info
+        assert parsed["pe"] == 25.5  # From DEFAULT_VALUATION_INFO
 
     def test_periods_single_year(self, call) -> None:
         """periods='YYYY' should return valuation for that fiscal year."""
@@ -870,40 +682,19 @@ class TestValuationTool:
 class TestFinancialsTool:
     """Test financials tool - financial statements."""
 
-    def _mock_financials(self) -> MagicMock:
-        mock = MagicMock()
-        for stmt, data in [
-            ("get_income_stmt", {"TotalRevenue": [100000, 90000]}),
-            ("get_balance_sheet", {"TotalAssets": [500000, 450000]}),
-            ("get_cashflow", {"OperatingCashFlow": [25000, 22000]}),
-        ]:
-            df = pd.DataFrame(data, index=pd.date_range("2024-01-01", periods=2, freq="YE")).T
-            getattr(mock, stmt).return_value = df
-        return mock
-
-    def test_income_statement(self, call) -> None:
-        """Income statement should return data."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials()):
-            parsed = call("financials", {"symbol": "AAPL", "statement": "income"})
+    @pytest.mark.parametrize(
+        "statement",
+        ["income", "balance", "cashflow"],
+    )
+    def test_financial_statements(self, call, mock_financials_factory, statement) -> None:
+        """Financial statements should return data."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_financials_factory()):
+            parsed = call("financials", {"symbol": "AAPL", "statement": statement})
 
         assert len(parsed) >= 1
 
-    def test_balance_sheet(self, call) -> None:
-        """Balance sheet should work."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials()):
-            parsed = call("financials", {"symbol": "AAPL", "statement": "balance"})
-
-        assert len(parsed) > 1
-
-    def test_cashflow(self, call) -> None:
-        """Cash flow should work."""
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials()):
-            parsed = call("financials", {"symbol": "AAPL", "statement": "cashflow"})
-
-        assert len(parsed) > 1
-
-    def _mock_financials_with_years(self) -> MagicMock:
-        """Create mock with multiple fiscal years for period filtering tests."""
+    def test_periods_single_year_filters(self, call) -> None:
+        """periods='YYYY' should filter to that fiscal year only."""
         from datetime import datetime
 
         mock = MagicMock()
@@ -922,14 +713,9 @@ class TestFinancialsTool:
         ]:
             df = pd.DataFrame(row_data, index=dates).T
             getattr(mock, stmt).return_value = df
-        return mock
 
-    def test_periods_single_year_filters(self, call) -> None:
-        """periods='YYYY' should filter to that fiscal year only."""
-        from datetime import datetime
-
-        prev_year = datetime.now().year - 1
-        with patch("yfinance_mcp.server._ticker", return_value=self._mock_financials_with_years()):
+        prev_year = current_year - 1
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
             parsed = call("financials", {"symbol": "AAPL", "periods": str(prev_year)})
 
         date_cols = [k for k in parsed.keys() if not k.startswith("_")]
@@ -965,35 +751,18 @@ class TestErrorHandling:
 
 
 class TestCircuitBreaker:
-    """Test circuit breaker - protects against cascading failures.
-
-    Uses public test hooks to verify observable behavior without
-    exposing internal state.
-    """
+    """Test circuit breaker - protects against cascading failures."""
 
     def test_rejects_requests_when_open(self, call) -> None:
         """When circuit is open, requests should be rejected immediately."""
-        # Open the circuit using public test hook
         open_circuit_breaker_for_testing()
-
-        # Request should be rejected without hitting yfinance
         parsed = call("search_stock", {"symbol": "AAPL"})
         assert parsed["err"] == "DATA_UNAVAILABLE"
         assert "retry later" in parsed["msg"].lower()
 
-    def test_allows_requests_when_closed(self, call) -> None:
+    def test_allows_requests_when_closed(self, call, mock_ticker_factory) -> None:
         """When circuit is closed, requests should proceed normally."""
-        # Circuit starts closed (conftest resets it via public hook)
-        mock = MagicMock()
-        mock.fast_info.last_price = 150.0
-        mock.fast_info.previous_close = 148.0
-        mock.fast_info.last_volume = 1000000
-        mock.fast_info.market_cap = 3e12
-        mock.fast_info.day_high = 152.0
-        mock.fast_info.day_low = 147.0
-        mock.info = {"regularMarketPrice": 150.0, "shortName": "Apple Inc."}
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_factory()):
             parsed = call("search_stock", {"symbol": "AAPL"})
 
         assert "err" not in parsed
@@ -1040,46 +809,23 @@ class TestEdgeCases:
         ],
     )
     def test_invalid_indicators_handled_gracefully(
-        self, call_toon, indicators, expected_unknown, should_have_valid
+        self, call_toon, mock_ticker_with_history, indicators, expected_unknown, should_have_valid
     ) -> None:
         """Invalid indicators should be added to _unknown list in meta or return null."""
-        mock = MagicMock()
-        df = pd.DataFrame(
-            {
-                "Open": [100] * 50,
-                "High": [101] * 50,
-                "Low": [99] * 50,
-                "Close": [100] * 50,
-                "Volume": [1000] * 50,
-            },
-            index=pd.date_range("2024-01-01", periods=50),
-        )
-        mock.history.return_value = df
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=50)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         if expected_unknown:
-            assert "meta" in parsed
-            assert "_unknown" in parsed["meta"]
+            assert "meta" in parsed and "_unknown" in parsed["meta"]
             assert expected_unknown in parsed["meta"]["_unknown"]
         if should_have_valid:
-            assert "data" in parsed
-            first_row = parsed["data"][0]
-            assert "rsi" in first_row
+            assert "data" in parsed and "rsi" in parsed["data"][0]
 
-    def test_invalid_statement_defaults_to_cashflow(self, call) -> None:
+    def test_invalid_statement_defaults_to_cashflow(self, call, mock_financials_factory) -> None:
         """Invalid statement type defaults to cashflow (graceful fallback)."""
-        mock = MagicMock()
-        df = pd.DataFrame(
-            {"OperatingCashFlow": [100000]}, index=pd.date_range("2024-01-01", periods=1, freq="YE")
-        ).T
-        mock.get_cashflow.return_value = df
-
-        with patch("yfinance_mcp.server._ticker", return_value=mock):
+        with patch("yfinance_mcp.server._ticker", return_value=mock_financials_factory()):
             parsed = call("financials", {"symbol": "AAPL", "statement": "invalid"})
 
-        # Should not error, falls back to cashflow
         assert "err" not in parsed
 
 
