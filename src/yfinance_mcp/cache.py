@@ -7,7 +7,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Protocol
 
-import holidays
 import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
@@ -28,42 +27,6 @@ def reset_cache_stats() -> None:
     """Reset cache stats (for testing)."""
     _cache_stats["hits"] = 0
     _cache_stats["misses"] = 0
-
-
-# used when DuckDB is unavailable
-_MARKET_CALENDAR_MAP: dict[str, type[holidays.HolidayBase]] = {
-    "": holidays.NYSE,
-    ".T": holidays.JP,
-    ".DE": holidays.DE,
-    ".SI": holidays.SG,
-    ".PA": holidays.FR,
-    ".L": holidays.UK,
-    ".HK": holidays.HK,
-    ".TO": holidays.CA,
-    ".V": holidays.CA,
-    ".AX": holidays.AU,
-    ".KS": holidays.KR,
-    ".SA": holidays.BVMF,
-    ".NS": holidays.XNSE,
-    ".BO": holidays.IN,
-}
-_in_memory_calendars: dict[str, holidays.HolidayBase] = {}
-
-
-def _get_symbol_suffix(symbol: str) -> str:
-    """Extract the exchange suffix from a symbol."""
-    if "." in symbol:
-        return "." + symbol.split(".")[-1].upper()
-    return ""
-
-
-def _is_holiday_in_memory(symbol: str, check_date: date) -> bool:
-    """Check holiday using in-memory calendar (fallback for NullCacheBackend)."""
-    suffix = _get_symbol_suffix(symbol)
-    if suffix not in _in_memory_calendars:
-        calendar_cls = _MARKET_CALENDAR_MAP.get(suffix, holidays.NYSE)
-        _in_memory_calendars[suffix] = calendar_cls()
-    return check_date in _in_memory_calendars[suffix]
 
 
 class PriceCacheBackend(Protocol):
@@ -262,9 +225,9 @@ class CachedPriceFetcher:
                 self.cache.store_prices(symbol, early_df, interval)
                 result_parts.append(early_df)
 
-        # interior gaps: missing trading days within cached range (daily interval only)
+        # interior gaps: missing dates within cached range (daily interval only)
         if interval == "1d":
-            gaps = self._find_gaps(cached_dates, cached_start, cached_end, symbol)
+            gaps = self._find_gaps(cached_dates, cached_start, cached_end)
             for gap_start, gap_end in gaps:
                 fetched_any = True
                 logger.debug(
@@ -280,9 +243,7 @@ class CachedPriceFetcher:
                     result_parts.append(gap_df)
 
         # late gap: requested end is after cached end
-        if end_date > cached_end and self._has_completed_periods_since(
-            cached_end, today, symbol, interval
-        ):
+        if end_date > cached_end and self._has_completed_periods_since(cached_end, today, interval):
             fetched_any = True
             fetch_start = cached_end + timedelta(days=1)
             logger.debug(
@@ -399,44 +360,44 @@ class CachedPriceFetcher:
         df = df[[c for c in keep_cols if c in df.columns]]
         return df
 
-    def _is_trading_day(self, d: date, symbol: str) -> bool:
-        """Check if a date is a trading day for the given symbol's market."""
-        return d.weekday() < 5 and not _is_holiday_in_memory(symbol, d)
-
     def _find_gaps(
         self,
         cached_dates: set[date],
         start: date,
         end: date,
-        symbol: str,
     ) -> list[tuple[date, date]]:
-        """Find gaps in cached data that need to be fetched."""
+        """Find date ranges not covered by cache.
+
+        Skips weekends but does not use holiday calendars.
+        Trusts the API to return actual trading days for each market.
+        """
+        if not cached_dates:
+            return [(start, end)]
+
+        sorted_dates = sorted(cached_dates)
         gaps: list[tuple[date, date]] = []
-        gap_start: date | None = None
-        current = start
 
-        while current <= end:
-            is_trading = self._is_trading_day(current, symbol)
-            in_cache = current in cached_dates
+        for i in range(len(sorted_dates) - 1):
+            curr_date = sorted_dates[i]
+            next_date = sorted_dates[i + 1]
 
-            if is_trading and not in_cache:
-                if gap_start is None:
-                    gap_start = current
-            else:
-                if gap_start is not None:
-                    gaps.append((gap_start, current - timedelta(days=1)))
-                    gap_start = None
+            gap_start = curr_date + timedelta(days=1)
+            gap_end = next_date - timedelta(days=1)
 
-            current += timedelta(days=1)
+            if gap_start > gap_end:
+                continue
 
-        if gap_start is not None:
-            gaps.append((gap_start, end))
+            has_weekday = any(
+                (gap_start + timedelta(days=d)).weekday() < 5
+                for d in range((gap_end - gap_start).days + 1)
+            )
+
+            if has_weekday:
+                gaps.append((gap_start, gap_end))
 
         return gaps
 
-    def _has_completed_periods_since(
-        self, cached_end: date, today: date, symbol: str, interval: str
-    ) -> bool:
+    def _has_completed_periods_since(self, cached_end: date, today: date, interval: str) -> bool:
         """Check if there are any completed periods after cached_end."""
         yesterday = today - timedelta(days=1)
         if cached_end >= yesterday:
@@ -449,7 +410,7 @@ class CachedPriceFetcher:
         else:
             current = cached_end + timedelta(days=1)
             while current <= yesterday:
-                if self._is_trading_day(current, symbol):
+                if current.weekday() < 5:
                     return True
                 current += timedelta(days=1)
             return False

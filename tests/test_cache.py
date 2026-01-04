@@ -16,7 +16,7 @@ def fetcher():
 
 
 class TestFindGaps:
-    """Test _find_gaps method directly."""
+    """Test _find_gaps method."""
 
     @pytest.mark.parametrize(
         "cached_dates,start,end,expected_gaps",
@@ -26,133 +26,79 @@ class TestFindGaps:
                 date(2024, 6, 3),
                 date(2024, 6, 3),
                 [],
-                id="single_day_range_cached",
+                id="single_day_no_gaps",
             ),
             pytest.param(
                 set(),
                 date(2024, 6, 3),
                 date(2024, 6, 3),
                 [(date(2024, 6, 3), date(2024, 6, 3))],
-                id="single_day_range_missing",
-            ),
-            pytest.param(
-                {date(2024, 8, 7)},
-                date(2024, 8, 5),
-                date(2024, 8, 9),
-                [(date(2024, 8, 5), date(2024, 8, 6)), (date(2024, 8, 8), date(2024, 8, 9))],
-                id="only_one_cached_gaps_both_sides",
-            ),
-            pytest.param(
-                {date(2024, 4, 8), date(2024, 4, 9), date(2024, 4, 10)},
-                date(2024, 4, 1),
-                date(2024, 4, 10),
-                [(date(2024, 4, 1), date(2024, 4, 5))],
-                id="gap_at_start",
-            ),
-            pytest.param(
-                {date(2024, 4, 1), date(2024, 4, 2), date(2024, 4, 3)},
-                date(2024, 4, 1),
-                date(2024, 4, 10),
-                [(date(2024, 4, 4), date(2024, 4, 5)), (date(2024, 4, 8), date(2024, 4, 10))],
-                id="gap_at_end",
+                id="empty_cache_single_day",
             ),
             pytest.param(
                 set(),
-                date(2024, 9, 14),
-                date(2024, 9, 15),
+                date(2024, 6, 3),
+                date(2024, 6, 10),
+                [(date(2024, 6, 3), date(2024, 6, 10))],
+                id="empty_cache_range",
+            ),
+            pytest.param(
+                {date(2024, 6, 3), date(2024, 6, 4), date(2024, 6, 5)},
+                date(2024, 6, 3),
+                date(2024, 6, 5),
                 [],
-                id="range_entirely_weekend",
+                id="consecutive_days_no_gaps",
+            ),
+            pytest.param(
+                {date(2024, 6, 3), date(2024, 6, 10)},
+                date(2024, 6, 3),
+                date(2024, 6, 10),
+                [(date(2024, 6, 4), date(2024, 6, 9))],
+                id="single_gap_middle",
+            ),
+            pytest.param(
+                {date(2024, 6, 3), date(2024, 6, 6), date(2024, 6, 10)},
+                date(2024, 6, 3),
+                date(2024, 6, 10),
+                [(date(2024, 6, 4), date(2024, 6, 5)), (date(2024, 6, 7), date(2024, 6, 9))],
+                id="multiple_gaps",
             ),
             pytest.param(
                 {date(2024, 10, 4), date(2024, 10, 7)},
                 date(2024, 10, 4),
                 date(2024, 10, 7),
                 [],
-                id="friday_to_monday_no_gap",
+                id="weekend_only_no_gap",
             ),
             pytest.param(
-                {date(2024, 3, 4), date(2024, 3, 5), date(2024, 3, 6)},
-                date(2024, 3, 4),
-                date(2024, 3, 6),
-                [],
-                id="no_gaps_mar_2024",
-            ),
-            pytest.param(
-                {date(2023, 7, 10), date(2023, 7, 14)},
-                date(2023, 7, 10),
-                date(2023, 7, 14),
-                [(date(2023, 7, 11), date(2023, 7, 13))],
-                id="single_gap_jul_2023",
-            ),
-            pytest.param(
-                {date(2024, 11, 4), date(2024, 11, 8), date(2024, 11, 15)},
-                date(2024, 11, 4),
-                date(2024, 11, 15),
-                [(date(2024, 11, 5), date(2024, 11, 7)), (date(2024, 11, 11), date(2024, 11, 14))],
-                id="multiple_gaps_nov_2024",
-            ),
-            pytest.param(
-                {date(2023, 12, 28), date(2023, 12, 29), date(2024, 1, 3)},
-                date(2023, 12, 28),
+                {date(2023, 12, 29), date(2024, 1, 3)},
+                date(2023, 12, 29),
                 date(2024, 1, 3),
-                [(date(2024, 1, 2), date(2024, 1, 2))],
-                id="year_boundary_2023_2024",
+                [(date(2023, 12, 30), date(2024, 1, 2))],
+                id="year_boundary",
             ),
             pytest.param(
-                {date(2024, 12, 30), date(2024, 12, 31), date(2025, 1, 6)},
-                date(2024, 12, 30),
-                date(2025, 1, 6),
-                [(date(2025, 1, 2), date(2025, 1, 3))],
-                id="year_boundary_2024_2025",
+                {date(2024, 2, 28), date(2024, 3, 1)},
+                date(2024, 2, 28),
+                date(2024, 3, 1),
+                [(date(2024, 2, 29), date(2024, 2, 29))],
+                id="leap_year_feb_29",
             ),
             pytest.param(
-                set(),
-                date(2022, 8, 15),
-                date(2022, 8, 17),
-                [(date(2022, 8, 15), date(2022, 8, 17))],
-                id="empty_cache_aug_2022",
-            ),
-            pytest.param(
-                {date(2024, 2, 1), date(2024, 2, 29)},
-                date(2024, 2, 1),
-                date(2024, 2, 29),
-                [
-                    (date(2024, 2, 2), date(2024, 2, 2)),
-                    (date(2024, 2, 5), date(2024, 2, 9)),
-                    (date(2024, 2, 12), date(2024, 2, 16)),
-                    (date(2024, 2, 20), date(2024, 2, 23)),
-                    (date(2024, 2, 26), date(2024, 2, 28)),
-                ],
-                id="leap_year_feb_2024",
-            ),
-            pytest.param(
-                {date(2023, 2, 1), date(2023, 2, 28)},
-                date(2023, 2, 1),
+                {date(2023, 2, 28), date(2023, 3, 1)},
                 date(2023, 2, 28),
-                [
-                    (date(2023, 2, 2), date(2023, 2, 3)),
-                    (date(2023, 2, 6), date(2023, 2, 10)),
-                    (date(2023, 2, 13), date(2023, 2, 17)),
-                    (date(2023, 2, 21), date(2023, 2, 24)),
-                    (date(2023, 2, 27), date(2023, 2, 27)),
-                ],
-                id="non_leap_year_feb_2023",
-            ),
-            pytest.param(
-                {date(2024, 6, 3), date(2024, 6, 7)},
-                date(2024, 6, 3),
-                date(2024, 6, 7),
-                [(date(2024, 6, 4), date(2024, 6, 6))],
-                id="week_range_single_gap",
+                date(2023, 3, 1),
+                [],
+                id="non_leap_year_no_gap",
             ),
         ],
     )
     def test_find_gaps(self, fetcher, cached_dates, start, end, expected_gaps):
-        gaps = fetcher._find_gaps(cached_dates, start, end, symbol="AAPL")
+        gaps = fetcher._find_gaps(cached_dates, start, end)
         assert gaps == expected_gaps
 
     def test_find_gaps_ten_year_range(self, fetcher):
-        """10-year range with sparse cache points produces many gaps."""
+        """10-year range with sparse cache points produces gaps between each pair."""
         cached_dates = {
             date(2015, 1, 2),
             date(2015, 7, 1),
@@ -176,26 +122,12 @@ class TestFindGaps:
             date(2024, 7, 1),
             date(2025, 1, 2),
         }
-        gaps = fetcher._find_gaps(cached_dates, date(2015, 1, 2), date(2025, 1, 2), symbol="AAPL")
+        gaps = fetcher._find_gaps(cached_dates, date(2015, 1, 2), date(2025, 1, 2))
 
-        assert len(gaps) == 545
+        assert len(gaps) == 20
         assert all(start <= end for start, end in gaps)
-        assert gaps[0][0] == date(2015, 1, 5)
-        assert gaps[-1][1] == date(2024, 12, 31)
-
-    @pytest.mark.parametrize(
-        "symbol",
-        [
-            pytest.param("AAPL", id="us_market"),
-            pytest.param("7203.T", id="japan_market"),
-            pytest.param("VOD.L", id="uk_market"),
-        ],
-    )
-    def test_find_gaps_different_markets(self, fetcher, symbol):
-        """Gap detection works with different market calendars."""
-        cached_dates = {date(2024, 5, 6), date(2024, 5, 10)}
-        gaps = fetcher._find_gaps(cached_dates, date(2024, 5, 6), date(2024, 5, 10), symbol=symbol)
-        assert len(gaps) == 1
+        assert gaps[0] == (date(2015, 1, 3), date(2015, 6, 30))
+        assert gaps[-1] == (date(2024, 7, 2), date(2025, 1, 1))
 
 
 class TestCacheFillGaps:
@@ -228,39 +160,15 @@ class TestCacheFillGaps:
         with patch.object(fetcher, "_find_gaps", wraps=fetcher._find_gaps) as spy:
             with patch.object(fetcher, "_fetch_from_api", return_value=pd.DataFrame()):
                 fetcher._get_history_internal(
-                    "AAPL", date(2024, 4, 15), date(2024, 10, 21), interval
+                    "TEST", date(2024, 4, 15), date(2024, 10, 21), interval
                 )
 
             assert spy.called == should_detect_gaps
 
-    def test_fills_detected_gaps(self):
-        """Should call API for each detected gap."""
-        backend = MagicMock()
-        jan = pd.DataFrame(
-            {"o": [100], "h": [101], "l": [99], "c": [100.5], "v": [1000]},
-            index=pd.to_datetime([date(2024, 1, 8)]),
-        )
-        mar = pd.DataFrame(
-            {"o": [110], "h": [111], "l": [109], "c": [110.5], "v": [1100]},
-            index=pd.to_datetime([date(2024, 3, 11)]),
-        )
-        backend.get_prices.return_value = pd.concat([jan, mar])
-        backend.store_prices = MagicMock()
-
-        fetcher = CachedPriceFetcher(backend=backend)
-
-        with patch.object(fetcher, "_fetch_from_api", return_value=pd.DataFrame()) as mock_api:
-            fetcher._get_history_internal("AAPL", date(2024, 1, 8), date(2024, 3, 11), "1d")
-
-            assert mock_api.called
-            calls = mock_api.call_args_list
-            fetched_starts = [c[0][1] for c in calls]
-            assert any(d.month == 1 for d in fetched_starts)
-
     def test_no_api_call_when_fully_cached(self):
-        """Should not call API when cache has all trading days."""
+        """Should not call API when cache has all consecutive days."""
         backend = MagicMock()
-        dates = pd.bdate_range(date(2024, 5, 6), date(2024, 5, 10))
+        dates = pd.date_range(date(2024, 5, 6), date(2024, 5, 10), freq="D")
         cached_df = pd.DataFrame(
             {
                 "o": [100] * len(dates),
@@ -277,5 +185,173 @@ class TestCacheFillGaps:
         fetcher = CachedPriceFetcher(backend=backend)
 
         with patch.object(fetcher, "_fetch_from_api") as mock_api:
-            fetcher._get_history_internal("AAPL", date(2024, 5, 6), date(2024, 5, 10), "1d")
+            fetcher._get_history_internal("TEST", date(2024, 5, 6), date(2024, 5, 10), "1d")
             mock_api.assert_not_called()
+
+
+class TestGapFilling:
+    """Test gap detection and filling behavior.
+
+    These scenarios test the cache's ability to:
+    - Detect gaps when API returns 0 bars (holidays, market closures)
+    - Handle early/interior/late gap combinations
+    - Merge cached and fetched data correctly
+    - Store fetched data in cache
+    """
+
+    @pytest.fixture
+    def mock_backend(self):
+        """Create a mock backend with common setup."""
+        backend = MagicMock()
+        backend.store_prices = MagicMock()
+        return backend
+
+    @pytest.mark.parametrize(
+        "request_start,request_end,cache_start,cache_end,min_api_calls",
+        [
+            pytest.param(
+                date(2024, 8, 1),
+                date(2025, 1, 3),
+                date(2024, 10, 1),
+                date(2024, 12, 31),
+                2,
+                id="early_and_late_gaps",
+            ),
+            pytest.param(
+                date(2024, 10, 1),
+                date(2024, 12, 31),
+                date(2024, 10, 1),
+                date(2024, 10, 31),
+                1,
+                id="late_gap_only",
+            ),
+            pytest.param(
+                date(2024, 7, 1),
+                date(2024, 9, 30),
+                date(2024, 8, 1),
+                date(2024, 9, 30),
+                1,
+                id="early_gap_only",
+            ),
+            pytest.param(
+                date(2024, 7, 12),
+                date(2024, 7, 16),
+                date(2024, 7, 12),
+                date(2024, 7, 12),
+                1,
+                id="interior_gap_api_returns_zero",
+            ),
+        ],
+    )
+    def test_gap_detection_triggers_api_calls(
+        self, mock_backend, request_start, request_end, cache_start, cache_end, min_api_calls
+    ):
+        """Gap detection triggers API calls; system handles 0-bar responses."""
+        cache_dates = pd.date_range(cache_start, cache_end, freq="B")
+        mock_backend.get_prices.return_value = pd.DataFrame(
+            {
+                "o": [100] * len(cache_dates),
+                "h": [101] * len(cache_dates),
+                "l": [99] * len(cache_dates),
+                "c": [100.5] * len(cache_dates),
+                "v": [1000] * len(cache_dates),
+            },
+            index=cache_dates,
+        )
+
+        fetcher = CachedPriceFetcher(backend=mock_backend)
+        api_calls = []
+
+        def track_api_calls(symbol, start, end, interval):
+            api_calls.append((start, end))
+            return pd.DataFrame()  # API returns 0 bars (simulating holidays)
+
+        with patch.object(fetcher, "_fetch_from_api", side_effect=track_api_calls):
+            fetcher._get_history_internal("TEST", request_start, request_end, "1d")
+            assert len(api_calls) >= min_api_calls
+
+    @pytest.mark.parametrize(
+        "cached_dates,gap_dates,expected_total",
+        [
+            pytest.param(
+                [date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4), date(2024, 1, 5)],
+                [date(2024, 1, 8), date(2024, 1, 9), date(2024, 1, 10)],
+                7,
+                id="4_cached_3_fetched",
+            ),
+            pytest.param(
+                [date(2024, 6, 3), date(2024, 6, 4), date(2024, 6, 5)],
+                [date(2024, 6, 6), date(2024, 6, 7)],
+                5,
+                id="3_cached_2_fetched",
+            ),
+            pytest.param(
+                [date(2024, 10, 1)],
+                [date(2024, 10, 2), date(2024, 10, 3), date(2024, 10, 4)],
+                4,
+                id="1_cached_3_fetched",
+            ),
+        ],
+    )
+    def test_merges_cached_and_fetched_data(
+        self, mock_backend, cached_dates, gap_dates, expected_total
+    ):
+        """Result correctly merges cached data with newly fetched data."""
+        cached_df = pd.DataFrame(
+            {
+                "o": [100 + i for i in range(len(cached_dates))],
+                "h": [101 + i for i in range(len(cached_dates))],
+                "l": [99 + i for i in range(len(cached_dates))],
+                "c": [100.5 + i for i in range(len(cached_dates))],
+                "v": [1000] * len(cached_dates),
+            },
+            index=pd.to_datetime(cached_dates),
+        )
+        mock_backend.get_prices.return_value = cached_df
+
+        gap_df = pd.DataFrame(
+            {
+                "o": [200 + i for i in range(len(gap_dates))],
+                "h": [201 + i for i in range(len(gap_dates))],
+                "l": [199 + i for i in range(len(gap_dates))],
+                "c": [200.5 + i for i in range(len(gap_dates))],
+                "v": [2000] * len(gap_dates),
+            },
+            index=pd.to_datetime(gap_dates),
+        )
+
+        fetcher = CachedPriceFetcher(backend=mock_backend)
+
+        with patch.object(fetcher, "_fetch_from_api", return_value=gap_df):
+            request_start = min(cached_dates + gap_dates)
+            request_end = max(cached_dates + gap_dates)
+            result = fetcher._get_history_internal("TEST", request_start, request_end, "1d")
+
+            assert len(result) == expected_total
+            assert result.index.is_monotonic_increasing
+
+    def test_cache_stores_fetched_data(self, mock_backend):
+        """Fetched data is stored in cache for future use."""
+        mock_backend.get_prices.return_value = pd.DataFrame()  # Empty cache
+
+        num_days = 5
+        dates = [date(2024, 10, 1 + i) for i in range(num_days)]
+        api_data = pd.DataFrame(
+            {
+                "o": [100 + i for i in range(num_days)],
+                "h": [101 + i for i in range(num_days)],
+                "l": [99 + i for i in range(num_days)],
+                "c": [100.5 + i for i in range(num_days)],
+                "v": [1000] * num_days,
+            },
+            index=pd.to_datetime(dates),
+        )
+
+        fetcher = CachedPriceFetcher(backend=mock_backend)
+
+        with patch.object(fetcher, "_fetch_from_api", return_value=api_data):
+            fetcher._get_history_internal("TEST", dates[0], dates[-1], "1d")
+
+            mock_backend.store_prices.assert_called()
+            stored_df = mock_backend.store_prices.call_args[0][1]
+            assert len(stored_df) == num_days
