@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767493440308,
+  "lastUpdate": 1767495641877,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -3486,6 +3486,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00012820571801531848",
             "extra": "mean: 22.658270499999134 msec\nrounds: 8"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "f379c80104ae179eb1c330320db9bea86da83b42",
+          "message": "refactor(tests): Consolidate test fixtures and reduce duplication\n\nExtract shared mock factories into conftest.py and consolidate\nrepetitive tests using pytest.mark.parametrize. This reduces test\ncode by ~150 lines while maintaining the same coverage.\n\n- Add mock_ticker_factory, mock_ohlcv_factory, mock_ticker_with_history\n- Add mock_financials_factory and DEFAULT_VALUATION_INFO constant\n- Consolidate 6 valuation metric tests into 1 parametrized test\n- Consolidate history date range and financial statement tests\n- Remove 5 duplicate _mock_*() helper methods from test classes",
+          "timestamp": "2026-01-04T11:59:39+09:00",
+          "tree_id": "185d47372fd9a42eee1e347fc901ecf36c8b544c",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/f379c80104ae179eb1c330320db9bea86da83b42"
+        },
+        "date": 1767495641480,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 197.81364490818115,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005860042213839098",
+            "extra": "mean: 5.055263000002697 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 199.99753603033415,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004936974518586531",
+            "extra": "mean: 5.000061600000549 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 203.00248799831334,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005144304267235064",
+            "extra": "mean: 4.926048000004357 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 82.38710937233279,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00030622576197945054",
+            "extra": "mean: 12.137821166666876 msec\nrounds: 84"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 299.63361931137575,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000157383781958853",
+            "extra": "mean: 3.337409207612353 msec\nrounds: 289"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 300.55732403528077,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00023733971496591193",
+            "extra": "mean: 3.3271523267974517 msec\nrounds: 306"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 7.668596698061075,
+            "unit": "iter/sec",
+            "range": "stddev: 0.021344748225671773",
+            "extra": "mean: 130.40195480000136 msec\nrounds: 5"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 43.34474429479627,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007290347949542331",
+            "extra": "mean: 23.070847833333612 msec\nrounds: 6"
           }
         ]
       }
