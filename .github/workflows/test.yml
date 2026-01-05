@@ -73,7 +73,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run benchmarks
-        run: uv run pytest benchmarks/ -m benchmark --benchmark-only --benchmark-json=benchmark-results.json
+        run: uv run pytest benchmarks/ -m benchmark --benchmark-only --benchmark-json=benchmark-results.json --benchmark-warmup=on --benchmark-min-rounds=10
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
