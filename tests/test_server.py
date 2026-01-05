@@ -20,6 +20,13 @@ from yfinance_mcp.server import (
 )
 
 
+def split_to_row(data: dict, row_idx: int = 0) -> dict:
+    """Reconstruct row dict from delta-encoded split format."""
+    cols = data["cols"]
+    row = data["rows"][row_idx]
+    return dict(zip(cols, row))
+
+
 def _parse_response(text: str) -> dict:
     """Parse response, auto-detecting TOON or JSON format."""
     text = text.strip()
@@ -254,12 +261,16 @@ class TestHistoryTool:
     """Test price tool - historical OHLCV data."""
 
     def test_returns_bars(self, call_toon, mock_ticker_with_history) -> None:
-        """History should return bars list in TOON format."""
+        """History should return bars in delta-encoded split format."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history()):
             parsed = call_toon("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
-        assert set(parsed["bars"][0].keys()) == {"d", "o", "h", "l", "c", "v"}
+        assert set(parsed["bars"]["cols"]) == {"o", "h", "l", "c", "v"}
+        assert "t0" in parsed["bars"]
+        assert "dt" in parsed["bars"]
+        assert "rows" in parsed["bars"]
+        assert len(parsed["bars"]["rows"]) > 0
 
     @pytest.mark.parametrize(
         "args,description",
@@ -277,7 +288,7 @@ class TestHistoryTool:
             parsed = call_toon("history", {"symbol": "AAPL", **args})
 
         assert "bars" in parsed
-        assert len(parsed["bars"]) > 0
+        assert len(parsed["bars"]["rows"]) > 0
 
     def test_intraday_datetime_strings(self, call_toon, mock_ticker_with_history) -> None:
         """Short time spans should auto-select intraday interval."""
@@ -293,7 +304,7 @@ class TestHistoryTool:
             )
 
         assert "bars" in parsed
-        assert " " in parsed["bars"][0]["d"]  # Contains time component
+        assert " " in parsed["bars"]["t0"]  # Contains time component
 
 
 class TestTechnicalsTool:
@@ -331,8 +342,9 @@ class TestTechnicalsTool:
 
         if expected_data_keys:
             assert "data" in parsed
+            first_row = split_to_row(parsed["data"])
             for key in expected_data_keys:
-                assert key in parsed["data"][0], f"Missing {key} for {indicator}"
+                assert key in first_row, f"Missing {key} for {indicator}"
         if expected_meta_keys:
             # Non-timeseries extras are at top level (no data[] when only extras)
             for key in expected_meta_keys:
@@ -373,8 +385,9 @@ class TestTechnicalsTool:
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         assert "data" in parsed
+        first_row = split_to_row(parsed["data"])
         for key in ["rsi", "macd", "bb_upper", "sma50"]:
-            assert key in parsed["data"][0]
+            assert key in first_row
 
     def test_all_keyword_expands_to_all_indicators(
         self, call_toon, mock_ticker_with_history
@@ -384,7 +397,7 @@ class TestTechnicalsTool:
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["all"]})
 
         assert "data" in parsed
-        first_row = parsed["data"][0]
+        first_row = split_to_row(parsed["data"])
 
         data_keys = {
             "rsi": "rsi",
@@ -423,7 +436,8 @@ class TestTechnicalsTool:
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": []})
 
         assert "data" in parsed
-        assert all(k in parsed["data"][0] for k in ["rsi", "macd"])
+        first_row = split_to_row(parsed["data"])
+        assert all(k in first_row for k in ["rsi", "macd"])
 
     def test_start_end_historical_range(self, call_toon, mock_ticker_with_history) -> None:
         """start/end should fetch specific historical date range."""
@@ -439,7 +453,8 @@ class TestTechnicalsTool:
             )
 
         assert "data" in parsed
-        assert "rsi" in parsed["data"][0]
+        first_row = split_to_row(parsed["data"])
+        assert "rsi" in first_row
 
 
 class TestTechnicalsActionableFeedback:
@@ -477,13 +492,15 @@ class TestTechnicalsActionableFeedback:
         for key, hint in expected_hints.items():
             assert hint in parsed["_issues"][issue_type][key]
 
-    def test_partial_data_shows_null_count(self, call_toon, mock_ticker_with_history) -> None:
-        """Warmup nulls should show count and suggested period."""
+    def test_partial_data_shows_when_warmup_dominates(self, call_toon, mock_ticker_with_history) -> None:
+        """Warmup nulls should warn only when valid data < 50%."""
+        # 80 bars with SMA50: 49 nulls, 31 valid = 38.75% → warning shown
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=80)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
 
-        if "_issues" in parsed and "partial_data" in parsed["_issues"]:
-            assert "period=" in parsed["_issues"]["partial_data"]["sma_50"]
+        assert "_issues" in parsed
+        assert "partial_data" in parsed["_issues"]
+        assert "period='3mo'" in parsed["_issues"]["partial_data"]["sma_50"]
 
     @pytest.mark.parametrize(
         "n_bars,indicators,expect_data,expect_issues",
@@ -528,10 +545,9 @@ class TestTechnicalsActionableFeedback:
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
 
         if "data" in parsed:
-            for row in parsed["data"]:
-                # Each row should have at least one non-null value (excluding 'd' date column)
-                values = [v for k, v in row.items() if k != "d"]
-                assert any(v is not None for v in values), "All-null row should be excluded"
+            for row_values in parsed["data"]["rows"]:
+                # Each row should have at least one non-null value
+                assert any(v is not None for v in row_values), "All-null row should be excluded"
 
     def test_all_failed_returns_toon_format(self, mock_ticker_with_history) -> None:
         """When all indicators fail, response should still be TOON format (not JSON)."""
@@ -947,7 +963,7 @@ class TestEdgeCases:
             assert "_issues" in parsed and "unknown" in parsed["_issues"]
             assert expected_unknown in parsed["_issues"]["unknown"]
         if should_have_valid:
-            assert "data" in parsed and "rsi" in parsed["data"][0]
+            assert "data" in parsed and "rsi" in split_to_row(parsed["data"])
 
     def test_invalid_statement_defaults_to_cashflow(self, call, mock_financials_factory) -> None:
         """Invalid statement type defaults to cashflow (graceful fallback)."""
@@ -1060,7 +1076,7 @@ class TestDataEdgeCases:
             result = self._call("history", {"symbol": "TEST"})
 
         bars = result["bars"]
-        first_bar = bars[0]
+        first_bar = split_to_row(bars, 0)
         assert first_bar["c"] > 0, f"Close price {price} rounded to zero"
 
 
@@ -1071,14 +1087,16 @@ class TestAutoInterval:
         "period,expected_interval",
         [
             # Common periods (tests PERIOD_TO_DAYS + interval selection)
-            ("1d", "5m"),
-            ("1mo", "1h"),
-            ("3mo", "1d"),
-            ("2y", "1wk"),
-            ("5y", "1mo"),
+            # Thresholds for TARGET_POINTS=200:
+            # 15m: 5d, 30m: 8d, 1h: 20d, 1d: 133d, 1wk: 666d, 1mo: 2666d
+            ("1d", "5m"),  # 1d < 5d threshold
+            ("1mo", "1h"),  # 30d: 20d < 30 < 133d
+            ("3mo", "1h"),  # 90d: 20d < 90 < 133d
+            ("2y", "1wk"),  # 730d: 666d < 730 < 2666d
+            ("5y", "1wk"),  # 1825d: 666d < 1825 < 2666d
             # Fallbacks
-            ("unknown_period", "1d"),  # Unknown → 90 days default → 1d
-            (None, "1d"),  # None → 90 days default → 1d
+            ("unknown_period", "1h"),  # Unknown → 90 days default → 1h
+            (None, "1h"),  # None → 90 days default → 1h
         ],
     )
     def test_select_interval_period(self, period, expected_interval) -> None:
@@ -1090,22 +1108,21 @@ class TestAutoInterval:
         "start,end,expected_interval",
         [
             # Thresholds computed as: (TARGET_POINTS × multiplier) / prev_ppd
-            # 15m: (120 × 1.95) / 78 = 3d, 30m: (120 × 1.083) / 26 ≈ 5d
-            # 1h: (120 × 1.3) / 13 = 12d, 1d: (120 × 4.33) / 6.5 ≈ 80d
-            # 1wk: (120 × 3.33) / 1 ≈ 400d, 1mo: (120 × 8/3) / 0.2 = 1600d
-            ("2024-01-01", "2024-01-01", "5m"),  # 0d < 3d
-            ("2024-01-01", "2024-01-04", "15m"),  # 3d = threshold
-            ("2024-01-01", "2024-01-06", "30m"),  # 5d = threshold
-            ("2024-01-01", "2024-01-13", "1h"),  # 12d = threshold
-            ("2024-01-01", "2024-03-21", "1d"),  # 80d = threshold
-            ("2024-01-01", "2025-02-04", "1wk"),  # 400d = threshold
-            ("2020-01-01", "2024-05-20", "1mo"),  # 1600d = threshold
+            # For TARGET_POINTS=200:
+            # 15m: 5d, 30m: 8.33d, 1h: 20d, 1d: 133.23d, 1wk: 666d, 1mo: 2666.67d
+            ("2024-01-01", "2024-01-01", "5m"),  # 0d < 5d
+            ("2024-01-01", "2024-01-06", "15m"),  # 5d = threshold
+            ("2024-01-01", "2024-01-10", "30m"),  # 9d > 8.33d threshold
+            ("2024-01-01", "2024-01-21", "1h"),  # 20d = threshold
+            ("2024-01-01", "2024-05-14", "1d"),  # 134d > 133.23d threshold
+            ("2024-01-01", "2025-10-29", "1wk"),  # 666d = threshold
+            ("2017-01-01", "2024-04-23", "1mo"),  # 2669d > 2666.67d threshold
             # Just below thresholds (stays in previous tier)
-            ("2024-01-01", "2024-01-03", "5m"),  # 2d < 3d
-            ("2024-01-01", "2024-01-05", "15m"),  # 4d < 5d
-            ("2024-01-01", "2024-01-12", "30m"),  # 11d < 12d
-            ("2024-01-01", "2024-03-20", "1h"),  # 79d < 80d
-            ("2024-01-01", "2025-02-03", "1d"),  # 399d < 400d
+            ("2024-01-01", "2024-01-05", "5m"),  # 4d < 5d
+            ("2024-01-01", "2024-01-09", "15m"),  # 8d < 8.33d
+            ("2024-01-01", "2024-01-20", "30m"),  # 19d < 20d
+            ("2024-01-01", "2024-05-13", "1h"),  # 133d < 133.23d
+            ("2024-01-01", "2025-10-27", "1d"),  # 664d < 666d
         ],
     )
     def test_select_interval_dates(self, start, end, expected_interval) -> None:
@@ -1209,22 +1226,22 @@ class TestAutoInterval:
     @pytest.mark.parametrize(
         "period,start,end,should_error",
         [
-            # Period-based tests
+            # Period-based tests (MAX_SPAN_DAYS ≈ 4166 for TARGET_POINTS=200)
             ("1y", None, None, False),  # 365 days - within limit
             ("2y", None, None, False),  # 730 days - within limit
-            ("5y", None, None, False),  # 1825 days - within limit (MAX_SPAN_DAYS ≈ 2500)
-            ("10y", None, None, True),  # 3650 days - exceeds limit
+            ("5y", None, None, False),  # 1825 days - within limit
+            ("10y", None, None, False),  # 3650 days - within limit
             ("max", None, None, True),  # 7300 days - exceeds limit
             ("unknown_period", None, None, False),  # defaults to 90 days
             # Date-based tests
             (None, "2023-01-01", "2025-01-01", False),  # 2y range - within limit
-            (None, "2015-01-01", "2025-01-01", True),  # 10y range - exceeds
+            (None, "2015-01-01", "2025-01-01", False),  # 10y range - within limit
             (None, "2024-01-01", "2024-06-01", False),  # 5mo range - within
             (None, "2024-01-01", "2024-01-01", False),  # same day (0 days)
             (None, "2024-01-01", None, False),  # end defaults to today
-            # Boundary tests (~2500 day limit with TARGET_POINTS=120)
-            (None, "2018-03-01", "2024-12-31", False),  # 2497 days - just under
-            (None, "2018-01-01", "2025-01-01", True),  # 2557 days - exceeds
+            # Boundary tests (~4166 day limit with TARGET_POINTS=200)
+            (None, "2013-08-06", "2025-01-01", False),  # 4165 days - just under limit
+            (None, "2010-01-01", "2025-01-01", True),  # 5479 days - exceeds
         ],
     )
     def test_validate_date_range(self, period, start, end, should_error) -> None:
@@ -1243,7 +1260,7 @@ class TestAutoInterval:
         from yfinance_mcp.helpers import DateRangeExceededError, validate_date_range
 
         with pytest.raises(DateRangeExceededError) as exc_info:
-            validate_date_range(start="2015-01-01", end="2025-01-01")
+            validate_date_range(start="2010-01-01", end="2025-01-01")
 
         msg = str(exc_info.value)
         assert "Split into" in msg
@@ -1300,11 +1317,12 @@ class TestAutoInterval:
 
         periods = get_valid_periods(MAX_SPAN_DAYS)
 
-        # MAX_SPAN_DAYS ≈ 2500 (TARGET_POINTS=120 / 0.048)
-        assert "5y" in periods  # 1825 days < 2500
-        assert "10y" not in periods  # 3650 days > 2500
-        assert "max" not in periods  # 7300 days > 2500
+        # MAX_SPAN_DAYS ≈ 4166 (TARGET_POINTS=200 / 0.048)
+        # Due to MAX_PERIOD_OPTIONS=7, evenly distributed selection may skip 5y
+        assert "10y" in periods  # 3650 days < 4166, included as longest valid
+        assert "max" not in periods  # 7300 days > 4166
         assert "ytd" in periods  # always included when valid
+        assert len(periods) == 7  # MAX_PERIOD_OPTIONS
 
 
 class TestOHLCResample:

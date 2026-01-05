@@ -636,10 +636,8 @@ def _handle_history(args: dict) -> str:
     df = ohlc_resample(df)
     logger.debug("price_resampled symbol=%s bars=%d", symbol, len(df))
 
-    if interval in INTRADAY_INTERVALS:
-        df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d %H:%M")
-    else:
-        df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d")
+    # Keep DatetimeIndex - fmt_toon handles formatting
+    df.index = pd.to_datetime(df.index)
 
     return fmt_toon(df, wrapper_key="bars")
 
