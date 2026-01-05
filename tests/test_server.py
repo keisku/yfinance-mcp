@@ -492,7 +492,9 @@ class TestTechnicalsActionableFeedback:
         for key, hint in expected_hints.items():
             assert hint in parsed["_issues"][issue_type][key]
 
-    def test_partial_data_shows_when_warmup_dominates(self, call_toon, mock_ticker_with_history) -> None:
+    def test_partial_data_shows_when_warmup_dominates(
+        self, call_toon, mock_ticker_with_history
+    ) -> None:
         """Warmup nulls should warn only when valid data < 50%."""
         # 80 bars with SMA50: 49 nulls, 31 valid = 38.75% → warning shown
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=80)):

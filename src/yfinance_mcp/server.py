@@ -27,7 +27,6 @@ from .errors import (
     ValidationError,
 )
 from .helpers import (
-    INTRADAY_INTERVALS,
     MAX_SPAN_DAYS,
     OHLCV_COLS_TO_SHORT,
     TARGET_POINTS,
