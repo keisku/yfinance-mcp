@@ -192,9 +192,10 @@ class TestSearchStockTool:
             parsed = call("search_stock", {"query": "Nichirei", "exchange": "NYSE"})
 
         assert parsed["err"] == "SYMBOL_NOT_FOUND"
-        assert "NYSE" in parsed["msg"]
-        assert "FRA" in parsed["msg"] or "JPX" in parsed["msg"]
-        assert "Available:" in parsed["msg"]
+        assert "hint" in parsed
+        assert "NYSE" in parsed["hint"]
+        assert "FRA" in parsed["hint"] or "JPX" in parsed["hint"]
+        assert "Available:" in parsed["hint"]
 
 
 class TestFilterByExchange:
