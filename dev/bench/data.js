@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767614492317,
+  "lastUpdate": 1767617771887,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -3806,6 +3806,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.012209950635179578",
             "extra": "mean: 48.70114733333253 msec\nrounds: 9"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "e10f14c1b959de718d55c06b2660dff473254686",
+          "message": "ci(benchmark): Stabilize flaky benchmark with warmup and more rounds\n\nThe portfolio_scan_weekly benchmark showed 2.17x regression with 60x\nhigher stddev (0.012 vs 0.00021), indicating CI environment variance\nrather than actual code regression. No changes were made to history.py\nor cache.py.",
+          "timestamp": "2026-01-05T21:54:45+09:00",
+          "tree_id": "a3dda92bb7f015e2a2e13c8910d3acfdcab6d2e6",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/e10f14c1b959de718d55c06b2660dff473254686"
+        },
+        "date": 1767617771358,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 214.30443812887526,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020676940999105747",
+            "extra": "mean: 4.666258938597598 msec\nrounds: 228"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 214.7771883012311,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015506232303960784",
+            "extra": "mean: 4.6559879469018455 msec\nrounds: 226"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 215.7592577533935,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013168037927139477",
+            "extra": "mean: 4.634795328889065 msec\nrounds: 225"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 82.11097203729102,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00036531786935931645",
+            "extra": "mean: 12.178640383721751 msec\nrounds: 86"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 299.30317554278344,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001257767074972513",
+            "extra": "mean: 3.3410938530355034 msec\nrounds: 313"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 290.5617397368404,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00048530211980622707",
+            "extra": "mean: 3.4416093492064457 msec\nrounds: 315"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.299086110197946,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005857637465335454",
+            "extra": "mean: 120.49519509999982 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 15.921208692550241,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0012760690173221148",
+            "extra": "mean: 62.809301687497765 msec\nrounds: 16"
           }
         ]
       }
