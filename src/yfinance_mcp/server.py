@@ -949,28 +949,22 @@ def _handle_technicals(args: dict) -> str:
             else:
                 raise
 
-    # Check for warmup nulls and add actionable feedback per indicator
+    # Check for warmup nulls - only warn if valid data is insufficient
     partial_data: dict[str, str] = {}
     total_rows = len(result_df)
     for col in result_df.columns:
         null_mask = result_df[col].isna()
         if not null_mask.any():
             continue
-        # Count leading nulls (warmup period)
-        leading_nulls = 0
-        for is_null in null_mask:
-            if is_null:
-                leading_nulls += 1
-            else:
-                break
-        # Only report if significant warmup period (>10% of data and >5 nulls)
-        if leading_nulls > 5 and leading_nulls > total_rows * 0.1:
+        valid_rows = (~null_mask).sum()
+        # Only warn if less than 50% valid data (warmup dominates the response)
+        if valid_rows < total_rows * 0.5:
             req = _get_indicator_requirements(col)
             if req:
                 _, suggested_period = req
-                partial_data[col] = f"try period='{suggested_period}'"
+                partial_data[col] = f"need more data, try period='{suggested_period}'"
             else:
-                partial_data[col] = "use longer date range"
+                partial_data[col] = "need more data, use longer date range"
 
     # Build issues dict
     if insufficient_data:
