@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from datetime import datetime, timedelta
+from importlib.metadata import version
 from typing import Any
 
 import pandas as pd
@@ -95,7 +96,16 @@ logger = configure_logging(
     stats_getter=_get_stats_snapshot,
 )
 
-server = Server("yfinance-mcp")
+server = Server(
+    "yfinance-mcp",
+    version=version("yfinance-mcp"),
+    instructions=(
+        "Use search_stock to find ticker symbols by company name. "
+        "history returns OHLCV bars; technicals returns indicator time series. "
+        "valuation and financials support historical periods via YYYY or YYYY-QN format."
+    ),
+    website_url="https://github.com/keisku/yfinance-mcp",
+)
 
 _cb: dict = {
     "fails": 0,
