@@ -144,12 +144,20 @@ def fmt(data: Any) -> str:
     return json.dumps(data, default=str, separators=(",", ":"))
 
 
-def fmt_toon(df: pd.DataFrame, wrapper_key: str | None = None) -> str:
+def fmt_toon(
+    df: pd.DataFrame,
+    wrapper_key: str | None = None,
+    issues: dict | None = None,
+    summaries: dict | None = None,
+) -> str:
     """Format DataFrame as TOON for token-efficient LLM responses.
 
     Converts DataFrame to tabular TOON format with date index as 'd' column.
     TOON eliminates repeated keys by using a header line that declares the schema,
     followed by comma-separated rows, achieving ~45% token reduction vs JSON.
+
+    If issues is provided, it's included as _issues in the TOON structure.
+    If summaries is provided, each key is added at the top level.
     """
     df = df.copy()
 
@@ -163,14 +171,30 @@ def fmt_toon(df: pd.DataFrame, wrapper_key: str | None = None) -> str:
         records.append(record)
 
     if wrapper_key:
-        return toon_encode({wrapper_key: records})
-    return toon_encode(records)
+        result: dict = {wrapper_key: records}
+    else:
+        result = {"data": records}
+
+    if summaries:
+        result.update(summaries)
+    if issues:
+        result["_issues"] = issues
+
+    return toon_encode(result)
+
+
+def fmt_toon_dict(data: dict) -> str:
+    """Format dict as TOON (for non-DataFrame results)."""
+    return toon_encode(data)
 
 
 def err(e: Exception) -> str:
     """Format error compactly."""
     if isinstance(e, MCPError):
-        return json.dumps({"err": e.code, "msg": e.message}, separators=(",", ":"))
+        result = {"err": e.code, "msg": e.message}
+        if e.hint:
+            result["hint"] = e.hint
+        return json.dumps(result, separators=(",", ":"))
     return json.dumps({"err": "ERROR", "msg": str(e)}, separators=(",", ":"))
 
 

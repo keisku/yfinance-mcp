@@ -38,6 +38,7 @@ from .helpers import (
     err,
     fmt,
     fmt_toon,
+    fmt_toon_dict,
     get_default_log_path,
     get_valid_periods,
     lttb_downsample,
@@ -123,7 +124,10 @@ def _check_cb() -> None:
             return
 
     logger.debug("circuit_breaker blocked request fails=%d", _cb["fails"])
-    raise DataUnavailableError("Service temporarily unavailable, retry later")
+    raise DataUnavailableError(
+        "Service temporarily unavailable, retry later",
+        hint="Wait a few seconds and retry. The service may be experiencing high load.",
+    )
 
 
 def _record_fail() -> None:
@@ -166,7 +170,10 @@ def _ticker(symbol: str) -> yf.Ticker:
     _check_cb()
     if not symbol or not isinstance(symbol, str):
         logger.warning("ticker_validation failed symbol=%r", symbol)
-        raise ValidationError("Invalid symbol")
+        raise ValidationError(
+            "Invalid symbol",
+            hint="Provide a valid stock ticker (e.g., AAPL, MSFT, 7203.T).",
+        )
 
     symbol_upper = symbol.upper().strip()
     logger.debug("ticker_lookup symbol=%s", symbol_upper)
@@ -204,7 +211,10 @@ def _require_symbol(args: dict) -> tuple[str, yf.Ticker]:
     """Validate symbol argument and return (symbol, ticker) tuple."""
     symbol = args.get("symbol")
     if not symbol:
-        raise ValidationError("symbol required")
+        raise ValidationError(
+            "symbol required",
+            hint="Provide a stock ticker using the 'symbol' parameter.",
+        )
     return symbol, _ticker(symbol)
 
 
@@ -472,9 +482,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "requested_days": e.requested_days,
                 "max_days": e.max_days,
                 "max_years": round(max_years, 1),
-                "hint": f"Use period='{e.suggested_period}' or "
-                f"specify start/end within {round(max_years, 1)} years.",
             },
+            hint=f"Use period='5y' or split into requests within {round(max_years, 1)}y each.",
         )
         return [TextContent(type="text", text=err(validation_err))]
     except MCPError as e:
@@ -508,7 +517,10 @@ def _handle_search_stock(args: dict) -> str:
     exchange = args.get("exchange")
 
     if not symbol and not query:
-        raise ValidationError("Either symbol or query required")
+        raise ValidationError(
+            "Either symbol or query required",
+            hint="Provide 'symbol' for direct lookup or 'query' for company name search.",
+        )
 
     if query and not symbol:
         search_result = smart_search(query, max_results=10, exchange=exchange, logger=logger)
@@ -599,7 +611,10 @@ def _handle_history(args: dict) -> str:
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
     if df.empty:
         logger.warning("price_no_data symbol=%s period=%s", symbol, period)
-        raise DataUnavailableError(f"No price data for {symbol}. Try different period.")
+        raise DataUnavailableError(
+            f"No price data for {symbol}. Try different period.",
+            hint="Try a longer period (e.g., '6mo', '1y') or verify the symbol is correct.",
+        )
     logger.debug("price_fetched symbol=%s bars=%d", symbol, len(df))
 
     last_close = df["Close"].iloc[-1] if not df.empty else 1.0
@@ -660,6 +675,72 @@ ALL_METRICS = [
 ]
 
 
+def _get_indicator_requirements(col_name: str) -> tuple[int, str] | None:
+    """Return (required_points, suggested_period) for an indicator column.
+
+    Returns None if indicator doesn't have known warmup requirements.
+    """
+    # Moving averages: sma_N, ema_N, wma_N
+    for prefix in ("sma_", "ema_", "wma_"):
+        if col_name.startswith(prefix):
+            try:
+                n = int(col_name.split("_")[1])
+                if n <= 20:
+                    return (n, "1mo")
+                elif n <= 50:
+                    return (n, "3mo")
+                elif n <= 100:
+                    return (n, "6mo")
+                else:
+                    return (n, "1y")
+            except (ValueError, IndexError):
+                pass
+
+    # Static indicator requirements: (required_points, suggested_period)
+    requirements: dict[str, tuple[int, str]] = {
+        # RSI: period + 1 = 15
+        "rsi": (15, "1mo"),
+        # MACD: slow_period + signal_period = 26 + 9 = 35
+        "macd": (35, "2mo"),
+        "macd_signal": (35, "2mo"),
+        "macd_hist": (35, "2mo"),
+        # Bollinger Bands: period = 20
+        "bb_upper": (20, "1mo"),
+        "bb_middle": (20, "1mo"),
+        "bb_lower": (20, "1mo"),
+        "bb_pctb": (20, "1mo"),
+        # Stochastic: k_period + d_period = 14 + 3 = 17
+        "stoch_k": (17, "1mo"),
+        "stoch_d": (17, "1mo"),
+        "fast_stoch_k": (17, "1mo"),
+        "fast_stoch_d": (17, "1mo"),
+        # CCI: period = 20
+        "cci": (20, "1mo"),
+        # DMI: period * 2 = 14 * 2 = 28
+        "dmi_plus": (28, "2mo"),
+        "dmi_minus": (28, "2mo"),
+        "adx": (28, "2mo"),
+        # Williams %R: period = 14
+        "williams_r": (14, "1mo"),
+        # Ichimoku: leading_b_period + base_period = 52 + 26 = 78
+        "ichimoku_conversion": (9, "1mo"),
+        "ichimoku_base": (26, "2mo"),
+        "ichimoku_leading_a": (52, "3mo"),
+        "ichimoku_leading_b": (78, "6mo"),
+        "ichimoku_lagging": (26, "2mo"),
+        # ATR: period + 1 = 15
+        "atr": (15, "1mo"),
+        "atr_pct": (15, "1mo"),
+        # Momentum: period + 1 = 11
+        "momentum": (11, "1mo"),
+        # OBV: no warmup needed (cumulative)
+        # Trend (SMA50)
+        "sma50": (50, "3mo"),
+    }
+
+    return requirements.get(col_name)
+
+
 def _handle_technicals(args: dict) -> str:
     """Handle technicals tool - returns time series of technical indicators."""
     symbol, t = _require_symbol(args)
@@ -693,12 +774,18 @@ def _handle_technicals(args: dict) -> str:
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
     if df.empty:
         logger.warning("technicals_no_data symbol=%s period=%s", symbol, period)
-        raise DataUnavailableError(f"No price data for {symbol}. Try period='6mo' for more data.")
+        raise DataUnavailableError(
+            f"No price data for {symbol}. Try period='6mo' for more data.",
+            hint="Use a longer period to get enough data points for indicator calculations.",
+        )
     df = normalize_df(df)
     logger.debug("technicals_data_ready symbol=%s bars=%d", symbol, len(df))
 
     result_df = pd.DataFrame(index=df.index)
-    meta: dict[str, Any] = {}
+    issues: dict[str, dict[str, str]] = {}
+    insufficient_data: dict[str, str] = {}
+    unknown_indicators: list[str] = []
+    summaries: dict[str, Any] = {}  # Single-value results: volume_profile, fibonacci, pivot
 
     for ind in inds:
         try:
@@ -714,21 +801,21 @@ def _handle_technicals(args: dict) -> str:
             elif ind.startswith("sma_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
-                    _add_unknown(meta, ind)
+                    unknown_indicators.append(ind)
                     continue
                 result_df[ind] = indicators.calculate_sma(df["Close"], p).round(2)
 
             elif ind.startswith("ema_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
-                    _add_unknown(meta, ind)
+                    unknown_indicators.append(ind)
                     continue
                 result_df[ind] = indicators.calculate_ema(df["Close"], p).round(2)
 
             elif ind.startswith("wma_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
-                    _add_unknown(meta, ind)
+                    unknown_indicators.append(ind)
                     continue
                 result_df[ind] = indicators.calculate_wma(df["Close"], p).round(2)
 
@@ -789,11 +876,11 @@ def _handle_technicals(args: dict) -> str:
                     sma50 = indicators.calculate_sma(df["Close"], 50)
                     result_df["sma50"] = sma50.round(2)
                 else:
-                    meta["_trend_error"] = f"need_50_bars_have_{len(df)}"
+                    insufficient_data["trend"] = f"need 50 bars, have {len(df)}"
 
             elif ind == "volume_profile":
                 vp = indicators.calculate_volume_profile(df["Close"], df["Volume"])
-                meta["volume_profile"] = {
+                summaries["volume_profile"] = {
                     "poc": vp["poc"],
                     "value_area_high": vp["value_area_high"],
                     "value_area_low": vp["value_area_low"],
@@ -801,7 +888,7 @@ def _handle_technicals(args: dict) -> str:
 
             elif ind == "price_change":
                 pc = indicators.calculate_price_change(df["Close"])
-                meta["price_change"] = {
+                summaries["price_change"] = {
                     "change": round(pc["change"], 2),
                     "change_pct": round(pc["change_pct"], 2),
                 }
@@ -812,7 +899,7 @@ def _handle_technicals(args: dict) -> str:
                 current_close = float(to_scalar(df["Close"].iloc[-1]))
                 is_uptrend = current_close > (period_high + period_low) / 2
                 fib = indicators.calculate_fibonacci_levels(period_high, period_low, is_uptrend)
-                meta["fibonacci"] = {
+                summaries["fibonacci"] = {
                     "trend": "uptrend" if is_uptrend else "downtrend",
                     "levels": {k: round(v, 2) for k, v in fib.items()},
                 }
@@ -825,34 +912,95 @@ def _handle_technicals(args: dict) -> str:
                 prev_low = float(to_scalar(df["Low"].iloc[-2]))
                 prev_close = float(to_scalar(df["Close"].iloc[-2]))
                 pivot = indicators.calculate_pivot_points(prev_high, prev_low, prev_close, method)
-                meta["pivot"] = {
+                summaries["pivot"] = {
                     "method": method,
                     "levels": {k: round(v, 2) for k, v in pivot.items()},
                 }
 
             else:
-                _add_unknown(meta, ind)
+                unknown_indicators.append(ind)
 
         except CalculationError:
-            meta[f"_{ind}_error"] = "calculation_error"
+            # Use specific period suggestion from indicator requirements
+            req = _get_indicator_requirements(ind)
+            if req:
+                _, suggested_period = req
+                insufficient_data[ind] = f"try period='{suggested_period}'"
+            else:
+                insufficient_data[ind] = "use longer date range"
         except (ValueError, TypeError) as e:
             logger.warning("technicals_conversion_error indicator=%s error=%s", ind, e)
-            meta[f"_{ind}_error"] = str(e)
+            insufficient_data[ind] = str(e)
         except Exception as e:
             error_msg = str(e)
             if "blk ref_locs" in error_msg or "internal" in error_msg.lower():
                 logger.warning("technicals_data_quality indicator=%s error=%s", ind, e)
-                meta[f"_{ind}_error"] = "data_quality_issue"
+                insufficient_data[ind] = "data_quality_issue"
             else:
                 raise
 
+    # Check for warmup nulls and add actionable feedback per indicator
+    partial_data: dict[str, str] = {}
+    total_rows = len(result_df)
+    for col in result_df.columns:
+        null_mask = result_df[col].isna()
+        if not null_mask.any():
+            continue
+        # Count leading nulls (warmup period)
+        leading_nulls = 0
+        for is_null in null_mask:
+            if is_null:
+                leading_nulls += 1
+            else:
+                break
+        # Only report if significant warmup period (>10% of data and >5 nulls)
+        if leading_nulls > 5 and leading_nulls > total_rows * 0.1:
+            req = _get_indicator_requirements(col)
+            if req:
+                _, suggested_period = req
+                partial_data[col] = f"try period='{suggested_period}'"
+            else:
+                partial_data[col] = "use longer date range"
+
+    # Build issues dict
+    if insufficient_data:
+        issues["insufficient_data"] = insufficient_data
+    if partial_data:
+        issues["partial_data"] = partial_data
+    if unknown_indicators:
+        issues["unknown"] = {ind: "not recognized" for ind in unknown_indicators}
+
+    # Check if all data columns are null (no valid indicator data)
+    has_valid_data = False
+    for col in result_df.columns:
+        if result_df[col].notna().any():
+            has_valid_data = True
+            break
+
+    if not has_valid_data:
+        # Return only issues/summaries when no valid timeseries data
+        if issues or summaries:
+            result: dict[str, Any] = {}
+            if summaries:
+                result.update(summaries)
+            if issues:
+                result["_issues"] = issues
+            return fmt_toon_dict(result)
+        raise DataUnavailableError(
+            "No indicator data could be calculated",
+            hint="Use a longer date range or try different indicators.",
+        )
+
     result_df = lttb_downsample(result_df)
+    result_df = result_df.dropna(how="all")  # Drop rows where all values are null
     logger.debug("technicals_downsampled symbol=%s points=%d", symbol, len(result_df))
 
-    toon_output = fmt_toon(result_df, wrapper_key="data")
-    if meta:
-        toon_output += "\nmeta: " + fmt(meta)
-    return toon_output
+    return fmt_toon(
+        result_df,
+        wrapper_key="data",
+        issues=issues if issues else None,
+        summaries=summaries if summaries else None,
+    )
 
 
 def _parse_valuation_period(
@@ -878,7 +1026,8 @@ def _parse_valuation_period(
             if not start_match or not end_match:
                 raise ValidationError(
                     f"Invalid quarter range format: {period_str}. "
-                    "Use YYYY-QN:YYYY-QN (e.g., 2023-Q1:2024-Q3)"
+                    "Use YYYY-QN:YYYY-QN (e.g., 2023-Q1:2024-Q3)",
+                    hint="Format: YYYY-QN:YYYY-QN where N is 1-4 (e.g., 2023-Q1:2024-Q3).",
                 )
             start_key = f"{start_match.group(1)}-Q{start_match.group(2)}"
             end_key = f"{end_match.group(1)}-Q{end_match.group(2)}"
@@ -889,7 +1038,8 @@ def _parse_valuation_period(
             if not dates:
                 raise ValidationError(
                     f"No quarters available in range {period_str}. "
-                    f"Available: {sorted(available_quarterly.keys())}"
+                    f"Available: {sorted(available_quarterly.keys())}",
+                    hint="Try a different quarter range that overlaps with available data.",
                 )
             logger.debug(
                 "valuation_period_parsed periods=%s type=quarterly dates=%s",
@@ -904,7 +1054,8 @@ def _parse_valuation_period(
                 end_year = int(end_str)
             except ValueError:
                 raise ValidationError(
-                    f"Invalid year range format: {period_str}. Use YYYY:YYYY (e.g., 2023:2024)"
+                    f"Invalid year range format: {period_str}. Use YYYY:YYYY (e.g., 2023:2024)",
+                    hint="Format: YYYY:YYYY for year ranges (e.g., 2022:2024).",
                 )
             dates = []
             for year in sorted(available_annual.keys()):
@@ -913,7 +1064,8 @@ def _parse_valuation_period(
             if not dates:
                 raise ValidationError(
                     f"No years available in range {period_str}. "
-                    f"Available: {sorted(available_annual.keys())}"
+                    f"Available: {sorted(available_annual.keys())}",
+                    hint="Try a different year range that overlaps with available data.",
                 )
             logger.debug(
                 "valuation_period_parsed periods=%s type=annual dates=%s",
@@ -929,7 +1081,8 @@ def _parse_valuation_period(
         key = f"{year}-Q{q}"
         if key not in available_quarterly:
             raise ValidationError(
-                f"Quarter {key} not available. Available: {sorted(available_quarterly.keys())}"
+                f"Quarter {key} not available. Available: {sorted(available_quarterly.keys())}",
+                hint="Choose a quarter from the available list shown above.",
             )
         target_date = available_quarterly[key]
         logger.debug(
@@ -944,7 +1097,8 @@ def _parse_valuation_period(
         year = int(period_str)
         if year not in available_annual:
             raise ValidationError(
-                f"Year {year} not available. Available: {sorted(available_annual.keys())}"
+                f"Year {year} not available. Available: {sorted(available_annual.keys())}",
+                hint="Choose a year from the available list shown above.",
             )
         target_date = available_annual[year]
         logger.debug(
@@ -956,7 +1110,8 @@ def _parse_valuation_period(
 
     raise ValidationError(
         f"Invalid period format: {period_str}. "
-        'Use "now", "YYYY", "YYYY-QN", "YYYY:YYYY", or "YYYY-QN:YYYY-QN"'
+        'Use "now", "YYYY", "YYYY-QN", "YYYY:YYYY", or "YYYY-QN:YYYY-QN"',
+        hint='Valid formats: "now", "2024", "2024-Q1", "2022:2024", "2023-Q1:2024-Q3".',
     )
 
 
@@ -1119,7 +1274,10 @@ def _compute_historical_valuation(
         results[date_key] = entry
 
     if not results:
-        raise DataUnavailableError("No historical valuation data available for requested periods")
+        raise DataUnavailableError(
+            "No historical valuation data available for requested periods",
+            hint="Try periods='now' for current data or a different date range.",
+        )
 
     if unsupported:
         results["_unsupported"] = unsupported  # type: ignore[assignment]
@@ -1138,7 +1296,10 @@ def _handle_valuation(args: dict) -> str:
     """Handle valuation tool - valuation metrics and quality score."""
     symbol = args.get("symbol")
     if not symbol:
-        raise ValidationError("symbol required")
+        raise ValidationError(
+            "symbol required",
+            hint="Provide a stock ticker using the 'symbol' parameter (e.g., AAPL).",
+        )
 
     t = _ticker(symbol)
     metrics = args.get("metrics") or ["all"]
@@ -1155,7 +1316,10 @@ def _handle_valuation(args: dict) -> str:
             income_annual = t.income_stmt
             income_quarterly = t.quarterly_income_stmt
         except Exception as e:
-            raise DataUnavailableError(f"Cannot fetch financial statements: {e}")
+            raise DataUnavailableError(
+                f"Cannot fetch financial statements: {e}",
+                hint="Verify the symbol is correct and has financial statements available.",
+            )
 
         available_annual: dict[int, pd.Timestamp] = {}
         for c in income_annual.columns:
@@ -1268,7 +1432,10 @@ def _handle_financials(args: dict) -> str:
     """Handle financials tool - financial statements."""
     symbol = args.get("symbol")
     if not symbol:
-        raise ValidationError("symbol required")
+        raise ValidationError(
+            "symbol required",
+            hint="Provide a stock ticker using the 'symbol' parameter (e.g., AAPL).",
+        )
 
     t = _ticker(symbol)
     stmt = args.get("statement", "income")
@@ -1286,7 +1453,10 @@ def _handle_financials(args: dict) -> str:
         df = t.get_cashflow(freq=freq_param)
 
     if df.empty:
-        raise DataUnavailableError("No data")
+        raise DataUnavailableError(
+            "No financial statement data available",
+            hint="Try a different statement type or verify the symbol has financial data.",
+        )
 
     if periods != "now":
         available_annual: dict[int, pd.Timestamp] = {}
@@ -1349,7 +1519,11 @@ async def _execute(name: str, args: dict) -> str:
     """Execute tool via dispatch table."""
     handler = _TOOL_HANDLERS.get(name)
     if handler is None:
-        raise ValidationError(f"Unknown tool: {name}")
+        valid_tools = list(_TOOL_HANDLERS.keys())
+        raise ValidationError(
+            f"Unknown tool: {name}",
+            hint=f"Valid tools: {', '.join(valid_tools)}.",
+        )
     return handler(args)
 
 

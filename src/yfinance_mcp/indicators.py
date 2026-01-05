@@ -24,6 +24,7 @@ def calculate_sma(prices: pd.Series, period: int) -> pd.Series:
         raise CalculationError(
             f"Insufficient data: need {period} periods, got {len(prices)}",
             {"required": period, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {period} data points.",
         )
     logger.debug("calculate_sma period=%d data_points=%d", period, len(prices))
     return prices.rolling(window=period).mean()
@@ -43,6 +44,7 @@ def calculate_ema(prices: pd.Series, period: int) -> pd.Series:
         raise CalculationError(
             f"Insufficient data: need {period} periods, got {len(prices)}",
             {"required": period, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {period} data points.",
         )
     logger.debug("calculate_ema period=%d data_points=%d", period, len(prices))
     return prices.ewm(span=period, adjust=False).mean()
@@ -62,6 +64,7 @@ def calculate_wma(prices: pd.Series, period: int) -> pd.Series:
         raise CalculationError(
             f"Insufficient data: need {period} periods, got {len(prices)}",
             {"required": period, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {period} data points.",
         )
     logger.debug("calculate_wma period=%d data_points=%d", period, len(prices))
 
@@ -90,6 +93,7 @@ def calculate_momentum(prices: pd.Series, period: int = 10) -> pd.Series:
         raise CalculationError(
             f"Insufficient data: need {period + 1} periods, got {len(prices)}",
             {"required": period + 1, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {period + 1} data points.",
         )
     logger.debug("calculate_momentum period=%d data_points=%d", period, len(prices))
     return prices - prices.shift(period)
@@ -113,6 +117,7 @@ def calculate_cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int
         raise CalculationError(
             f"Insufficient data: need {period} periods, got {len(close)}",
             {"required": period, "available": len(close)},
+            hint=f"Use a longer date range to get at least {period} data points.",
         )
     logger.debug("calculate_cci period=%d data_points=%d", period, len(close))
 
@@ -146,6 +151,7 @@ def calculate_dmi(
         raise CalculationError(
             f"Insufficient data: need {min_periods} periods, got {len(close)}",
             {"required": min_periods, "available": len(close)},
+            hint=f"Use a longer date range to get at least {min_periods} data points.",
         )
     logger.debug("calculate_dmi period=%d data_points=%d", period, len(close))
 
@@ -192,6 +198,7 @@ def calculate_williams_r(
         raise CalculationError(
             f"Insufficient data: need {period} periods, got {len(close)}",
             {"required": period, "available": len(close)},
+            hint=f"Use a longer date range to get at least {period} data points.",
         )
     logger.debug("calculate_williams period=%d data_points=%d", period, len(close))
 
@@ -219,6 +226,7 @@ def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
         raise CalculationError(
             f"Insufficient data: need {period + 1} periods, got {len(prices)}",
             {"required": period + 1, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {period + 1} data points.",
         )
     logger.debug("calculate_rsi period=%d data_points=%d", period, len(prices))
 
@@ -261,6 +269,7 @@ def calculate_macd(
         raise CalculationError(
             f"Insufficient data: need {min_periods} periods, got {len(prices)}",
             {"required": min_periods, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {min_periods} data points.",
         )
     logger.debug(
         "calculate_macd fast=%d slow=%d signal=%d data_points=%d",
@@ -306,6 +315,7 @@ def calculate_bollinger_bands(
         raise CalculationError(
             f"Insufficient data: need {period} periods, got {len(prices)}",
             {"required": period, "available": len(prices)},
+            hint=f"Use a longer date range to get at least {period} data points.",
         )
     logger.debug("calculate_bb period=%d std_dev=%.1f data_points=%d", period, std_dev, len(prices))
 
@@ -355,6 +365,7 @@ def calculate_stochastic(
         raise CalculationError(
             f"Insufficient data: need {min_periods} periods, got {len(close)}",
             {"required": min_periods, "available": len(close)},
+            hint=f"Use a longer date range to get at least {min_periods} data points.",
         )
     logger.debug("calculate_stoch k=%d d=%d data_points=%d", k_period, d_period, len(close))
 
@@ -396,6 +407,7 @@ def calculate_fast_stochastic(
         raise CalculationError(
             f"Insufficient data: need {min_periods} periods, got {len(close)}",
             {"required": min_periods, "available": len(close)},
+            hint=f"Use a longer date range to get at least {min_periods} data points.",
         )
     logger.debug("calculate_fast_stoch k=%d d=%d data_points=%d", k_period, d_period, len(close))
 
@@ -437,6 +449,7 @@ def calculate_ichimoku(
         raise CalculationError(
             f"Insufficient data: need {min_periods} periods, got {len(close)}",
             {"required": min_periods, "available": len(close)},
+            hint=f"Use a longer date range to get at least {min_periods} data points.",
         )
     logger.debug(
         "calculate_ichimoku conversion=%d base=%d leading_b=%d data_points=%d",
@@ -488,6 +501,7 @@ def calculate_volume_profile(
         raise CalculationError(
             f"Insufficient data: need 10 periods, got {len(close)}",
             {"required": 10, "available": len(close)},
+            hint="Use a longer date range to get at least 10 data points.",
         )
     logger.debug("calculate_volume_profile bins=%d data_points=%d", bins, len(close))
 
@@ -549,6 +563,7 @@ def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float
         raise CalculationError(
             f"Insufficient data: need {period + 1} periods, got {len(close)}",
             {"required": period + 1, "available": len(close)},
+            hint=f"Use a longer date range to get at least {period + 1} data points.",
         )
     logger.debug("calculate_price_change period=%d data_points=%d", period, len(close))
 
@@ -578,6 +593,7 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int
         raise CalculationError(
             f"Insufficient data: need {period + 1} periods, got {len(close)}",
             {"required": period + 1, "available": len(close)},
+            hint=f"Use a longer date range to get at least {period + 1} data points.",
         )
     logger.debug("calculate_atr period=%d data_points=%d", period, len(close))
 
@@ -607,6 +623,7 @@ def calculate_obv(close: pd.Series, volume: pd.Series) -> pd.Series:
         raise CalculationError(
             "Close and volume series must have same length",
             {"close_len": len(close), "volume_len": len(volume)},
+            hint="Ensure close and volume data cover the same date range.",
         )
 
     # NaN volume contributes nothing to OBV
@@ -716,6 +733,7 @@ def calculate_pivot_points(
         raise CalculationError(
             f"Unknown pivot point method: {method}",
             {"valid_methods": ["standard", "fibonacci", "camarilla", "woodie"]},
+            hint="Valid methods: standard, fibonacci, camarilla, woodie.",
         )
     logger.debug(
         "calculate_pivot method=%s high=%.2f low=%.2f close=%.2f", method, high, low, close

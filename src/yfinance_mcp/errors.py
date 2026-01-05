@@ -17,27 +17,37 @@ class ErrorCode(str, Enum):
 class MCPError(Exception):
     """Base exception for MCP errors."""
 
-    def __init__(self, code: ErrorCode, message: str, details: dict | None = None):
+    def __init__(
+        self,
+        code: ErrorCode,
+        message: str,
+        details: dict | None = None,
+        hint: str | None = None,
+    ):
         self.code = code
         self.message = message
         self.details = details or {}
+        self.hint = hint
         super().__init__(message)
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "error": {
                 "code": self.code.value,
                 "message": self.message,
                 "details": self.details,
             }
         }
+        if self.hint:
+            result["error"]["hint"] = self.hint
+        return result
 
 
 class ValidationError(MCPError):
     """Input validation error."""
 
-    def __init__(self, message: str, details: dict | None = None):
-        super().__init__(ErrorCode.VALIDATION_ERROR, message, details)
+    def __init__(self, message: str, details: dict | None = None, hint: str | None = None):
+        super().__init__(ErrorCode.VALIDATION_ERROR, message, details, hint)
 
 
 class SymbolNotFoundError(MCPError):
@@ -45,26 +55,24 @@ class SymbolNotFoundError(MCPError):
 
     def __init__(self, symbol: str, hint: str | None = None):
         message = f"No results for '{symbol}'."
-        if hint:
-            message = f"{message} {hint}"
-        else:
-            message = f"{message} Try a more specific query."
+        default_hint = "Try a more specific query."
         super().__init__(
             ErrorCode.SYMBOL_NOT_FOUND,
             message,
             {"symbol": symbol},
+            hint or default_hint,
         )
 
 
 class DataUnavailableError(MCPError):
     """Data unavailable error."""
 
-    def __init__(self, message: str, details: dict | None = None):
-        super().__init__(ErrorCode.DATA_UNAVAILABLE, message, details)
+    def __init__(self, message: str, details: dict | None = None, hint: str | None = None):
+        super().__init__(ErrorCode.DATA_UNAVAILABLE, message, details, hint)
 
 
 class CalculationError(MCPError):
     """Calculation error."""
 
-    def __init__(self, message: str, details: dict | None = None):
-        super().__init__(ErrorCode.CALCULATION_ERROR, message, details)
+    def __init__(self, message: str, details: dict | None = None, hint: str | None = None):
+        super().__init__(ErrorCode.CALCULATION_ERROR, message, details, hint)

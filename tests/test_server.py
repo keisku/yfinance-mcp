@@ -324,26 +324,27 @@ class TestTechnicalsTool:
     def test_indicator_returns_expected_structure(
         self, call_toon, mock_ticker_with_history, indicator, expected_data_keys, expected_meta_keys
     ) -> None:
-        """Each indicator should return time series data or meta info."""
+        """Each indicator should return time series data or extras at top level."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": [indicator]})
 
-        assert "data" in parsed
         if expected_data_keys:
+            assert "data" in parsed
             for key in expected_data_keys:
                 assert key in parsed["data"][0], f"Missing {key} for {indicator}"
         if expected_meta_keys:
-            assert "meta" in parsed
+            # Non-timeseries extras are at top level (no data[] when only extras)
             for key in expected_meta_keys:
-                assert key in parsed["meta"], f"Missing {key} in meta for {indicator}"
+                assert key in parsed, f"Missing {key} at top level for {indicator}"
 
     def test_trend_insufficient_data(self, call_toon, mock_ticker_with_history) -> None:
-        """Trend with <50 bars should return error message in meta."""
+        """Trend with <50 bars should return error in _issues."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=30)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["trend"]})
 
-        assert "meta" in parsed
-        assert "_trend_error" in parsed["meta"]
+        assert "_issues" in parsed
+        assert "insufficient_data" in parsed["_issues"]
+        assert "trend" in parsed["_issues"]["insufficient_data"]
 
     def test_all_indicators(self, call_toon, mock_ticker_with_history) -> None:
         """All supported indicators should work."""
@@ -412,7 +413,8 @@ class TestTechnicalsTool:
             elif ind in data_keys:
                 assert data_keys[ind] in first_row, f"Missing {data_keys[ind]} for {ind}"
             elif ind in meta_keys:
-                assert "meta" in parsed and meta_keys[ind] in parsed["meta"]
+                # Extras are now at top level, not nested under "meta"
+                assert meta_keys[ind] in parsed, f"Missing {meta_keys[ind]} at top level"
 
     def test_empty_indicators_defaults_to_all(self, call_toon, mock_ticker_with_history) -> None:
         """Empty or omitted indicators should default to all."""
@@ -437,6 +439,113 @@ class TestTechnicalsTool:
 
         assert "data" in parsed
         assert "rsi" in parsed["data"][0]
+
+
+class TestTechnicalsActionableFeedback:
+    """Test actionable feedback in technicals tool responses."""
+
+    @pytest.mark.parametrize(
+        "n_bars,indicators,issue_type,expected_keys,expected_hints",
+        [
+            # Insufficient data with specific period hints
+            (10, ["sma_200"], "insufficient_data", ["sma_200"], {"sma_200": "1y"}),
+            (10, ["sma_100"], "insufficient_data", ["sma_100"], {"sma_100": "6mo"}),
+            (10, ["sma_50"], "insufficient_data", ["sma_50"], {"sma_50": "3mo"}),
+            # Unknown indicators
+            (50, ["fake_ind", "also_fake"], "unknown", ["fake_ind", "also_fake"], {}),
+        ],
+    )
+    def test_issues_structure(
+        self,
+        call_toon,
+        mock_ticker_with_history,
+        n_bars,
+        indicators,
+        issue_type,
+        expected_keys,
+        expected_hints,
+    ) -> None:
+        """Issues should be grouped by type with actionable hints."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=n_bars)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
+
+        assert "_issues" in parsed
+        assert issue_type in parsed["_issues"]
+        for key in expected_keys:
+            assert key in parsed["_issues"][issue_type]
+        for key, hint in expected_hints.items():
+            assert hint in parsed["_issues"][issue_type][key]
+
+    def test_partial_data_shows_null_count(self, call_toon, mock_ticker_with_history) -> None:
+        """Warmup nulls should show count and suggested period."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=80)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
+
+        if "_issues" in parsed and "partial_data" in parsed["_issues"]:
+            assert "period=" in parsed["_issues"]["partial_data"]["sma_50"]
+
+    @pytest.mark.parametrize(
+        "n_bars,indicators,expect_data,expect_issues",
+        [
+            (10, ["sma_200", "sma_100"], False, True),  # All fail → issues only
+            (50, ["rsi", "sma_200", "unknown"], True, True),  # Mixed → both
+            (200, ["rsi", "macd"], True, False),  # All succeed → data only
+        ],
+    )
+    def test_data_and_issues_presence(
+        self, call_toon, mock_ticker_with_history, n_bars, indicators, expect_data, expect_issues
+    ) -> None:
+        """Response should have data/issues based on indicator success."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=n_bars)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
+
+        assert ("data" in parsed) == expect_data
+        assert ("_issues" in parsed) == expect_issues
+
+    @pytest.mark.parametrize(
+        "indicator,top_level_key,nested_key",
+        [
+            ("volume_profile", "volume_profile", "poc"),
+            ("price_change", "price_change", "change_pct"),
+            ("fibonacci", "fibonacci", "levels"),
+            ("pivot", "pivot", "levels"),
+        ],
+    )
+    def test_summaries_at_top_level(
+        self, call_toon, mock_ticker_with_history, indicator, top_level_key, nested_key
+    ) -> None:
+        """Single-value results should be at top level, not in data[]."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=50)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": [indicator]})
+
+        assert top_level_key in parsed
+        assert nested_key in parsed[top_level_key]
+
+    def test_all_null_rows_excluded(self, call_toon, mock_ticker_with_history) -> None:
+        """Rows with all null values should be excluded from data[] to save tokens."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=80)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
+
+        if "data" in parsed:
+            for row in parsed["data"]:
+                # Each row should have at least one non-null value (excluding 'd' date column)
+                values = [v for k, v in row.items() if k != "d"]
+                assert any(v is not None for v in values), "All-null row should be excluded"
+
+    def test_all_failed_returns_toon_format(self, mock_ticker_with_history) -> None:
+        """When all indicators fail, response should still be TOON format (not JSON)."""
+        import asyncio
+
+        from yfinance_mcp.server import call_tool
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=10)):
+            result = asyncio.run(
+                call_tool("technicals", {"symbol": "AAPL", "indicators": ["sma_500", "sma_300"]})
+            )
+
+        text = result[0].text
+        # TOON format uses colons for key-value, not JSON's {"key": "value"}
+        assert "_issues:" in text or "insufficient_data:" in text
 
 
 class TestValuationTool:
@@ -829,13 +938,13 @@ class TestEdgeCases:
     def test_invalid_indicators_handled_gracefully(
         self, call_toon, mock_ticker_with_history, indicators, expected_unknown, should_have_valid
     ) -> None:
-        """Invalid indicators should be added to _unknown list in meta or return null."""
+        """Invalid indicators should be added to _issues.unknown or return null."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=50)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
         if expected_unknown:
-            assert "meta" in parsed and "_unknown" in parsed["meta"]
-            assert expected_unknown in parsed["meta"]["_unknown"]
+            assert "_issues" in parsed and "unknown" in parsed["_issues"]
+            assert expected_unknown in parsed["_issues"]["unknown"]
         if should_have_valid:
             assert "data" in parsed and "rsi" in parsed["data"][0]
 
