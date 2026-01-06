@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767628324476,
+  "lastUpdate": 1767703429381,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -4286,6 +4286,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0019172384681281685",
             "extra": "mean: 40.110724038461086 msec\nrounds: 26"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "69917a474a6e47d36f7de7246899930a8591ab0c",
+          "message": "ci: add automated release workflow with git-cliff\n\n- Changelog generated from conventional commits on tag push\n- pyproject.toml version updated automatically during release\n- GitHub Release created with generated notes\n- git-cliff added as dev dependency for local preview",
+          "timestamp": "2026-01-06T21:42:27+09:00",
+          "tree_id": "e8fc42b629b5ca07862e6b5f119964f3820422fd",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/69917a474a6e47d36f7de7246899930a8591ab0c"
+        },
+        "date": 1767703429074,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 262.84056476715085,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007040725609896391",
+            "extra": "mean: 3.8045877769510006 msec\nrounds: 269"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 263.4567108847969,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004830777052427759",
+            "extra": "mean: 3.7956899888470677 msec\nrounds: 269"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 260.4207563923667,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004516047087888444",
+            "extra": "mean: 3.839939695487773 msec\nrounds: 266"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 95.09308402695856,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000860040837175846",
+            "extra": "mean: 10.51601186597864 msec\nrounds: 97"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 305.31097094206723,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004019191039914282",
+            "extra": "mean: 3.2753490544882844 msec\nrounds: 312"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 308.4203372498247,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00003449063609257962",
+            "extra": "mean: 3.2423283396839895 msec\nrounds: 315"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.978311595464326,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000628105371473606",
+            "extra": "mean: 111.37951599999951 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 43.873592116172844,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006905112850425467",
+            "extra": "mean: 22.792754177777397 msec\nrounds: 45"
           }
         ]
       }
