@@ -99,6 +99,7 @@ class TestSearchStockTool:
         expected_keys = [
             "symbol",
             "name",
+            "quote_type",
             "sector",
             "industry",
             "exchange",

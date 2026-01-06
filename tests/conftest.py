@@ -70,6 +70,7 @@ def mock_ticker_factory():
         info = {
             "regularMarketPrice": price,
             "shortName": "Test Stock",
+            "quoteType": "EQUITY",
             "sector": "Technology",
             "industry": "Consumer Electronics",
             "exchange": "NMS",

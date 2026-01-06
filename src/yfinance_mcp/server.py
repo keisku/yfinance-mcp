@@ -237,7 +237,7 @@ TOOLS = [
         name="search_stock",
         description=(
             "Find stock by symbol or company name. "
-            "Returns identity (name, sector, industry, exchange, currency) "
+            "Returns identity (name, sector, industry, exchange, currency, quote_type) "
             "and current price snapshot (price, change, change_pct, market_cap, volume)."
         ),
         inputSchema={
@@ -581,6 +581,7 @@ def _handle_search_stock(args: dict) -> str:
     result = {
         "symbol": symbol.upper(),
         "name": safe_get(info, "shortName") or safe_get(info, "longName"),
+        "quote_type": safe_get(info, "quoteType"),
         "sector": safe_get(info, "sector"),
         "industry": safe_get(info, "industry"),
         "exchange": safe_get(info, "exchange"),
