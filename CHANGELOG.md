@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.3.0] - 2026-01-06
+
+### Added
+
+- Add quote_type field for instrument identification ([ed373e8](https://github.com/keisku/yfinance-mcp/commit/ed373e824be00d72bae3f789af077713d15481a7))
+  - Expose yfinance's quoteType (EQUITY, ETF, INDEX, etc.)
+  - Helps distinguish investable instruments from indices
+
+### CI
+
+- remove unnecessary break lines in CHANGELOG ([f6aef17](https://github.com/keisku/yfinance-mcp/commit/f6aef1759e7a0e9e72ca83142ab5d953275773dc))
+- suppress git-cliff warnings during calculating next version ([a94827c](https://github.com/keisku/yfinance-mcp/commit/a94827c581af41b9f24c1b9cc5019e5ae9321f11))
+- pin python 3.13 ([9640d31](https://github.com/keisku/yfinance-mcp/commit/9640d317e8bd27df426b0eeb979855b6f36191a1))
+- Block release if Test workflow not passing ([aa9c830](https://github.com/keisku/yfinance-mcp/commit/aa9c830a10a7fa06a3e49d2acf9ac5a9ec788086))
+  - Check latest Test workflow status on main before releasing
+  - Fail fast with error if tests have not passed
+- Auto-calculate version with git-cliff ([cb090d0](https://github.com/keisku/yfinance-mcp/commit/cb090d05bd3a7f88832286e10241b0148a1f7797))
+  - Use workflow_dispatch trigger instead of tag push
+  - Calculate semver from commit types via --bumped-version
+  - Add bump config: feat→minor, breaking→major
+  - Restrict workflow to main branch only
+- add uv sync to update lockfile during release ([a5b5fdb](https://github.com/keisku/yfinance-mcp/commit/a5b5fdb67447bec49059a6b4e983927622ff60e9))
+
+### Miscellaneous
+
+- update uv.lock ([7eabb02](https://github.com/keisku/yfinance-mcp/commit/7eabb02070354939c3992c070627afcbdc742215))
+
 ## [0.2.1] - 2026-01-06
 
 ### CI
