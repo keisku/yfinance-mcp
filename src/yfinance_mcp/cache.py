@@ -316,11 +316,12 @@ class CachedPriceFetcher:
                     start=start.isoformat(),
                     end=(end + timedelta(days=1)).isoformat(),
                     interval=interval,
+                    auto_adjust=False,
                 )
                 df = normalize_tz(df)
                 if not df.empty:
                     df = df.rename(columns=OHLCV_COLS_TO_SHORT)
-                    df = df[[c for c in ["o", "h", "l", "c", "v"] if c in df.columns]]
+                    df = df[[c for c in ["o", "h", "l", "c", "ac", "v"] if c in df.columns]]
                 elapsed_ms = (time.time() - fetch_start) * 1000
                 logger.debug(
                     "api_fetch_success symbol=%s bars=%d elapsed_ms=%.1f",
@@ -357,7 +358,7 @@ class CachedPriceFetcher:
             return df
 
         df = df.rename(columns=OHLCV_COLS_TO_SHORT)
-        keep_cols = ["o", "h", "l", "c", "v"]
+        keep_cols = ["o", "h", "l", "c", "ac", "v"]
         df = df[[c for c in keep_cols if c in df.columns]]
         return df
 

@@ -42,8 +42,8 @@ Docker:
 ## Tools
 
 - `search_stock` - Find stock by symbol or company name, returns identity + current price
-- `history` - Historical OHLCV bars with auto-computed interval. [more](#architecture)
-- `technicals` - Technical indicators: RSI, MACD, Bollinger Bands, Ichimoku, and [more](#technical-indicators)
+- `history` - Historical OHLCV bars with adjusted close (`c` for price-return, `ac` for total-return). [more](#architecture)
+- `technicals` - Technical indicators using adjusted close: RSI, MACD, Bollinger Bands, Ichimoku, and [more](#technical-indicators)
 - `valuation` - P/E, PEG, margins, growth, quality score, and [more](#valuation-metrics)
 - `financials` - Income, balance sheet, cash flow (Yahoo Finance API provides ~4-5 years annual, ~5 quarters)
 
@@ -122,7 +122,7 @@ uv run pip-audit                       # Security scan
 
 ### Architecture
 
-**Data points & tokens** - Each response returns ~200 data points by default, using ~2.8K tokens. This stays within the [1-3K ideal range](https://github.com/adobe-research/NoLiMa) where top LLMs maintain high accuracy. The server auto-selects resolution based on date range:
+**Data points & tokens** - Each response returns ~200 data points by default, using ~3.3K tokens. This stays near the [1-3K ideal range](https://github.com/adobe-research/NoLiMa) where top LLMs maintain high accuracy. The server auto-selects resolution based on date range:
 
 | Date Range | Interval | Why |
 |------------|----------|-----|
@@ -133,9 +133,9 @@ uv run pip-audit                       # Security scan
 
 Configure via `YFINANCE_TARGET_POINTS` (100-400 range):
 
-- 100 points → ~1.4K tokens (quick queries)
-- 200 points → ~2.8K tokens (default, ideal range)
-- 400 points → ~5.6K tokens (detailed analysis, within [10K practical limit](https://cookbook.openai.com/examples/gpt-5/gpt-5-1-codex-max_prompting_guide))
+- 100 points → ~1.6K tokens (quick queries)
+- 200 points → ~3.3K tokens (default, near ideal range)
+- 400 points → ~6.5K tokens (detailed analysis, within [10K practical limit](https://cookbook.openai.com/examples/gpt-5/gpt-5-1-codex-max_prompting_guide))
 
 Data uses delta-encoded split format in [TOON](https://github.com/toon-format/toon), achieving ~56% token reduction vs JSON by eliminating repeated keys and delta-encoding dates. Downsampling preserves key features: `history` uses OHLC resampling (support/resistance), `technicals` uses [LTTB](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf) (trend reversals).
 

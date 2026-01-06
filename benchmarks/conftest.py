@@ -57,6 +57,7 @@ def generate_ohlcv_data(
                 "h": high,
                 "l": low,
                 "c": close,
+                "ac": close * 0.98,  # simulate dividend adjustment
                 "v": volume,
             }
         )
@@ -112,12 +113,12 @@ def seeded_cache(benchmark_symbols):
         fetcher.cache.store_prices(symbol, daily_df, interval="1d")
 
         weekly_df = daily_df.resample("W").agg(
-            {"o": "first", "h": "max", "l": "min", "c": "last", "v": "sum"}
+            {"o": "first", "h": "max", "l": "min", "c": "last", "ac": "last", "v": "sum"}
         )
         fetcher.cache.store_prices(symbol, weekly_df, interval="1wk")
 
         monthly_df = daily_df.resample("ME").agg(
-            {"o": "first", "h": "max", "l": "min", "c": "last", "v": "sum"}
+            {"o": "first", "h": "max", "l": "min", "c": "last", "ac": "last", "v": "sum"}
         )
         fetcher.cache.store_prices(symbol, monthly_df, interval="1mo")
 

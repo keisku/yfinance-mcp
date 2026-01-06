@@ -295,7 +295,7 @@ def normalize_df(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
-    for col in ["Open", "High", "Low", "Close", "Volume"]:
+    for col in ["Open", "High", "Low", "Close", "Adj Close", "Volume"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -575,8 +575,22 @@ PERIOD_DELTAS = {
     "max": relativedelta(years=99),
 }
 
-OHLCV_COLS_TO_SHORT = {"Open": "o", "High": "h", "Low": "l", "Close": "c", "Volume": "v"}
-OHLCV_COLS_TO_LONG = {"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume"}
+OHLCV_COLS_TO_SHORT = {
+    "Open": "o",
+    "High": "h",
+    "Low": "l",
+    "Close": "c",
+    "Adj Close": "ac",
+    "Volume": "v",
+}
+OHLCV_COLS_TO_LONG = {
+    "o": "Open",
+    "h": "High",
+    "l": "Low",
+    "c": "Close",
+    "ac": "Adj Close",
+    "v": "Volume",
+}
 
 INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "1h"}
 
@@ -822,6 +836,7 @@ def ohlc_resample(df: pd.DataFrame, target_points: int | None = None) -> pd.Data
     - High: max of all highs (resistance level)
     - Low: min of all lows (support level)
     - Close: last close in bucket (exit price)
+    - Adj Close: last adjusted close in bucket (dividend-adjusted exit price)
     - Volume: sum of all volumes (total activity)
 
     Uses data-point-based bucketing (not time-based) to correctly handle
@@ -838,6 +853,7 @@ def ohlc_resample(df: pd.DataFrame, target_points: int | None = None) -> pd.Data
     h_col = col_lower.get("h")
     l_col = col_lower.get("l")
     c_col = col_lower.get("c")
+    ac_col = col_lower.get("ac")
     v_col = col_lower.get("v")
 
     if not any([o_col, h_col, l_col, c_col]):
@@ -864,6 +880,8 @@ def ohlc_resample(df: pd.DataFrame, target_points: int | None = None) -> pd.Data
             row[l_col] = bucket[l_col].min()
         if c_col:
             row[c_col] = bucket[c_col].iloc[-1]
+        if ac_col:
+            row[ac_col] = bucket[ac_col].iloc[-1]
         if v_col:
             row[v_col] = bucket[v_col].sum()
 

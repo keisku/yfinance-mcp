@@ -53,6 +53,7 @@ class DuckDBCacheBackend:
                 high DOUBLE,
                 low DOUBLE,
                 close DOUBLE,
+                adj_close DOUBLE,
                 volume BIGINT,
                 PRIMARY KEY (symbol, interval, date)
             )
@@ -68,7 +69,7 @@ class DuckDBCacheBackend:
         conn = self._get_conn()
         df = conn.execute(
             """
-            SELECT date, open, high, low, close, volume 
+            SELECT date, open, high, low, close, adj_close, volume 
             FROM prices 
             WHERE symbol = ? AND interval = ? AND date >= ? AND date <= ?
             ORDER BY date
@@ -81,7 +82,14 @@ class DuckDBCacheBackend:
             df.index = pd.to_datetime(df.index)
             df = normalize_tz(df)
             df = df.rename(
-                columns={"open": "o", "high": "h", "low": "l", "close": "c", "volume": "v"}
+                columns={
+                    "open": "o",
+                    "high": "h",
+                    "low": "l",
+                    "close": "c",
+                    "adj_close": "ac",
+                    "volume": "v",
+                }
             )
             logger.debug(
                 "duckdb_get symbol=%s interval=%s range=%s..%s rows=%d",
@@ -113,6 +121,8 @@ class DuckDBCacheBackend:
         records = []
         for idx, row in df.iterrows():
             dt = idx.date() if hasattr(idx, "date") else idx
+            close_val = float(row.get("Close", row.get("c", 0)))
+            adj_close_val = float(row.get("Adj Close", row.get("ac", close_val)))
             records.append(
                 (
                     symbol,
@@ -121,15 +131,17 @@ class DuckDBCacheBackend:
                     float(row.get("Open", row.get("o", 0))),
                     float(row.get("High", row.get("h", 0))),
                     float(row.get("Low", row.get("l", 0))),
-                    float(row.get("Close", row.get("c", 0))),
+                    close_val,
+                    adj_close_val,
                     int(row.get("Volume", row.get("v", 0))),
                 )
             )
 
         conn.executemany(
             """
-            INSERT OR REPLACE INTO prices (symbol, interval, date, open, high, low, close, volume)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO prices 
+            (symbol, interval, date, open, high, low, close, adj_close, volume)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             records,
         )

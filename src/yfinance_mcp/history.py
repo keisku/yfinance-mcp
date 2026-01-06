@@ -172,7 +172,7 @@ def get_history(
             t = yf.Ticker(symbol.upper())
 
         if start is not None:
-            result = t.history(start=start, end=end, interval=interval)
+            result = t.history(start=start, end=end, interval=interval, auto_adjust=False)
             logger.debug(
                 "get_history symbol=%s interval=%s bars=%d source=api (date-range)",
                 symbol,
@@ -192,7 +192,7 @@ def get_history(
             )
             return cached
 
-        result = t.history(period=period, interval=interval)
+        result = t.history(period=period, interval=interval, auto_adjust=False)
         cache.set(symbol, period, interval, result)
         logger.debug(
             "get_history symbol=%s interval=%s bars=%d source=api+intraday_cache",
@@ -210,9 +210,9 @@ def get_history(
         t = yf.Ticker(symbol.upper())
 
     if start is not None:
-        result = t.history(start=start, end=end, interval=interval)
+        result = t.history(start=start, end=end, interval=interval, auto_adjust=False)
     else:
-        result = t.history(period=period, interval=interval)
+        result = t.history(period=period, interval=interval, auto_adjust=False)
     logger.debug(
         "get_history symbol=%s interval=%s bars=%d source=api", symbol, interval, len(result)
     )

@@ -90,12 +90,14 @@ def mock_ohlcv_factory():
     def _create(n: int = 50, seed: int = 42, freq: str = "D") -> pd.DataFrame:
         np.random.seed(seed)
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
+        adj_close = close * 0.98  # simulate dividend adjustment
         return pd.DataFrame(
             {
                 "Open": close - 0.5,
                 "High": close + 1,
                 "Low": close - 1,
                 "Close": close,
+                "Adj Close": adj_close,
                 "Volume": [1000000] * n,
             },
             index=pd.date_range("2024-01-01", periods=n, freq=freq),

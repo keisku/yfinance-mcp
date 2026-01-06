@@ -275,7 +275,10 @@ TOOLS = [
         description=(
             f"Historical OHLCV bars. Returns ~{TARGET_POINTS} data points. "
             f"Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
-            "For longer periods, split into multiple sequential requests."
+            "For longer periods, split into multiple sequential requests. "
+            "Columns: o/h/l/c (price-only), ac (adjusted close for total return "
+            "with dividends/splits), v (volume). "
+            "For indices, ac may equal c if adjustment data unavailable."
         ),
         inputSchema={
             "type": "object",
@@ -305,6 +308,7 @@ TOOLS = [
             f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points. "
             f"Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
             "For longer periods, split into multiple sequential requests. "
+            "Uses Adj Close for calculations (falls back to Close for indices). "
             "trend: SMA50-based trend direction. "
             "rsi: >70 overbought, <30 oversold. "
             "macd: histogram>0 bullish. "
@@ -629,8 +633,14 @@ def _handle_history(args: dict) -> str:
     last_close = df["Close"].iloc[-1] if not df.empty else 1.0
     decimals = adaptive_decimals(float(last_close))
 
+    issues: dict | None = None
+    if "Adj Close" not in df.columns:
+        df["Adj Close"] = df["Close"]
+        issues = {"ac": "Adj Close unavailable, using Close"}
+        logger.debug("price_no_adj_close symbol=%s using_close_as_fallback=true", symbol)
+
     df = df.rename(columns=OHLCV_COLS_TO_SHORT)
-    df = df[["o", "h", "l", "c", "v"]].round(decimals)
+    df = df[["o", "h", "l", "c", "ac", "v"]].round(decimals)
 
     df = ohlc_resample(df)
     logger.debug("price_resampled symbol=%s bars=%d", symbol, len(df))
@@ -638,7 +648,7 @@ def _handle_history(args: dict) -> str:
     # Keep DatetimeIndex - fmt_toon handles formatting
     df.index = pd.to_datetime(df.index)
 
-    return fmt_toon(df, wrapper_key="bars")
+    return fmt_toon(df, wrapper_key="bars", issues=issues)
 
 
 ALL_INDICATORS = [
@@ -788,6 +798,13 @@ def _handle_technicals(args: dict) -> str:
     df = normalize_df(df)
     logger.debug("technicals_data_ready symbol=%s bars=%d", symbol, len(df))
 
+    # Use Adj Close for indicators (more accurate for long-term), fall back to Close
+    if "Adj Close" in df.columns:
+        price = df["Adj Close"]
+    else:
+        price = df["Close"]
+        logger.debug("technicals_using_close symbol=%s adj_close_unavailable=true", symbol)
+
     result_df = pd.DataFrame(index=df.index)
     issues: dict[str, dict[str, str]] = {}
     insufficient_data: dict[str, str] = {}
@@ -797,10 +814,10 @@ def _handle_technicals(args: dict) -> str:
     for ind in inds:
         try:
             if ind == "rsi":
-                result_df["rsi"] = indicators.calculate_rsi(df["Close"]).round(1)
+                result_df["rsi"] = indicators.calculate_rsi(price).round(1)
 
             elif ind == "macd":
-                m = indicators.calculate_macd(df["Close"])
+                m = indicators.calculate_macd(price)
                 result_df["macd"] = m["macd"].round(3)
                 result_df["macd_signal"] = m["signal"].round(3)
                 result_df["macd_hist"] = m["histogram"].round(3)
@@ -810,60 +827,58 @@ def _handle_technicals(args: dict) -> str:
                 if p is None:
                     unknown_indicators.append(ind)
                     continue
-                result_df[ind] = indicators.calculate_sma(df["Close"], p).round(2)
+                result_df[ind] = indicators.calculate_sma(price, p).round(2)
 
             elif ind.startswith("ema_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
                     unknown_indicators.append(ind)
                     continue
-                result_df[ind] = indicators.calculate_ema(df["Close"], p).round(2)
+                result_df[ind] = indicators.calculate_ema(price, p).round(2)
 
             elif ind.startswith("wma_"):
                 p = parse_moving_avg_period(ind)
                 if p is None:
                     unknown_indicators.append(ind)
                     continue
-                result_df[ind] = indicators.calculate_wma(df["Close"], p).round(2)
+                result_df[ind] = indicators.calculate_wma(price, p).round(2)
 
             elif ind == "momentum":
-                result_df["momentum"] = indicators.calculate_momentum(df["Close"]).round(2)
+                result_df["momentum"] = indicators.calculate_momentum(price).round(2)
 
             elif ind == "cci":
-                result_df["cci"] = indicators.calculate_cci(
-                    df["High"], df["Low"], df["Close"]
-                ).round(1)
+                result_df["cci"] = indicators.calculate_cci(df["High"], df["Low"], price).round(1)
 
             elif ind == "dmi":
-                dmi = indicators.calculate_dmi(df["High"], df["Low"], df["Close"])
+                dmi = indicators.calculate_dmi(df["High"], df["Low"], price)
                 result_df["dmi_plus"] = dmi["plus_di"].round(1)
                 result_df["dmi_minus"] = dmi["minus_di"].round(1)
                 result_df["adx"] = dmi["adx"].round(1)
 
             elif ind == "williams":
                 result_df["williams_r"] = indicators.calculate_williams_r(
-                    df["High"], df["Low"], df["Close"]
+                    df["High"], df["Low"], price
                 ).round(1)
 
             elif ind == "bb":
-                bb = indicators.calculate_bollinger_bands(df["Close"])
+                bb = indicators.calculate_bollinger_bands(price)
                 result_df["bb_upper"] = bb["upper"].round(2)
                 result_df["bb_middle"] = bb["middle"].round(2)
                 result_df["bb_lower"] = bb["lower"].round(2)
                 result_df["bb_pctb"] = bb["percent_b"].round(2)
 
             elif ind == "stoch":
-                s = indicators.calculate_stochastic(df["High"], df["Low"], df["Close"])
+                s = indicators.calculate_stochastic(df["High"], df["Low"], price)
                 result_df["stoch_k"] = s["k"].round(1)
                 result_df["stoch_d"] = s["d"].round(1)
 
             elif ind == "fast_stoch":
-                s = indicators.calculate_fast_stochastic(df["High"], df["Low"], df["Close"])
+                s = indicators.calculate_fast_stochastic(df["High"], df["Low"], price)
                 result_df["fast_stoch_k"] = s["k"].round(1)
                 result_df["fast_stoch_d"] = s["d"].round(1)
 
             elif ind == "ichimoku":
-                ich = indicators.calculate_ichimoku(df["High"], df["Low"], df["Close"])
+                ich = indicators.calculate_ichimoku(df["High"], df["Low"], price)
                 result_df["ichimoku_conversion"] = ich["conversion_line"].round(2)
                 result_df["ichimoku_base"] = ich["base_line"].round(2)
                 result_df["ichimoku_leading_a"] = ich["leading_span_a"].round(2)
@@ -871,22 +886,22 @@ def _handle_technicals(args: dict) -> str:
                 result_df["ichimoku_lagging"] = ich["lagging_span"].round(2)
 
             elif ind == "atr":
-                atr_series = indicators.calculate_atr(df["High"], df["Low"], df["Close"])
+                atr_series = indicators.calculate_atr(df["High"], df["Low"], price)
                 result_df["atr"] = atr_series.round(3)
-                result_df["atr_pct"] = (atr_series / df["Close"] * 100).round(2)
+                result_df["atr_pct"] = (atr_series / price * 100).round(2)
 
             elif ind == "obv":
-                result_df["obv"] = indicators.calculate_obv(df["Close"], df["Volume"]).round(0)
+                result_df["obv"] = indicators.calculate_obv(price, df["Volume"]).round(0)
 
             elif ind == "trend":
                 if len(df) >= 50:
-                    sma50 = indicators.calculate_sma(df["Close"], 50)
+                    sma50 = indicators.calculate_sma(price, 50)
                     result_df["sma50"] = sma50.round(2)
                 else:
                     insufficient_data["trend"] = f"need 50 bars, have {len(df)}"
 
             elif ind == "volume_profile":
-                vp = indicators.calculate_volume_profile(df["Close"], df["Volume"])
+                vp = indicators.calculate_volume_profile(price, df["Volume"])
                 summaries["volume_profile"] = {
                     "poc": vp["poc"],
                     "value_area_high": vp["value_area_high"],
@@ -894,7 +909,7 @@ def _handle_technicals(args: dict) -> str:
                 }
 
             elif ind == "price_change":
-                pc = indicators.calculate_price_change(df["Close"])
+                pc = indicators.calculate_price_change(price)
                 summaries["price_change"] = {
                     "change": round(pc["change"], 2),
                     "change_pct": round(pc["change_pct"], 2),
@@ -903,7 +918,7 @@ def _handle_technicals(args: dict) -> str:
             elif ind == "fibonacci":
                 period_high = float(to_scalar(df["High"].max()))
                 period_low = float(to_scalar(df["Low"].min()))
-                current_close = float(to_scalar(df["Close"].iloc[-1]))
+                current_close = float(to_scalar(price.iloc[-1]))
                 is_uptrend = current_close > (period_high + period_low) / 2
                 fib = indicators.calculate_fibonacci_levels(period_high, period_low, is_uptrend)
                 summaries["fibonacci"] = {
@@ -917,7 +932,7 @@ def _handle_technicals(args: dict) -> str:
                     method = ind.split("_", 1)[1]
                 prev_high = float(to_scalar(df["High"].iloc[-2]))
                 prev_low = float(to_scalar(df["Low"].iloc[-2]))
-                prev_close = float(to_scalar(df["Close"].iloc[-2]))
+                prev_close = float(to_scalar(price.iloc[-2]))
                 pivot = indicators.calculate_pivot_points(prev_high, prev_low, prev_close, method)
                 summaries["pivot"] = {
                     "method": method,

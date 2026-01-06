@@ -266,7 +266,7 @@ class TestHistoryTool:
             parsed = call_toon("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
-        assert set(parsed["bars"]["cols"]) == {"o", "h", "l", "c", "v"}
+        assert set(parsed["bars"]["cols"]) == {"o", "h", "l", "c", "ac", "v"}
         assert "t0" in parsed["bars"]
         assert "dt" in parsed["bars"]
         assert "rows" in parsed["bars"]
@@ -305,6 +305,102 @@ class TestHistoryTool:
 
         assert "bars" in parsed
         assert " " in parsed["bars"]["t0"]  # Contains time component
+
+    @pytest.mark.parametrize(
+        "close,adj_close,check",
+        [
+            # Dividend stock: ac < c (~6% adjustment)
+            ([100.0, 101.0, 102.0], [94.0, 94.94, 95.88], {"ac_lt_c": True}),
+            # Stock split: ac << c (4:1 ratio)
+            ([120.0, 121.0, 122.0], [30.0, 30.25, 30.5], {"ratio_gt": 3.5}),
+            # Index: ac == c (no dividends)
+            ([4500.0, 4510.0, 4520.0], [4500.0, 4510.0, 4520.0], {"ac_eq_c": True}),
+        ],
+        ids=["dividend", "split", "index"],
+    )
+    def test_adj_close_vs_close_relationship(
+        self, call_toon, mock_ticker_with_history, close, adj_close, check
+    ) -> None:
+        """Verify ac/c relationship for dividends, splits, and indices."""
+        mock = mock_ticker_with_history()
+        df = pd.DataFrame(
+            {
+                "Open": [c - 0.5 for c in close],
+                "High": [c + 1 for c in close],
+                "Low": [c - 1 for c in close],
+                "Close": close,
+                "Adj Close": adj_close,
+                "Volume": [1000000] * len(close),
+            },
+            index=pd.date_range("2024-01-01", periods=len(close), freq="D"),
+        )
+        mock.history.return_value = df
+
+        # Use start/end to bypass cache and hit direct API path
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon(
+                "history", {"symbol": "TEST", "start": "2024-01-01", "end": "2024-01-10"}
+            )
+
+        bars = parsed["bars"]
+        cols = bars["cols"]
+        c_val = bars["rows"][0][cols.index("c")]
+        ac_val = bars["rows"][0][cols.index("ac")]
+
+        if check.get("ac_lt_c"):
+            assert ac_val < c_val, "ac should be lower for dividend stocks"
+        if check.get("ratio_gt"):
+            assert c_val / ac_val > check["ratio_gt"], f"Expected ratio > {check['ratio_gt']}"
+        if check.get("ac_eq_c"):
+            assert ac_val == c_val, "Index should have ac == c"
+            assert "_issues" not in parsed, "No warning when Adj Close exists"
+
+    def test_missing_trading_days_handled(self, call_toon, mock_ticker_with_history) -> None:
+        """Weekends/holidays should not fill gaps; dt array shows skips."""
+        mock = mock_ticker_with_history()
+        n = 10
+        df = pd.DataFrame(
+            {
+                col: [100 + i for i in range(n)]
+                for col in ["Open", "High", "Low", "Close", "Adj Close"]
+            }
+            | {"Volume": [1000000] * n},
+            index=pd.bdate_range("2024-01-01", periods=n),
+        )
+        mock.history.return_value = df
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon(
+                "history", {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-15"}
+            )
+
+        assert len(parsed["bars"]["rows"]) == n
+        assert any(d > 1 for d in parsed["bars"]["dt"]), "Weekend gaps expected"
+
+    def test_adj_close_fallback_shows_warning(self, call_toon, mock_ticker_with_history) -> None:
+        """Missing Adj Close column should trigger fallback with _issues warning."""
+        mock = mock_ticker_with_history()
+        mock.history.return_value = pd.DataFrame(
+            {"Open": [100], "High": [101], "Low": [99], "Close": [100.5], "Volume": [1000000]},
+            index=pd.date_range("2024-01-01", periods=1),
+        )
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon("history", {"symbol": "WEIRD"})
+
+        assert "_issues" in parsed and "ac" in parsed["_issues"]
+        assert "using Close" in parsed["_issues"]["ac"]
+        assert "ac" in parsed["bars"]["cols"]
+
+    def test_empty_history_returns_error(self, call_toon, mock_ticker_with_history) -> None:
+        """Empty history data should return error."""
+        mock = mock_ticker_with_history()
+        mock.history.return_value = pd.DataFrame()
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon("history", {"symbol": "DELISTED"})
+
+        assert "err" in parsed
 
 
 class TestTechnicalsTool:

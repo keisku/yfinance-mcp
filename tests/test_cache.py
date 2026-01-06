@@ -154,11 +154,11 @@ class TestCacheFillGaps:
         """Gap detection only applies to daily interval."""
         backend = MagicMock()
         apr = pd.DataFrame(
-            {"o": [100], "h": [101], "l": [99], "c": [100.5], "v": [1000]},
+            {"o": [100], "h": [101], "l": [99], "c": [100.5], "ac": [100.5], "v": [1000]},
             index=pd.to_datetime([date(2024, 4, 15)]),
         )
         oct = pd.DataFrame(
-            {"o": [110], "h": [111], "l": [109], "c": [110.5], "v": [1100]},
+            {"o": [110], "h": [111], "l": [109], "c": [110.5], "ac": [110.5], "v": [1100]},
             index=pd.to_datetime([date(2024, 10, 21)]),
         )
         backend.get_prices.return_value = pd.concat([apr, oct])
@@ -184,6 +184,7 @@ class TestCacheFillGaps:
                 "h": [101] * len(dates),
                 "l": [99] * len(dates),
                 "c": [100.5] * len(dates),
+                "ac": [100.5] * len(dates),
                 "v": [1000] * len(dates),
             },
             index=dates,
@@ -263,6 +264,7 @@ class TestGapFilling:
                 "h": [101] * len(cache_dates),
                 "l": [99] * len(cache_dates),
                 "c": [100.5] * len(cache_dates),
+                "ac": [100.5] * len(cache_dates),
                 "v": [1000] * len(cache_dates),
             },
             index=cache_dates,
@@ -312,6 +314,7 @@ class TestGapFilling:
                 "h": [101 + i for i in range(len(cached_dates))],
                 "l": [99 + i for i in range(len(cached_dates))],
                 "c": [100.5 + i for i in range(len(cached_dates))],
+                "ac": [100.5 + i for i in range(len(cached_dates))],
                 "v": [1000] * len(cached_dates),
             },
             index=pd.to_datetime(cached_dates),
@@ -324,6 +327,7 @@ class TestGapFilling:
                 "h": [201 + i for i in range(len(gap_dates))],
                 "l": [199 + i for i in range(len(gap_dates))],
                 "c": [200.5 + i for i in range(len(gap_dates))],
+                "ac": [200.5 + i for i in range(len(gap_dates))],
                 "v": [2000] * len(gap_dates),
             },
             index=pd.to_datetime(gap_dates),
@@ -351,6 +355,7 @@ class TestGapFilling:
                 "h": [101 + i for i in range(num_days)],
                 "l": [99 + i for i in range(num_days)],
                 "c": [100.5 + i for i in range(num_days)],
+                "ac": [100.5 + i for i in range(num_days)],
                 "v": [1000] * num_days,
             },
             index=pd.to_datetime(dates),
