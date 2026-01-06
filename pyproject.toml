@@ -38,6 +38,7 @@ dev-dependencies = [
     "pytest-benchmark>=5.2.3",
     "pandas-ta>=0.4.71b0",
     "hypothesis>=6.148.8",
+    "git-cliff>=2.11.0",
 ]
 
 [tool.ruff]
