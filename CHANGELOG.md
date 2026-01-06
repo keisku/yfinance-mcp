@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.2.1] - 2026-01-06
+
+### CI
+
+- skip prerelease tags in release workflow ([5c69d65](https://github.com/keisku/yfinance-mcp/commit/5c69d654852008e07579f374f47d299a37804e31))
+
+### Documentation
+
+- clean CHANGELOG.md ([3dd199a](https://github.com/keisku/yfinance-mcp/commit/3dd199a66dd8d77223ae00dc7f06d62b16e28cf9))
+
+
+
 ## [0.2.0] - 2026-01-06
 
 ### Fixed
