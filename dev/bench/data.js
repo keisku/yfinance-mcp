@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767705958479,
+  "lastUpdate": 1767706905940,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -4846,6 +4846,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0001948498675202525",
             "extra": "mean: 22.410983304349877 msec\nrounds: 46"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "f6aef1759e7a0e9e72ca83142ab5d953275773dc",
+          "message": "ci: remove unnecessary break lines in CHANGELOG",
+          "timestamp": "2026-01-06T22:40:22+09:00",
+          "tree_id": "dff498780860c596c4209acfefc5d7703dd66f89",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/f6aef1759e7a0e9e72ca83142ab5d953275773dc"
+        },
+        "date": 1767706905066,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 263.43898164159515,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005961540025831395",
+            "extra": "mean: 3.7959454358978864 msec\nrounds: 273"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 264.738229310951,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004586803434831682",
+            "extra": "mean: 3.7773161911778135 msec\nrounds: 272"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 261.48733294424545,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004352279252708539",
+            "extra": "mean: 3.824277026119735 msec\nrounds: 268"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 93.54241419432826,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001243661801373608",
+            "extra": "mean: 10.690337731957241 msec\nrounds: 97"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 307.9275995361114,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005971527522963262",
+            "extra": "mean: 3.2475166289299366 msec\nrounds: 318"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 312.2743756644528,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004492159510680894",
+            "extra": "mean: 3.202312062500212 msec\nrounds: 320"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.905742733903912,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006391866179246827",
+            "extra": "mean: 112.28709719999301 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 44.82365036110157,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00016640994620119158",
+            "extra": "mean: 22.309651086958556 msec\nrounds: 46"
           }
         ]
       }
