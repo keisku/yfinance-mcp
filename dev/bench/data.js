@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767704729095,
+  "lastUpdate": 1767705165862,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -4606,6 +4606,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0006630430215034328",
             "extra": "mean: 23.970019590908397 msec\nrounds: 44"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "ed373e824be00d72bae3f789af077713d15481a7",
+          "message": "feat(search_stock): Add quote_type field for instrument identification\n\n- Expose yfinance's quoteType (EQUITY, ETF, INDEX, etc.)\n- Helps distinguish investable instruments from indices",
+          "timestamp": "2026-01-06T22:11:20+09:00",
+          "tree_id": "3ccb356857e097e9a23a4e3216e5a160d3388144",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/ed373e824be00d72bae3f789af077713d15481a7"
+        },
+        "date": 1767705165559,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 257.1688365836821,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00035696369960491834",
+            "extra": "mean: 3.888496029629167 msec\nrounds: 270"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 264.0576087029429,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004716313928493057",
+            "extra": "mean: 3.7870523970584418 msec\nrounds: 272"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 260.70269333316196,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000472800764746592",
+            "extra": "mean: 3.83578699251128 msec\nrounds: 267"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 94.91923761437545,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000143919134644003",
+            "extra": "mean: 10.535272144332422 msec\nrounds: 97"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 306.2936100186907,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006246319410586154",
+            "extra": "mean: 3.2648412088615824 msec\nrounds: 316"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 309.68057956693406,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000038819574396995065",
+            "extra": "mean: 3.2291337138364566 msec\nrounds: 318"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.939287263492636,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006575326480205802",
+            "extra": "mean: 111.8657417000037 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 44.68514414669241,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00018929930545220067",
+            "extra": "mean: 22.378802152169403 msec\nrounds: 46"
           }
         ]
       }
