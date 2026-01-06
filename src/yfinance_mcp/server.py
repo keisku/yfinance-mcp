@@ -286,7 +286,6 @@ TOOLS = [
                 "symbol": {"type": "string", "description": "Stock ticker"},
                 "period": {
                     "type": "string",
-                    "default": "3mo",
                     "enum": get_valid_periods(MAX_SPAN_DAYS),
                     "description": "Relative period. Ignored if start provided.",
                 },
@@ -341,7 +340,6 @@ TOOLS = [
                 },
                 "period": {
                     "type": "string",
-                    "default": "1y",
                     "enum": get_valid_periods(MAX_SPAN_DAYS),
                     "description": "Relative period. Ignored if start provided.",
                 },
