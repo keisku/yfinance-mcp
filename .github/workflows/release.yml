@@ -44,7 +44,13 @@ jobs:
           print(f"Updated pyproject.toml to version {new_version}")
           EOF
 
-      - name: Commit CHANGELOG.md
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync uv.lock
+        run: uv sync
+
+      - name: Commit release files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -53,8 +59,8 @@ jobs:
           git fetch origin main
           git switch main
           git stash pop
-          git add CHANGELOG.md pyproject.toml
-          git commit -m "chore(release): update CHANGELOG.md and pyproject.toml for ${{ github.ref_name }}"
+          git add CHANGELOG.md pyproject.toml uv.lock
+          git commit -m "chore(release): update CHANGELOG.md, pyproject.toml and uv.lock for ${{ github.ref_name }}"
           git push origin main
 
           git tag -f ${{ github.ref_name }}
