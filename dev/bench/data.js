@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767703429381,
+  "lastUpdate": 1767703692588,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -4366,6 +4366,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0006905112850425467",
             "extra": "mean: 22.792754177777397 msec\nrounds: 45"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "6fa14d1864fa277fed8fb181548cb6d067246987",
+          "message": "fix(ci): preserve file changes when switching to main branch\n\nTag checkout runs in detached HEAD. Stash changes before switching\nto main to prevent losing CHANGELOG.md and pyproject.toml updates.",
+          "timestamp": "2026-01-06T21:46:41+09:00",
+          "tree_id": "6e44a34f33b313eea4ad1e2b7ae1649e9d40cc7c",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/6fa14d1864fa277fed8fb181548cb6d067246987"
+        },
+        "date": 1767703692275,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 256.22502439371993,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00023087811577028017",
+            "extra": "mean: 3.902819415731159 msec\nrounds: 267"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 262.13778313419743,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000055908121377333376",
+            "extra": "mean: 3.8147877350746695 msec\nrounds: 268"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 253.0635113811462,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011860994558734593",
+            "extra": "mean: 3.951577193180851 msec\nrounds: 264"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 92.87525833154055,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001342219593204485",
+            "extra": "mean: 10.767130212766242 msec\nrounds: 94"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 301.24229865450275,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005791115203737854",
+            "extra": "mean: 3.3195869387084587 msec\nrounds: 310"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 302.46910702067436,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007549419869449425",
+            "extra": "mean: 3.3061227635774655 msec\nrounds: 313"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.541479158421964,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0012648758089824597",
+            "extra": "mean: 117.07574079999858 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 43.59351766561891,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00022664933618388308",
+            "extra": "mean: 22.93919035555771 msec\nrounds: 45"
           }
         ]
       }
