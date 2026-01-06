@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767705165862,
+  "lastUpdate": 1767705746377,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -4686,6 +4686,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00018929930545220067",
             "extra": "mean: 22.378802152169403 msec\nrounds: 46"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "cb090d05bd3a7f88832286e10241b0148a1f7797",
+          "message": "ci(release): Auto-calculate version with git-cliff\n\n- Use workflow_dispatch trigger instead of tag push\n- Calculate semver from commit types via --bumped-version\n- Add bump config: feat→minor, breaking→major\n- Restrict workflow to main branch only",
+          "timestamp": "2026-01-06T22:21:02+09:00",
+          "tree_id": "631537381652403c542d2040e4e10b64f5bc8347",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/cb090d05bd3a7f88832286e10241b0148a1f7797"
+        },
+        "date": 1767705746069,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 255.25903983751627,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00022444037493954896",
+            "extra": "mean: 3.9175889740733356 msec\nrounds: 270"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 258.45027808780856,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000192990519248228",
+            "extra": "mean: 3.8692161888881764 msec\nrounds: 270"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 253.88245401315223,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011518251876470395",
+            "extra": "mean: 3.9388306840148775 msec\nrounds: 269"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 93.27645991629417,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020402088925773907",
+            "extra": "mean: 10.720818531249954 msec\nrounds: 96"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 299.7025330754417,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013895234655955362",
+            "extra": "mean: 3.33664180191723 msec\nrounds: 313"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 282.60572174406536,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002620416989013565",
+            "extra": "mean: 3.5384987742945433 msec\nrounds: 319"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.652005761574706,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0015173072288020104",
+            "extra": "mean: 115.58013570000156 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 42.69485081594844,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008696620351873731",
+            "extra": "mean: 23.42202820454534 msec\nrounds: 44"
           }
         ]
       }
