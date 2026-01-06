@@ -1,9 +1,7 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,24 +9,31 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.ref_name, '-') }}
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Calculate next version
+        uses: orhun/git-cliff-action@v4
+        id: version
+        with:
+          config: cliff.toml
+          args: --bumped-version
 
       - name: Generate release notes
         uses: orhun/git-cliff-action@v4
         id: notes
         with:
           config: cliff.toml
-          args: --latest --strip header
+          args: --unreleased --strip header --tag ${{ steps.version.outputs.content }}
 
       - name: Update CHANGELOG.md
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --latest --prepend CHANGELOG.md --tag ${{ github.ref_name }}
+          args: --unreleased --tag ${{ steps.version.outputs.content }} --prepend CHANGELOG.md
 
       - name: Update pyproject.toml version
         run: |
@@ -36,7 +41,7 @@ jobs:
           import re
           from pathlib import Path
 
-          new_version = "${{ github.ref_name }}".lstrip("v")
+          new_version = "${{ steps.version.outputs.content }}".lstrip("v")
           pyproject = Path("pyproject.toml")
           content = pyproject.read_text()
           updated = re.sub(r'^version = ".*"', f'version = "{new_version}"', content, flags=re.MULTILINE)
@@ -50,27 +55,24 @@ jobs:
       - name: Sync uv.lock
         run: uv sync
 
-      - name: Commit release files
+      - name: Commit and tag release
+        env:
+          VERSION: ${{ steps.version.outputs.content }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git stash --include-untracked
-          git fetch origin main
-          git switch main
-          git stash pop
-          git add CHANGELOG.md pyproject.toml uv.lock
-          git commit -m "chore(release): update CHANGELOG.md, pyproject.toml and uv.lock for ${{ github.ref_name }}"
-          git push origin main
 
-          git tag -f ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }} --force
+          git status
+          git add CHANGELOG.md pyproject.toml uv.lock
+          git commit -m "chore(release): $VERSION"
+          git tag "$VERSION"
+          git push origin main --tags
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.content }}
+          name: ${{ steps.version.outputs.content }}
           body: ${{ steps.notes.outputs.content }}
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: false

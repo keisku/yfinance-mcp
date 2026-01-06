@@ -52,6 +52,10 @@ tag_pattern = "v[0-9].*"
 topo_order = false
 sort_commits = "newest"
 
+[bump]
+features_always_bump_minor = true
+breaking_always_bump_major = true
+
 [remote.github]
 owner = "keisku"
 repo = "yfinance-mcp"
