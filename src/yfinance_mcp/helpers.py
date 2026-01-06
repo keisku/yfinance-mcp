@@ -594,39 +594,26 @@ OHLCV_COLS_TO_LONG = {
 
 INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "1h"}
 
-# Ordered by duration for generating valid options
-PERIOD_OPTIONS_ORDERED = [
-    "1d",
-    "5d",
-    "1w",
-    "2w",
-    "1mo",
-    "2mo",
-    "3mo",
-    "6mo",
-    "9mo",
-    "ytd",
-    "1y",
-    "18mo",
-    "2y",
-    "3y",
-    "5y",
-    "10y",
-    "max",
-]
-
 # Periods natively supported by yfinance (others convert to start/end dates)
 YFINANCE_NATIVE_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
 
 MAX_PERIOD_OPTIONS = 7
 
 
-def get_valid_periods(max_span_days: int) -> list[str]:
-    """Return up to MAX_PERIOD_OPTIONS period options that fit within max_span_days.
+def get_valid_periods(max_trading_days: int | None = None) -> list[str]:
+    """Return up to MAX_PERIOD_OPTIONS period options that fit within max_trading_days.
 
     Always includes "ytd" if it fits. Selects evenly distributed options.
     """
-    valid = [p for p in PERIOD_OPTIONS_ORDERED if PERIOD_TO_DAYS.get(p, 0) <= max_span_days]
+    if max_trading_days is None:
+        max_trading_days = MAX_PERIOD_DAYS
+
+    periods_by_duration = sorted(PERIOD_TO_DAYS.keys(), key=lambda p: PERIOD_TO_DAYS[p])
+    valid = [
+        p
+        for p in periods_by_duration
+        if int(PERIOD_TO_DAYS.get(p, 0) * TRADING_DAYS_PER_WEEK / 7) <= max_trading_days
+    ]
 
     if len(valid) <= MAX_PERIOD_OPTIONS:
         return valid
@@ -682,96 +669,254 @@ def period_to_date_range(period: str) -> tuple[str | None, str | None, str | Non
 
 TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "200"))
 
-# Interval base config: (interval, points_per_day, max_days, switch_multiplier)
-#
-# points_per_day: trading hours (6.5h) × intervals per hour
-# max_days: Yahoo Finance API limit (None = unlimited)
-# switch_multiplier: switch when prev interval produces this × TARGET_POINTS
-#   - Intraday: lower multiplier (minimize wasted API fetches)
-#   - Daily+: higher multiplier (downsampling cached data is cheap)
-#
-# min_span_days is computed as: (TARGET_POINTS × multiplier) / prev_points_per_day
-_INTERVAL_BASE: list[tuple[str, float, int | None, float]] = [
-    ("5m", 78, 60, 1.0),
-    ("15m", 26, 60, 1.95),
-    ("30m", 13, 60, 1.083),
-    ("1h", 6.5, 730, 1.3),
-    ("1d", 1, None, 4.33),
-    ("1wk", 0.2, None, 3.33),
-    ("1mo", 0.048, None, 8 / 3),
-]
+# Trading minutes by exchange (yfinance exchange codes)
+# Calculated as: trading_hours × 60 - lunch_break_minutes
+EXCHANGE_TRADING_MINUTES: dict[str, int] = {
+    # Americas (no lunch break)
+    "NYQ": 390,
+    "NYSE": 390,  # NYSE: 9:30-16:00 = 6.5h
+    "NMS": 390,
+    "NGM": 390,
+    "NCM": 390,
+    "NASDAQ": 390,  # NASDAQ variants
+    "PCX": 390,
+    "NYQ ARCA": 390,  # NYSE Arca
+    "ASE": 390,
+    "AMEX": 390,  # NYSE American (AMEX)
+    "BTS": 390,  # BATS
+    "TOR": 390,
+    "TSX": 390,
+    "CNQ": 390,
+    "NEO": 390,  # Toronto: 9:30-16:00
+    "MEX": 390,  # Mexico BMV: 8:30-15:00
+    "SAO": 420,  # Brazil B3: 10:00-17:00 = 7h
+    # Europe (no lunch break, mostly 8.5h)
+    "LSE": 510,
+    "IOB": 510,  # London: 8:00-16:30
+    "AMS": 510,
+    "PAR": 510,
+    "BRU": 510,
+    "LIS": 510,  # Euronext: 9:00-17:30
+    "FRA": 510,
+    "GER": 510,
+    "XETRA": 510,
+    "STU": 510,
+    "MUN": 510,  # Germany
+    "SIX": 510,
+    "EBS": 510,
+    "VTX": 510,  # Switzerland: 9:00-17:30
+    "MCE": 510,
+    "BME": 510,  # Spain: 9:00-17:30
+    "MIL": 510,
+    "BIT": 510,  # Italy: 9:00-17:30
+    "VIE": 510,
+    "WBAG": 510,  # Austria: 9:00-17:30
+    "CPH": 510,
+    "STO": 510,
+    "HEL": 510,
+    "ICE": 510,
+    "OSL": 510,  # Nordic
+    "WSE": 510,  # Warsaw: 9:00-17:00
+    "ATH": 330,  # Athens: 10:00-17:20
+    "IST": 420,  # Istanbul: 10:00-18:00 (with breaks)
+    # Asia-Pacific (with lunch breaks)
+    "JPX": 300,
+    "TYO": 300,
+    "OSA": 300,
+    "NGO": 300,
+    "SAP": 300,
+    "FKA": 300,  # Tokyo: 9:00-15:00 - 1h lunch = 5h
+    "SHH": 240,
+    "SHG": 240,  # Shanghai: 9:30-15:00 - 1.5h lunch = 4h
+    "SHZ": 240,
+    "SZS": 240,  # Shenzhen: same as Shanghai
+    "HKG": 330,
+    "HKSE": 330,  # Hong Kong: 9:30-16:00 - 1h lunch = 5.5h
+    "KSC": 390,
+    "KOE": 390,
+    "KOSDAQ": 390,  # Korea: 9:00-15:30 = 6.5h
+    "TAI": 270,
+    "TWO": 270,  # Taiwan: 9:00-13:30 = 4.5h
+    "SGX": 420,
+    "SES": 420,  # Singapore: 9:00-17:00 - 1h lunch = 7h
+    "ASX": 360,
+    "AXS": 360,  # Australia: 10:00-16:00 = 6h
+    "NZE": 360,  # New Zealand: 10:00-16:45
+    "NSI": 375,
+    "BSE": 375,
+    "NSE": 375,  # India: 9:15-15:30 = 6.25h
+    "BKK": 330,
+    "SET": 330,  # Thailand: 10:00-16:30 - 1h lunch = 5.5h
+    "JKT": 330,
+    "IDX": 330,  # Indonesia: 9:00-16:00 - 1.5h lunch = 5.5h
+    "KLS": 330,
+    "KLSE": 330,  # Malaysia: 9:00-17:00 - 2.5h lunch = 5.5h
+    "PHS": 270,  # Philippines: 9:30-12:00, 13:30-15:30 = 4.5h
+    # Middle East
+    "SAU": 300,
+    "TADAWUL": 300,  # Saudi: 10:00-15:00 = 5h
+    "DFM": 240,
+    "ADX": 240,  # UAE: 10:00-14:00 = 4h
+    "TLV": 330,
+    "TASE": 330,  # Israel: 9:25-17:25 (Sun-Thu) = 8h but ~5.5h effective
+    # Africa
+    "JNB": 300,
+    "JSE": 300,  # Johannesburg: 9:00-17:00 but ~5h effective
+}
+
+DEFAULT_TRADING_MINUTES = 390  # US markets as fallback
+TRADING_DAYS_PER_WEEK = 5
+
+# Symbol suffix to trading minutes (for quick lookup without API call)
+SUFFIX_TRADING_MINUTES: dict[str, int] = {
+    ".T": 300,  # Tokyo
+    ".L": 510,  # London
+    ".SS": 240,  # Shanghai
+    ".SZ": 240,  # Shenzhen
+    ".HK": 330,  # Hong Kong
+    ".KS": 390,  # Korea
+    ".TW": 270,  # Taiwan
+    ".SI": 420,  # Singapore
+    ".AX": 360,  # Australia
+    ".NZ": 360,  # New Zealand
+    ".NS": 375,  # India NSE
+    ".BO": 375,  # India BSE
+    ".BK": 330,  # Thailand
+    ".JK": 330,  # Indonesia
+    ".KL": 330,  # Malaysia
+    ".TO": 390,  # Toronto
+    ".V": 390,  # TSX Venture
+    ".MX": 390,  # Mexico
+    ".SA": 420,  # Brazil
+    ".DE": 510,  # Germany
+    ".F": 510,  # Frankfurt
+    ".PA": 510,  # Paris
+    ".AS": 510,  # Amsterdam
+    ".BR": 510,  # Brussels
+    ".MI": 510,  # Milan
+    ".MC": 510,  # Madrid
+    ".SW": 510,  # Switzerland
+    ".VI": 510,  # Vienna
+    ".CO": 510,  # Copenhagen
+    ".ST": 510,  # Stockholm
+    ".HE": 510,  # Helsinki
+    ".OL": 510,  # Oslo
+    ".IS": 420,  # Istanbul
+    ".TA": 330,  # Tel Aviv
+    ".SR": 300,  # Saudi
+}
 
 
-def build_interval_config(
-    target_points: int,
-) -> list[tuple[str, float, int | None, float]]:
-    """Build interval config with min_span_days computed from target_points."""
-    result: list[tuple[str, float, int | None, float]] = []
-    for i, (interval, ppd, max_days, mult) in enumerate(_INTERVAL_BASE):
-        min_span = 0.0 if i == 0 else (target_points * mult) / _INTERVAL_BASE[i - 1][1]
-        result.append((interval, ppd, max_days, min_span))
-    return result
+def get_trading_minutes(symbol: str, exchange: str | None = None) -> int:
+    """Get trading minutes for a symbol based on its exchange.
+
+    Tries symbol suffix first (fast), then exchange code lookup.
+    Falls back to US market hours (390 min) if unknown.
+    """
+    symbol_upper = symbol.upper()
+
+    for suffix, minutes in SUFFIX_TRADING_MINUTES.items():
+        if symbol_upper.endswith(suffix.upper()):
+            return minutes
+
+    if exchange:
+        return EXCHANGE_TRADING_MINUTES.get(exchange, DEFAULT_TRADING_MINUTES)
+
+    return DEFAULT_TRADING_MINUTES
 
 
-INTERVAL_CONFIG = build_interval_config(TARGET_POINTS)
+def get_intervals(trading_minutes: int) -> list[tuple[str, float, int | None]]:
+    """Build interval config for given trading minutes."""
+    return [
+        ("5m", trading_minutes / 5, 60),
+        ("15m", trading_minutes / 15, 60),
+        ("30m", trading_minutes / 30, 60),
+        ("1h", trading_minutes / 60, 730),
+        ("1d", 1, None),
+        ("1wk", 1 / TRADING_DAYS_PER_WEEK, None),
+    ]
 
-MAX_SPAN_DAYS = int(TARGET_POINTS / _INTERVAL_BASE[-1][1])
+
+# Default intervals for US markets (used when symbol not provided)
+INTERVALS: list[tuple[str, float, int | None]] = get_intervals(DEFAULT_TRADING_MINUTES)
+
+# Max period in trading days (1wk = 5 trading days is minimum resolution)
+MAX_PERIOD_DAYS = TARGET_POINTS * TRADING_DAYS_PER_WEEK
 
 
 def select_interval(
     period: str | None = None,
     start: str | None = None,
     end: str | None = None,
-    *,
-    _config: list[tuple[str, float, int | None, float]] | None = None,
+    symbol: str | None = None,
+    exchange: str | None = None,
 ) -> str:
-    """Select optimal interval to produce approximately TARGET_POINTS data points."""
-    config = _config if _config is not None else INTERVAL_CONFIG
+    """Select the coarsest interval where bars >= TARGET_POINTS/2.
 
+    Iterates from coarsest (1wk) to finest (5m) and picks the first
+    interval that produces at least half of TARGET_POINTS bars while
+    respecting Yahoo API limits.
+
+    Trading hours are determined by the symbol's exchange (via suffix or
+    exchange code). Falls back to US market hours if unknown.
+    """
     if start:
         start_date = pd.to_datetime(start)
         end_date = pd.to_datetime(end) if end else pd.Timestamp.now()
-        span_days = float((end_date - start_date).days)
+        calendar_days = float((end_date - start_date).days)
     elif period:
-        span_days = float(PERIOD_TO_DAYS.get(period, 90))
+        calendar_days = float(PERIOD_TO_DAYS.get(period, 90))
     else:
-        span_days = 90.0
+        calendar_days = 90.0
 
-    for interval, _ppd, max_days, min_span in reversed(config):
-        if span_days >= min_span:
-            if max_days is None or span_days <= max_days:
-                return interval
-    return "5m"
+    trading_days = calendar_days * TRADING_DAYS_PER_WEEK / 7
+
+    if symbol:
+        trading_minutes = get_trading_minutes(symbol, exchange)
+        intervals = get_intervals(trading_minutes)
+    else:
+        intervals = INTERVALS
+
+    min_bars = TARGET_POINTS / 2
+
+    for interval, ppd, max_days in reversed(intervals):
+        if max_days is not None and calendar_days > max_days:
+            continue
+        if trading_days * ppd >= min_bars:
+            return interval
+
+    return intervals[0][0]
 
 
 class DateRangeExceededError(Exception):
-    """Raised when requested date range exceeds MAX_SPAN_DAYS."""
+    """Raised when requested date range exceeds MAX_PERIOD_DAYS (in trading days)."""
 
     def __init__(
         self,
-        requested_days: int,
-        max_days: int,
+        requested_trading_days: int,
+        max_trading_days: int,
         start_date: date | None = None,
         end_date: date | None = None,
     ):
-        self.requested_days = requested_days
-        self.max_days = max_days
+        self.requested_days = requested_trading_days
+        self.max_days = max_trading_days
 
-        max_years = round(max_days / 365, 1)
-        num_calls = math.ceil(requested_days / max_days)
+        max_weeks = max_trading_days // TRADING_DAYS_PER_WEEK
+        max_calendar_days = int(max_trading_days * 7 / TRADING_DAYS_PER_WEEK)
+        max_years = round(max_calendar_days / 365, 1)
+        num_calls = math.ceil(requested_trading_days / max_trading_days)
 
-        # Build actionable message with specific date ranges
         msg_parts = [
-            f"Date range too long: {requested_days} days exceeds {max_days}-day limit "
+            f"Date range too long: exceeds {max_weeks}-week limit "
             f"(~{max_years} years, derived from YFINANCE_TARGET_POINTS={TARGET_POINTS})."
         ]
 
         if start_date and end_date and num_calls > 1:
             msg_parts.append(f"Split into {num_calls} sequential requests:")
-            chunk_days = max_days
+            chunk_calendar_days = max_calendar_days
             current = start_date
             for i in range(num_calls):
-                chunk_end = min(current + timedelta(days=chunk_days), end_date)
+                chunk_end = min(current + timedelta(days=chunk_calendar_days), end_date)
                 msg_parts.append(
                     f"  {i + 1}. start={current.isoformat()}, end={chunk_end.isoformat()}"
                 )
@@ -780,7 +925,7 @@ class DateRangeExceededError(Exception):
                     break
         else:
             msg_parts.append(
-                f"Use period='5y' or split into {num_calls} requests of ~{max_years} years each."
+                f"Use period='3y' or split into {num_calls} requests of ~{max_years} years each."
             )
 
         super().__init__(" ".join(msg_parts))
@@ -791,18 +936,20 @@ def validate_date_range(
     start: str | None = None,
     end: str | None = None,
 ) -> None:
-    """Validate that date range does not exceed MAX_SPAN_DAYS."""
+    """Validate that date range does not exceed MAX_PERIOD_DAYS (in trading days)."""
     if start:
         start_date = pd.to_datetime(start).date()
         end_date = pd.to_datetime(end).date() if end else date.today()
-        span_days = (end_date - start_date).days
+        calendar_days = (end_date - start_date).days
+        trading_days = int(calendar_days * TRADING_DAYS_PER_WEEK / 7)
 
-        if span_days > MAX_SPAN_DAYS:
-            raise DateRangeExceededError(span_days, MAX_SPAN_DAYS, start_date, end_date)
+        if trading_days > MAX_PERIOD_DAYS:
+            raise DateRangeExceededError(trading_days, MAX_PERIOD_DAYS, start_date, end_date)
     elif period:
-        period_days = PERIOD_TO_DAYS.get(period, 90)
-        if period_days > MAX_SPAN_DAYS:
-            raise DateRangeExceededError(period_days, MAX_SPAN_DAYS)
+        calendar_days = PERIOD_TO_DAYS.get(period, 90)
+        trading_days = int(calendar_days * TRADING_DAYS_PER_WEEK / 7)
+        if trading_days > MAX_PERIOD_DAYS:
+            raise DateRangeExceededError(trading_days, MAX_PERIOD_DAYS)
 
 
 def auto_downsample(

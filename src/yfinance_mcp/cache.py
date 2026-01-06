@@ -11,7 +11,13 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
-from .helpers import MAX_SPAN_DAYS, OHLCV_COLS_TO_SHORT, PERIOD_DELTAS, normalize_tz
+from .helpers import (
+    MAX_PERIOD_DAYS,
+    OHLCV_COLS_TO_SHORT,
+    PERIOD_DELTAS,
+    TRADING_DAYS_PER_WEEK,
+    normalize_tz,
+)
 
 logger = logging.getLogger("yfinance_mcp.cache")
 
@@ -400,9 +406,14 @@ class CachedPriceFetcher:
         return gaps
 
     def _merge_gaps(
-        self, gaps: list[tuple[date, date]], max_days: int = MAX_SPAN_DAYS
+        self,
+        gaps: list[tuple[date, date]],
+        max_days: int = int(MAX_PERIOD_DAYS * 7 / TRADING_DAYS_PER_WEEK),
     ) -> list[tuple[date, date]]:
-        """Merge consecutive gaps to reduce API calls."""
+        """Merge consecutive gaps to reduce API calls.
+
+        max_days is in calendar days (default: MAX_PERIOD_DAYS converted from trading days).
+        """
         if not gaps:
             return []
 

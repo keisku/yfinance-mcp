@@ -27,7 +27,6 @@ from .errors import (
     ValidationError,
 )
 from .helpers import (
-    MAX_SPAN_DAYS,
     OHLCV_COLS_TO_SHORT,
     TARGET_POINTS,
     DateRangeExceededError,
@@ -274,7 +273,7 @@ TOOLS = [
         name="history",
         description=(
             f"Historical OHLCV bars. Returns ~{TARGET_POINTS} data points. "
-            f"Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
+            f"Max range: {TARGET_POINTS} weeks (~{round(TARGET_POINTS / 52, 1)} years). "
             "For longer periods, split into multiple sequential requests. "
             "Columns: o/h/l/c (price-only), ac (adjusted close for total return "
             "with dividends/splits), v (volume). "
@@ -286,7 +285,7 @@ TOOLS = [
                 "symbol": {"type": "string", "description": "Stock ticker"},
                 "period": {
                     "type": "string",
-                    "enum": get_valid_periods(MAX_SPAN_DAYS),
+                    "enum": get_valid_periods(),
                     "description": "Relative period. Ignored if start provided.",
                 },
                 "start": {
@@ -305,7 +304,7 @@ TOOLS = [
         name="technicals",
         description=(
             f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points. "
-            f"Max range: {MAX_SPAN_DAYS} days (~{round(MAX_SPAN_DAYS / 365, 1)} years). "
+            f"Max range: {TARGET_POINTS} weeks (~{round(TARGET_POINTS / 52, 1)} years). "
             "For longer periods, split into multiple sequential requests. "
             "Uses Adj Close for calculations (falls back to Close for indices). "
             "trend: SMA50-based trend direction. "
@@ -340,7 +339,7 @@ TOOLS = [
                 },
                 "period": {
                     "type": "string",
-                    "enum": get_valid_periods(MAX_SPAN_DAYS),
+                    "enum": get_valid_periods(),
                     "description": "Relative period. Ignored if start provided.",
                 },
                 "start": {
@@ -609,15 +608,17 @@ def _handle_history(args: dict) -> str:
 
     validate_date_range(period, start, end)
 
-    interval = select_interval(period, start, end)
+    exchange = safe_get(t.info, "exchange") if t else None
+    interval = select_interval(period, start, end, symbol=symbol, exchange=exchange)
 
     logger.debug(
-        "price_fetch symbol=%s start=%s end=%s period=%s interval=%s",
+        "price_fetch symbol=%s start=%s end=%s period=%s interval=%s exchange=%s",
         symbol,
         start,
         end,
         period,
         interval,
+        exchange,
     )
 
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
@@ -775,16 +776,17 @@ def _handle_technicals(args: dict) -> str:
     if "all" in inds:
         inds = ALL_INDICATORS
 
-    interval = select_interval(period, start, end)
+    exchange = safe_get(t.info, "exchange") if t else None
+    interval = select_interval(period, start, end, symbol=symbol, exchange=exchange)
 
     logger.debug(
-        "technicals_fetch symbol=%s period=%s start=%s end=%s interval=%s indicators=%s",
+        "technicals_fetch symbol=%s period=%s start=%s end=%s interval=%s exchange=%s",
         symbol,
         period,
         start,
         end,
         interval,
-        inds,
+        exchange,
     )
 
     df = history.get_history(symbol, period, interval, ticker=t, start=start, end=end)
