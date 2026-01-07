@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767706905940,
+  "lastUpdate": 1767776054538,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -4926,6 +4926,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00016640994620119158",
             "extra": "mean: 22.309651086958556 msec\nrounds: 46"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "07270e81f48c74ba96d3265a482819abe8ca29d7",
+          "message": "fix(interval): Use trading days consistently for interval selection\n\nConvert calendar days to trading days (× 5/7) when calculating bar\ncounts for interval selection and period validation. This fixes\nincorrect interval selection where weekly PPD was assumed to be 1/5\nbut calculations used calendar days.\n\nKey changes:\n- MAX_PERIOD_DAYS now represents trading days (1000) not calendar days\n- select_interval() converts calendar to trading days for bar count\n- validate_date_range() uses trading days for limit checks\n- _merge_gaps() converts MAX_PERIOD_DAYS back to calendar days\n- get_valid_periods() compares against trading days\n\nYahoo API limits (max_days in interval config) remain in calendar days\nas that's what the API enforces.",
+          "timestamp": "2026-01-07T17:47:53+09:00",
+          "tree_id": "0deb7db13f09005962e61aa5f400224968970148",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/07270e81f48c74ba96d3265a482819abe8ca29d7"
+        },
+        "date": 1767776054104,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 255.79914609030124,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000982154061613135",
+            "extra": "mean: 3.9093171939166047 msec\nrounds: 263"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 249.62687811182354,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001806420963037751",
+            "extra": "mean: 4.005978873605259 msec\nrounds: 269"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 251.81640322438443,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00021230888753315258",
+            "extra": "mean: 3.971147181817764 msec\nrounds: 264"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 92.36142167639811,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013397671180533083",
+            "extra": "mean: 10.82703126315712 msec\nrounds: 95"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 291.1287734505666,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010700427167811366",
+            "extra": "mean: 3.4349061006496457 msec\nrounds: 308"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 296.125632831905,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006588931715230288",
+            "extra": "mean: 3.3769450838713695 msec\nrounds: 310"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.599524261418685,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0019016605516612908",
+            "extra": "mean: 116.28550249999847 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 43.78198794130233,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005117938271748415",
+            "extra": "mean: 22.840442999999926 msec\nrounds: 45"
           }
         ]
       }
