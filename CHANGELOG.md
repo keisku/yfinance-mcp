@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.1] - 2026-01-07
+
+### Fixed
+
+- Use trading days consistently for interval selection ([07270e8](https://github.com/keisku/yfinance-mcp/commit/07270e81f48c74ba96d3265a482819abe8ca29d7))
+  Convert calendar days to trading days (× 5/7) when calculating bar
+  counts for interval selection and period validation. This fixes
+  incorrect interval selection where weekly PPD was assumed to be 1/5
+  but calculations used calendar days.
+  Key changes:
+  - MAX_PERIOD_DAYS now represents trading days (1000) not calendar days
+  - select_interval() converts calendar to trading days for bar count
+  - validate_date_range() uses trading days for limit checks
+  - _merge_gaps() converts MAX_PERIOD_DAYS back to calendar days
+  - get_valid_periods() compares against trading days
+  Yahoo API limits (max_days in interval config) remain in calendar days
+  as that's what the API enforces.
+
+
 ## [0.3.0] - 2026-01-06
 
 ### Added
