@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0] - 2026-01-08
+
+### Added
+
+- add expense_ratio for ETFs and mutual funds ([531fef3](https://github.com/keisku/yfinance-mcp/commit/531fef336364a944f2ffe6b759207971fe688937))
+  - Add expense_ratio field to search_stock response for ETF/MUTUALFUND quote types
+  - Implement Yahoo Finance Japan scraping fallback for JPX ETFs lacking netExpenseRatio
+  - Add etf_expense table to DuckDB cache with 1-day TTL
+  - Include retry logic with UA rotation for web scraping robustness
+  - Add comprehensive tests for fetch_japan_etf_expense helper
+
+### Documentation
+
+- Clarify time range limit in history and technicals ([94a223a](https://github.com/keisku/yfinance-mcp/commit/94a223a0dffbf268277916caeeb090d8af52a1c0))
+  State the threshold explicitly in the split instruction rather than
+  repeating the max range twice.
+
+### Miscellaneous
+
+- Fix uv deprecation and urllib3 CVE ([8441da9](https://github.com/keisku/yfinance-mcp/commit/8441da93547a31cc6610415f5590c4fe0f07b29f))
+- Set explicit PyPI index URL for uv ([54ddece](https://github.com/keisku/yfinance-mcp/commit/54ddece0c02090f27f4227df021c9bc45ac6e3b8))
+  Ensures consistent package resolution by explicitly specifying the
+  default PyPI index in uv configuration.
+
+
 ## [0.3.1] - 2026-01-07
 
 ### Fixed
