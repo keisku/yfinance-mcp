@@ -309,20 +309,18 @@ TOOLS = [
             f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
             "split into multiple sequential requests. "
             "Uses Adj Close for calculations (falls back to Close for indices). "
-            "trend: SMA50-based trend direction. "
-            "rsi: >70 overbought, <30 oversold. "
-            "macd: histogram>0 bullish. "
-            "sma_N, ema_N, wma_N: moving averages. "
-            "bb: Bollinger Bands. "
-            "stoch, fast_stoch: Stochastic oscillators, >80 overbought, <20 oversold. "
-            "cci: >100 overbought, <-100 oversold. "
-            "dmi: ADX>25 strong trend. "
-            "williams: >-20 overbought, <-80 oversold. "
-            "ichimoku: cloud analysis. "
-            "atr: volatility. obv: volume trend. "
-            "momentum, price_change: rate of change. "
-            "volume_profile: price-level activity. "
-            "fibonacci, pivot: support/resistance levels."
+            "Indicators organized by category: "
+            "TREND (trend, dmi, ichimoku): trend=SMA50 direction, dmi=ADX>25 strong trend, "
+            "ichimoku=cloud analysis. "
+            "MOMENTUM (rsi, macd, stoch, fast_stoch, cci, williams, momentum): "
+            "rsi>70 overbought/<30 oversold, macd histogram>0 bullish, "
+            "stoch/fast_stoch>80 overbought/<20 oversold, "
+            "cci>100 overbought/<-100 oversold, williams>-20 overbought/<-80 oversold. "
+            "VOLATILITY (bb, atr): bb=Bollinger Bands, atr=volatility measure. "
+            "VOLUME (obv, volume_profile): obv=volume trend, volume_profile=price-level activity. "
+            "MOVING_AVERAGES (sma_N, ema_N, wma_N): N=9,12,20,26,50,100,200. "
+            "SUPPORT_RESISTANCE (fibonacci, pivot): key price levels. "
+            "PRICE (price_change): rate of change."
         ),
         inputSchema={
             "type": "object",
@@ -664,33 +662,51 @@ def _handle_history(args: dict) -> str:
     return fmt_toon(df, wrapper_key="bars", issues=issues)
 
 
+# Categorized technical indicators
+INDICATOR_CATEGORIES = {
+    "trend": {
+        "description": "Trend Direction & Strength",
+        "indicators": ["trend", "dmi", "ichimoku"],
+    },
+    "momentum": {
+        "description": "Momentum Oscillators",
+        "indicators": ["rsi", "macd", "stoch", "fast_stoch", "cci", "williams", "momentum"],
+    },
+    "volatility": {
+        "description": "Volatility & Risk Measures",
+        "indicators": ["bb", "atr"],
+    },
+    "volume": {
+        "description": "Volume Analysis",
+        "indicators": ["obv", "volume_profile"],
+    },
+    "moving_averages": {
+        "description": "Moving Averages",
+        "indicators": [
+            "sma_20",
+            "sma_50",
+            "sma_100",
+            "sma_200",
+            "ema_9",
+            "ema_12",
+            "ema_26",
+            "ema_50",
+            "wma_20",
+        ],
+    },
+    "support_resistance": {
+        "description": "Support & Resistance Levels",
+        "indicators": ["fibonacci", "pivot"],
+    },
+    "price": {
+        "description": "Price Analysis",
+        "indicators": ["price_change"],
+    },
+}
+
+# Flat list of all indicators for backward compatibility
 ALL_INDICATORS = [
-    "trend",
-    "rsi",
-    "macd",
-    "bb",
-    "stoch",
-    "fast_stoch",
-    "cci",
-    "dmi",
-    "williams",
-    "ichimoku",
-    "atr",
-    "obv",
-    "momentum",
-    "volume_profile",
-    "price_change",
-    "fibonacci",
-    "pivot",
-    "sma_20",
-    "sma_50",
-    "sma_100",
-    "sma_200",
-    "ema_9",
-    "ema_12",
-    "ema_26",
-    "ema_50",
-    "wma_20",
+    ind for category in INDICATOR_CATEGORIES.values() for ind in category["indicators"]
 ]
 
 ALL_METRICS = [
