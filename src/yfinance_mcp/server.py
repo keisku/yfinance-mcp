@@ -35,6 +35,7 @@ from .helpers import (
     calculate_quality,
     configure_logging,
     err,
+    fetch_japan_etf_expense,
     fmt,
     fmt_toon,
     fmt_toon_dict,
@@ -236,8 +237,9 @@ TOOLS = [
         name="search_stock",
         description=(
             "Find stock by symbol or company name. "
-            "Returns identity (name, sector, industry, exchange, currency, quote_type) "
-            "and current price snapshot (price, change, change_pct, market_cap, volume)."
+            "Returns identity (name, sector, industry, exchange, currency, quote_type), "
+            "current price snapshot (price, change, change_pct, market_cap, volume), "
+            "and expense_ratio for ETFs/mutual funds where available."
         ),
         inputSchema={
             "type": "object",
@@ -592,6 +594,17 @@ def _handle_search_stock(args: dict) -> str:
         "volume": int(volume) if volume else None,
         "market_cap": int(market_cap) if market_cap else None,
     }
+
+    quote_type = safe_get(info, "quoteType")
+    if quote_type in ("ETF", "MUTUALFUND"):
+        expense_ratio = safe_get(info, "netExpenseRatio")
+
+        if expense_ratio is None and safe_get(info, "exchange") == "JPX":
+            expense_ratio = fetch_japan_etf_expense(symbol, logger)
+
+        if expense_ratio is not None:
+            result["expense_ratio"] = expense_ratio
+
     return fmt({k: v for k, v in result.items() if v is not None})
 
 

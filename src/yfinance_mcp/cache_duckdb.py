@@ -62,6 +62,15 @@ class DuckDBCacheBackend:
             CREATE INDEX IF NOT EXISTS idx_prices_symbol_interval_date 
             ON prices (symbol, interval, date)
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS etf_expense (
+                symbol VARCHAR PRIMARY KEY,
+                exchange VARCHAR,
+                expense_ratio DOUBLE,
+                source VARCHAR NOT NULL,
+                fetched_at DATE NOT NULL
+            )
+        """)
         logger.debug("duckdb_schema_ready")
 
     def get_prices(self, symbol: str, start: date, end: date, interval: str = "1d") -> pd.DataFrame:
@@ -162,6 +171,59 @@ class DuckDBCacheBackend:
         else:
             conn.execute("DELETE FROM prices")
             logger.info("duckdb_clear all=true")
+
+    def get_etf_expense(self, symbol: str, ttl_days: int = 1) -> tuple[float | None, bool]:
+        """Get cached ETF expense ratio if not expired.
+
+        Returns:
+            Tuple of (expense_ratio, found). If found is False, cache miss.
+            If found is True but expense_ratio is None, the value was cached as unavailable.
+        """
+        conn = self._get_conn()
+        result = conn.execute(
+            """
+            SELECT expense_ratio, fetched_at FROM etf_expense
+            WHERE symbol = ?
+            """,
+            [symbol.upper()],
+        ).fetchone()
+
+        if result is None:
+            logger.debug("duckdb_etf_expense_miss symbol=%s", symbol.upper())
+            return None, False
+
+        expense_ratio, fetched_at = result
+        if (date.today() - fetched_at).days >= ttl_days:
+            conn.execute("DELETE FROM etf_expense WHERE symbol = ?", [symbol.upper()])
+            logger.debug("duckdb_etf_expense_expired symbol=%s", symbol.upper())
+            return None, False
+
+        logger.debug("duckdb_etf_expense_hit symbol=%s value=%s", symbol.upper(), expense_ratio)
+        return expense_ratio, True
+
+    def store_etf_expense(
+        self,
+        symbol: str,
+        expense_ratio: float | None,
+        exchange: str | None = None,
+        source: str = "yahoo_japan",
+    ) -> None:
+        """Store ETF expense ratio in cache."""
+        conn = self._get_conn()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO etf_expense (symbol, exchange, expense_ratio, source, fetched_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [symbol.upper(), exchange, expense_ratio, source, date.today()],
+        )
+        logger.debug(
+            "duckdb_etf_expense_store symbol=%s exchange=%s value=%s source=%s",
+            symbol.upper(),
+            exchange,
+            expense_ratio,
+            source,
+        )
 
     def close(self) -> None:
         """Close database connection."""

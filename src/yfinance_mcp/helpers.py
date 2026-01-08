@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import platform
+import re
 import sys
 import tempfile
 from datetime import date, timedelta
@@ -13,9 +14,11 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import requests
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 from toon_format import encode as toon_encode
+from yfinance.const import USER_AGENTS
 
 from . import LOGGER_NAME
 from .errors import MCPError
@@ -1121,3 +1124,87 @@ def lttb_downsample(df: pd.DataFrame, target_points: int | None = None) -> pd.Da
     indices = _lttb_indices(ref_data, target_points)
 
     return df.iloc[indices]
+
+
+def fetch_japan_etf_expense(symbol: str, logger: logging.Logger | None = None) -> float | None:
+    """Fetch expense ratio from Yahoo Finance Japan for Japanese ETFs.
+
+    Scrapes the trust fee (信託報酬) from the Yahoo Finance Japan page.
+    Results are cached in DuckDB with 1-day TTL to avoid excessive requests.
+
+    Args:
+        symbol: Stock symbol (e.g., "282A.T" or "282A")
+        logger: Optional logger for debug output
+
+    Returns:
+        Expense ratio as a decimal (e.g., 0.11 for 0.11%), or None if unavailable
+    """
+    # cache_duckdb imports helpers, so import here to avoid circular dependency
+    from .cache_duckdb import DuckDBCacheBackend
+
+    code = symbol.upper().replace(".T", "")
+    cache_key = f"{code}.T"
+
+    cache = DuckDBCacheBackend()
+    try:
+        cached_value, found = cache.get_etf_expense(cache_key)
+        if found:
+            if logger:
+                logger.debug("japan_etf_expense_cache_hit symbol=%s value=%s", symbol, cached_value)
+            return cached_value
+
+        url = f"https://finance.yahoo.co.jp/quote/{code}.T"
+        max_retries = min(3, len(USER_AGENTS))
+
+        for attempt in range(max_retries):
+            ua = USER_AGENTS[attempt % len(USER_AGENTS)]
+            headers = {"User-Agent": ua}
+
+            try:
+                resp = requests.get(url, headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    text = resp.text
+                    match = re.search(r"信託報酬.*?>(\d+\.\d+)%?<", text, re.DOTALL)
+                    if match:
+                        expense_ratio = float(match.group(1))
+                        cache.store_etf_expense(
+                            cache_key, expense_ratio, exchange="JPX", source="yahoo_japan"
+                        )
+                        if logger:
+                            logger.debug(
+                                "japan_etf_expense_fetched symbol=%s value=%s",
+                                symbol,
+                                expense_ratio,
+                            )
+                        return expense_ratio
+
+                    if logger:
+                        logger.debug("japan_etf_expense_not_found symbol=%s", symbol)
+                    cache.store_etf_expense(cache_key, None, exchange="JPX", source="yahoo_japan")
+                    return None
+
+                if logger:
+                    logger.debug(
+                        "japan_etf_expense_retry symbol=%s status=%d attempt=%d/%d",
+                        symbol,
+                        resp.status_code,
+                        attempt + 1,
+                        max_retries,
+                    )
+
+            except requests.RequestException as e:
+                if logger:
+                    logger.debug(
+                        "japan_etf_expense_retry symbol=%s error=%s attempt=%d/%d",
+                        symbol,
+                        e,
+                        attempt + 1,
+                        max_retries,
+                    )
+
+        if logger:
+            logger.warning("japan_etf_expense_failed symbol=%s attempts=%d", symbol, max_retries)
+        cache.store_etf_expense(cache_key, None, exchange="JPX", source="yahoo_japan")
+        return None
+    finally:
+        cache.close()
