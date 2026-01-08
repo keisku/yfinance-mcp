@@ -13,6 +13,7 @@ dependencies = [
     "duckdb>=1.4.3",
     "holidays>=0.87",
     "toon-format @ git+https://github.com/toon-format/toon-python.git",
+    "urllib3>=2.6.3",
 ]
 
 [project.scripts]
@@ -30,7 +31,9 @@ packages = ["src/yfinance_mcp"]
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
-dev-dependencies = [
+
+[dependency-groups]
+dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "mypy>=1.19.1",
