@@ -275,8 +275,8 @@ TOOLS = [
         name="history",
         description=(
             f"Historical OHLCV bars. Returns ~{TARGET_POINTS} data points. "
-            f"Max range: {TARGET_POINTS} weeks (~{round(TARGET_POINTS / 52, 1)} years). "
-            "For longer periods, split into multiple sequential requests. "
+            f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
+            "split into multiple sequential requests. "
             "Columns: o/h/l/c (price-only), ac (adjusted close for total return "
             "with dividends/splits), v (volume). "
             "For indices, ac may equal c if adjustment data unavailable."
@@ -306,8 +306,8 @@ TOOLS = [
         name="technicals",
         description=(
             f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points. "
-            f"Max range: {TARGET_POINTS} weeks (~{round(TARGET_POINTS / 52, 1)} years). "
-            "For longer periods, split into multiple sequential requests. "
+            f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
+            "split into multiple sequential requests. "
             "Uses Adj Close for calculations (falls back to Close for indices). "
             "trend: SMA50-based trend direction. "
             "rsi: >70 overbought, <30 oversold. "
