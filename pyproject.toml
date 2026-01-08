@@ -29,6 +29,7 @@ allow-direct-references = true
 packages = ["src/yfinance_mcp"]
 
 [tool.uv]
+index-url = "https://pypi.org/simple"
 dev-dependencies = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
