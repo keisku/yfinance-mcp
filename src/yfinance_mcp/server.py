@@ -309,20 +309,17 @@ TOOLS = [
             f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
             "split into multiple sequential requests. "
             "Uses Adj Close for calculations (falls back to Close for indices). "
-            "trend: SMA50-based trend direction. "
-            "rsi: >70 overbought, <30 oversold. "
-            "macd: histogram>0 bullish. "
-            "sma_N, ema_N, wma_N: moving averages. "
-            "bb: Bollinger Bands. "
-            "stoch, fast_stoch: Stochastic oscillators, >80 overbought, <20 oversold. "
-            "cci: >100 overbought, <-100 oversold. "
-            "dmi: ADX>25 strong trend. "
-            "williams: >-20 overbought, <-80 oversold. "
-            "ichimoku: cloud analysis. "
-            "atr: volatility. obv: volume trend. "
-            "momentum, price_change: rate of change. "
-            "volume_profile: price-level activity. "
-            "fibonacci, pivot: support/resistance levels."
+            "TREND: trend (SMA50-based direction), macd (histogram>0 bullish), "
+            "dmi (ADX>25 strong trend), ichimoku (cloud analysis). "
+            "MOMENTUM: rsi (>70 overbought, <30 oversold), "
+            "stoch/fast_stoch (>80 overbought, <20 oversold), "
+            "cci (>100 overbought, <-100 oversold), "
+            "williams (>-20 overbought, <-80 oversold), momentum. "
+            "VOLATILITY: bb (Bollinger Bands), atr. "
+            "VOLUME: obv (volume trend), volume_profile (price-level activity). "
+            "MOVING_AVERAGES: sma_N, ema_N, wma_N. "
+            "SUPPORT_RESISTANCE: fibonacci, pivot. "
+            "PRICE: price_change (rate of change)."
         ),
         inputSchema={
             "type": "object",
@@ -664,34 +661,27 @@ def _handle_history(args: dict) -> str:
     return fmt_toon(df, wrapper_key="bars", issues=issues)
 
 
-ALL_INDICATORS = [
-    "trend",
-    "rsi",
-    "macd",
-    "bb",
-    "stoch",
-    "fast_stoch",
-    "cci",
-    "dmi",
-    "williams",
-    "ichimoku",
-    "atr",
-    "obv",
-    "momentum",
-    "volume_profile",
-    "price_change",
-    "fibonacci",
-    "pivot",
-    "sma_20",
-    "sma_50",
-    "sma_100",
-    "sma_200",
-    "ema_9",
-    "ema_12",
-    "ema_26",
-    "ema_50",
-    "wma_20",
-]
+INDICATOR_CATEGORIES: dict[str, list[str]] = {
+    "trend": ["trend", "macd", "dmi", "ichimoku"],
+    "momentum": ["rsi", "stoch", "fast_stoch", "cci", "williams", "momentum"],
+    "volatility": ["bb", "atr"],
+    "volume": ["obv", "volume_profile"],
+    "moving_averages": [
+        "sma_20",
+        "sma_50",
+        "sma_100",
+        "sma_200",
+        "ema_9",
+        "ema_12",
+        "ema_26",
+        "ema_50",
+        "wma_20",
+    ],
+    "support_resistance": ["fibonacci", "pivot"],
+    "price": ["price_change"],
+}
+
+ALL_INDICATORS = [ind for inds in INDICATOR_CATEGORIES.values() for ind in inds]
 
 ALL_METRICS = [
     "pe",
