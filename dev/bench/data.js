@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767917990124,
+  "lastUpdate": 1767965115957,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5326,6 +5326,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0005606887248299816",
             "extra": "mean: 22.56042893333314 msec\nrounds: 45"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "c32f6bf58be758f22c2edbb606909e516dcf55e5",
+          "message": "feat(transport): Add Streamable HTTP transport support\n\nAdd MCP Streamable HTTP transport as an alternative to stdio,\nselectable via YFINANCE_TRANSPORT environment variable.\n\n- Add MCPEndpoint ASGI class wrapping StreamableHTTPSessionManager\n- Add create_starlette_app() factory with lifecycle callbacks\n- Export reusable components from __init__.py for yfinance-mcp-aws\n- Use port 9246 by default (Y=9, A=2, H=4, O=6 → \"YAHO\")\n- Add starlette, uvicorn, sse-starlette dependencies\n\nNew environment variables:\n- YFINANCE_TRANSPORT: \"stdio\" (default) or \"http\"\n- YFINANCE_HTTP_HOST: HTTP server host (default: 127.0.0.1)\n- YFINANCE_HTTP_PORT: HTTP server port (default: 9246)",
+          "timestamp": "2026-01-09T22:23:47+09:00",
+          "tree_id": "f5338253f36b859e3865df40ee1872c59bff9b1f",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/c32f6bf58be758f22c2edbb606909e516dcf55e5"
+        },
+        "date": 1767965115502,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 225.24950082113486,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004225042912255967",
+            "extra": "mean: 4.439521492187792 msec\nrounds: 256"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 230.44281441989088,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003615509236907905",
+            "extra": "mean: 4.339471389105219 msec\nrounds: 257"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 240.43996861811254,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00024877743313237236",
+            "extra": "mean: 4.159042299611534 msec\nrounds: 257"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 86.752923615016,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004551825828128668",
+            "extra": "mean: 11.526989043478308 msec\nrounds: 92"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 273.95691413460816,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00029613908351237546",
+            "extra": "mean: 3.6502090234110756 msec\nrounds: 299"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 280.57921769520647,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00027310316732488134",
+            "extra": "mean: 3.5640558421055304 msec\nrounds: 304"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.302632915922546,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0020245666027731628",
+            "extra": "mean: 120.4437206999998 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 39.237022948919815,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0027412611867425082",
+            "extra": "mean: 25.48613337209187 msec\nrounds: 43"
           }
         ]
       }
