@@ -308,7 +308,6 @@ TOOLS = [
             f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points. "
             f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
             "split into multiple sequential requests. "
-            "Uses Adj Close for calculations (falls back to Close for indices). "
             "TREND: trend (SMA50-based direction), macd (histogram>0 bullish), "
             "dmi (ADX>25 strong trend), ichimoku (cloud analysis). "
             "MOMENTUM: rsi (>70 overbought, <30 oversold), "
