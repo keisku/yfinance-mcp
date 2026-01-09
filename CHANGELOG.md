@@ -5,7 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [0.4.0] - 2026-01-08
 
 ### Added
@@ -30,7 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Ensures consistent package resolution by explicitly specifying the
   default PyPI index in uv configuration.
 
-
 ## [0.3.1] - 2026-01-07
 
 ### Fixed
@@ -48,7 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - get_valid_periods() compares against trading days
   Yahoo API limits (max_days in interval config) remain in calendar days
   as that's what the API enforces.
-
 
 ## [0.3.0] - 2026-01-06
 

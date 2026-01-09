@@ -6,7 +6,6 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 """
 body = """
 {% if version -%}
@@ -16,14 +15,14 @@ body = """
 {% endif -%}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim | upper_first }}
-{% for commit in commits %}
+{% for commit in commits -%}
 - {% if commit.breaking %}**BREAKING**: {% endif %}{{ commit.message | split(pat="\n") | first | trim }}\
 {% if commit.remote.pr_number %} ([#{{ commit.remote.pr_number }}](https://github.com/keisku/yfinance-mcp/pull/{{ commit.remote.pr_number }})){% endif %}\
 {% if not commit.remote.pr_number %} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/keisku/yfinance-mcp/commit/{{ commit.id }})){% endif %}\
 {% if commit.body %}{% for line in commit.body | split(pat="\n") %}{% if line | trim | length > 0 %}
   {{ line | trim }}{% endif %}{% endfor %}{% endif %}
-{%- endfor %}
-{% endfor %}
+{% endfor -%}
+{% endfor -%}
 """
 footer = ""
 trim = false
