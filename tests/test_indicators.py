@@ -98,6 +98,13 @@ class TestErrorHandling:
         with pytest.raises(CalculationError):
             calculate_price_change(close, period=1)
 
+    def test_price_change_division_by_zero(self) -> None:
+        """Price Change should return None for change_pct when previous price is 0."""
+        close = pd.Series([0.0, 100.0])
+        result = calculate_price_change(close, period=1)
+        assert result["change"] == 100.0
+        assert result["change_pct"] is None
+
 
 class TestFibonacci:
     """Test Fibonacci retracement levels (not in pandas-ta)."""

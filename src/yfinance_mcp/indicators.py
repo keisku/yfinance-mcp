@@ -544,7 +544,7 @@ def calculate_volume_profile(
     }
 
 
-def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float]:
+def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float | None]:
     """Calculate Price Change over a period.
 
     Simple indicator measuring the absolute and percentage change in price over N periods.
@@ -570,7 +570,7 @@ def calculate_price_change(close: pd.Series, period: int = 1) -> dict[str, float
     current = float(close.iloc[-1])
     previous = float(close.iloc[-1 - period])
     change = current - previous
-    change_pct = (change / previous) * 100 if previous != 0 else 0
+    change_pct = (change / previous) * 100 if previous != 0 else None
 
     return {"change": change, "change_pct": change_pct}
 

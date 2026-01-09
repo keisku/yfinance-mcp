@@ -921,8 +921,8 @@ def _handle_technicals(args: dict) -> str:
             elif ind == "price_change":
                 pc = indicators.calculate_price_change(price)
                 summaries["price_change"] = {
-                    "change": round(pc["change"], 2),
-                    "change_pct": round(pc["change_pct"], 2),
+                    "change": round(pc["change"], 2) if pc["change"] is not None else None,
+                    "change_pct": round(pc["change_pct"], 2) if pc["change_pct"] is not None else None,
                 }
 
             elif ind == "fibonacci":
