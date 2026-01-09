@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767917190957,
+  "lastUpdate": 1767917990124,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5246,6 +5246,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0007649956954750576",
             "extra": "mean: 24.73707530232451 msec\nrounds: 43"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "37f00d338c24bdaf7fc41cae603ce0786b2a0824",
+          "message": "ci(changelog): Remove extra blank lines from git-cliff output\n\nAdjust Jinja2 whitespace control in cliff.toml template to eliminate\nunwanted blank lines between version sections and after group headers.",
+          "timestamp": "2026-01-09T09:18:24+09:00",
+          "tree_id": "35dfbb5ae15d4f0d856725b89d71d980af3bfdd2",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/37f00d338c24bdaf7fc41cae603ce0786b2a0824"
+        },
+        "date": 1767917989618,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 265.99103275382146,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004878787329939396",
+            "extra": "mean: 3.759525235294358 msec\nrounds: 272"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 266.4357024374959,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000432903591177845",
+            "extra": "mean: 3.753250749998843 msec\nrounds: 272"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 261.6597815498532,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004792935994890674",
+            "extra": "mean: 3.8217566111109558 msec\nrounds: 270"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 93.96185338785628,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000575183670745181",
+            "extra": "mean: 10.642616806122314 msec\nrounds: 98"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 306.4170575158256,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000049850441274163916",
+            "extra": "mean: 3.2635258888887173 msec\nrounds: 315"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 309.6463674215498,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006291606658209344",
+            "extra": "mean: 3.229490493710875 msec\nrounds: 318"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.475769810415436,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003248850450898326",
+            "extra": "mean: 117.98338350000392 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 44.325398375848046,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005606887248299816",
+            "extra": "mean: 22.56042893333314 msec\nrounds: 45"
           }
         ]
       }
