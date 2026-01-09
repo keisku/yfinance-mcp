@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-01-09
+
+### CI
+- Remove extra blank lines from git-cliff output ([37f00d3](https://github.com/keisku/yfinance-mcp/commit/37f00d338c24bdaf7fc41cae603ce0786b2a0824))
+  Adjust Jinja2 whitespace control in cliff.toml template to eliminate
+  unwanted blank lines between version sections and after group headers.
+- Add exact tag reference to image tags ([fce7a28](https://github.com/keisku/yfinance-mcp/commit/fce7a28300bbd2367c7dda03dc950116ee40e95a))
+  Include the original Git tag (e.g., v1.2.3) as a Docker image tag
+  when triggered by tag push events.
+
+### Miscellaneous
+- Remove internal Adj Close detail from description ([5a6abbf](https://github.com/keisku/yfinance-mcp/commit/5a6abbfecbce6cc0fc78bfbeae82e05d3ebf4905))
+  The fallback behavior between Adj Close and Close is an implementation
+  detail that users do not need to know about.
+- Organize indicators into logical categories ([dca0cf3](https://github.com/keisku/yfinance-mcp/commit/dca0cf3ed31163787f727e71f5889970108d6ee1))
+  - Add INDICATOR_CATEGORIES dict grouping 26 indicators into 7 use-case
+  categories: trend, momentum, volatility, volume, moving_averages,
+  support_resistance, and price.
+  - Update tool description to use uppercase category labels for better
+  discoverability. ALL_INDICATORS is now derived from the categories dict
+  to maintain backward compatibility.
+
 ## [0.4.0] - 2026-01-08
 
 ### Added
