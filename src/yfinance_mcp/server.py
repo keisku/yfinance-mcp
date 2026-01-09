@@ -1,5 +1,6 @@
 """Yahoo Finance MCP Server"""
 
+import contextlib
 import contextvars
 import logging
 import os
@@ -7,15 +8,21 @@ import re
 import threading
 import time
 import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 from importlib.metadata import version
 from typing import Any
 
 import pandas as pd
+import uvicorn
 import yfinance as yf
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import TextContent, Tool
+from starlette.applications import Starlette
+from starlette.routing import Route
+from starlette.types import Receive, Scope, Send
 
 from . import history, indicators
 from .cache import get_cache_stats
@@ -1546,24 +1553,111 @@ async def _execute(name: str, args: dict) -> str:
     return handler(args)
 
 
-async def run_server() -> None:
-    """Run the MCP server."""
-    log_file = os.environ.get("MCP_LOG_FILE") or get_default_log_path()
-    logger.info(
-        "server_start log_level=%s log_file=%s",
-        logging.getLevelName(logger.getEffectiveLevel()),
-        log_file,
+class MCPEndpoint:
+    """ASGI app that wraps StreamableHTTPSessionManager.
+
+    Args:
+        session_manager: The session manager to handle requests.
+        on_request: Optional async callback invoked before each request (e.g., cache sync).
+    """
+
+    def __init__(
+        self,
+        session_manager: StreamableHTTPSessionManager,
+        on_request: Any | None = None,
+    ) -> None:
+        self.session_manager = session_manager
+        self.on_request = on_request
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if self.on_request:
+            await self.on_request()
+        await self.session_manager.handle_request(scope, receive, send)
+
+
+def create_session_manager(
+    mcp_server: Server | None = None,
+    stateless: bool = True,
+) -> StreamableHTTPSessionManager:
+    """Create a StreamableHTTPSessionManager for the MCP server."""
+    return StreamableHTTPSessionManager(
+        app=mcp_server or server,
+        stateless=stateless,
     )
+
+
+def create_starlette_app(
+    session_manager: StreamableHTTPSessionManager | None = None,
+    path: str = "/mcp",
+    on_request: Any | None = None,
+    on_startup: Any | None = None,
+    on_shutdown: Any | None = None,
+) -> Starlette:
+    """Create a Starlette app with the MCP endpoint.
+
+    Args:
+        session_manager: Session manager (created automatically if None).
+        path: URL path for the MCP endpoint.
+        on_request: Async callback before each request.
+        on_startup: Async callback on app startup.
+        on_shutdown: Async callback on app shutdown.
+    """
+    if session_manager is None:
+        session_manager = create_session_manager()
+
+    @contextlib.asynccontextmanager
+    async def lifespan(app: Starlette) -> AsyncIterator[None]:
+        if on_startup:
+            await on_startup()
+        async with session_manager.run():
+            yield
+        if on_shutdown:
+            await on_shutdown()
+
+    return Starlette(
+        debug=False,
+        routes=[Route(path, endpoint=MCPEndpoint(session_manager, on_request=on_request))],
+        lifespan=lifespan,
+    )
+
+
+async def run_stdio_server() -> None:
+    """Run the MCP server using stdio transport."""
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
-    logger.info("server_stop")
+
+
+def run_http_server() -> None:
+    """Run the MCP server using Streamable HTTP transport."""
+    host = os.environ.get("YFINANCE_HTTP_HOST", "127.0.0.1")
+    port = int(os.environ.get("YFINANCE_HTTP_PORT", "9246"))
+
+    app = create_starlette_app()
+
+    logger.info("server_http_start host=%s port=%d", host, port)
+    uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
 def main() -> None:
-    """Entry point."""
+    """Entry point. Transport selected via YFINANCE_TRANSPORT env var."""
     import asyncio
 
-    asyncio.run(run_server())
+    log_file = os.environ.get("MCP_LOG_FILE") or get_default_log_path()
+    transport = os.environ.get("YFINANCE_TRANSPORT", "stdio").lower()
+
+    logger.info(
+        "server_start transport=%s log_level=%s log_file=%s",
+        transport,
+        logging.getLevelName(logger.getEffectiveLevel()),
+        log_file,
+    )
+
+    if transport == "http":
+        run_http_server()
+    else:
+        asyncio.run(run_stdio_server())
+
+    logger.info("server_stop")
 
 
 if __name__ == "__main__":

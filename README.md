@@ -6,8 +6,6 @@ MCP server providing real-time stock data, technicals, and fundamentals via Yaho
 
 Add to your MCP client configuration:
 
-uv:
-
 ```json
 {
   "mcpServers": {
@@ -22,18 +20,17 @@ uv:
 }
 ```
 
-Docker:
+Or run the HTTP server directly and connect via URL:
+
+```bash
+YFINANCE_TRANSPORT=http uvx --from git+https://github.com/keisku/yfinance-mcp yfinance-mcp
+```
 
 ```json
 {
   "mcpServers": {
     "yfinance": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-v", "yfinance-cache:/home/app/.cache/yfinance-mcp",
-        "ghcr.io/keisku/yfinance-mcp:latest"
-      ]
+      "url": "http://127.0.0.1:9246/mcp"
     }
   }
 }
@@ -51,6 +48,12 @@ Docker:
 
 Defaults work well for most use cases. Override only if needed:
 
+Transport:
+- `YFINANCE_TRANSPORT` (default: `stdio`) - Transport mode: `stdio` or `http`.
+- `YFINANCE_HTTP_HOST` (default: `127.0.0.1`) - HTTP server bind address (only for `http` transport).
+- `YFINANCE_HTTP_PORT` (default: `9246`) - HTTP server port (only for `http` transport).
+
+Data:
 - `YFINANCE_TARGET_POINTS` (default: `200`) - Data points per response. [more](#architecture).
 - `YFINANCE_CACHE_DISABLED` (default: unset) - Set to `1` to disable caching.
 - `YFINANCE_CACHE_DB` (default: `~/.cache/yfinance-mcp/market.duckdb`) - Cache database path.

@@ -14,6 +14,9 @@ dependencies = [
     "holidays>=0.87",
     "toon-format @ git+https://github.com/toon-format/toon-python.git",
     "urllib3>=2.6.3",
+    "starlette>=0.46",
+    "uvicorn>=0.34",
+    "sse-starlette>=2.3",
 ]
 
 [project.scripts]
