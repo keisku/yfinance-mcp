@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767854463305,
+  "lastUpdate": 1767917190957,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5166,6 +5166,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00041562318149161644",
             "extra": "mean: 22.877493244451824 msec\nrounds: 45"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "5a6abbfecbce6cc0fc78bfbeae82e05d3ebf4905",
+          "message": "chore(technicals): Remove internal Adj Close detail from description\n\nThe fallback behavior between Adj Close and Close is an implementation\ndetail that users do not need to know about.",
+          "timestamp": "2026-01-09T09:04:49+09:00",
+          "tree_id": "22086adda51cd8a9796c632e250431aa685264ff",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/5a6abbfecbce6cc0fc78bfbeae82e05d3ebf4905"
+        },
+        "date": 1767917190082,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 243.4584417058438,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012728085160994772",
+            "extra": "mean: 4.1074772063489995 msec\nrounds: 252"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 243.50147599115607,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015811395854166665",
+            "extra": "mean: 4.106751287356959 msec\nrounds: 261"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 234.80470906404628,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001413765930238336",
+            "extra": "mean: 4.258858367815937 msec\nrounds: 261"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 86.09746469484408,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00039968778931147845",
+            "extra": "mean: 11.61474386666678 msec\nrounds: 90"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 283.4603437770326,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011571037945135093",
+            "extra": "mean: 3.5278303366011263 msec\nrounds: 306"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 288.8210790925044,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011560735670490339",
+            "extra": "mean: 3.4623511661339554 msec\nrounds: 313"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.020473271814087,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0017673214495486946",
+            "extra": "mean: 124.68092170000062 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 40.425150822337976,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007649956954750576",
+            "extra": "mean: 24.73707530232451 msec\nrounds: 43"
           }
         ]
       }
