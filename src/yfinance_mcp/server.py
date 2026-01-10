@@ -933,7 +933,7 @@ def _handle_technicals(args: dict) -> str:
                 }
 
             elif ind == "price_change":
-                pc = indicators.calculate_price_change(price)
+                pc = indicators.calculate_price_change(price, period=len(price) - 1)
                 summaries["price_change"] = {
                     "change": round(pc["change"], 2) if pc["change"] is not None else None,
                     "change_pct": round(pc["change_pct"], 2)

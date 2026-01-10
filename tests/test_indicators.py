@@ -106,6 +106,60 @@ class TestErrorHandling:
         assert result["change_pct"] is None
 
 
+class TestPriceChangeFullPeriod:
+    """Test price_change with full period (first-to-last bar comparison).
+
+    This addresses the issue where users expect "1 month" change to reflect
+    the full period change, not just the last single bar change.
+    """
+
+    def test_full_period_change_basic(self) -> None:
+        """Full period should compare first and last bars."""
+        close = pd.Series([100.0, 105.0, 110.0, 108.0, 115.0])
+        result = calculate_price_change(close, period=len(close) - 1)
+
+        expected_change = 115.0 - 100.0  # last - first
+        expected_pct = (expected_change / 100.0) * 100
+
+        assert result["change"] == expected_change
+        assert abs(result["change_pct"] - expected_pct) < 0.0001
+
+    def test_full_period_vs_single_bar(self) -> None:
+        """Full period change should differ from single-bar change.
+
+        This is the exact bug scenario: single-bar shows ~0.05% while
+        full-period shows the actual month-over-month change.
+        """
+        close = pd.Series([100.0, 101.0, 102.0, 101.5, 101.6])
+
+        single_bar = calculate_price_change(close, period=1)
+        full_period = calculate_price_change(close, period=len(close) - 1)
+
+        assert single_bar["change"] == pytest.approx(0.1, abs=0.01)
+        assert single_bar["change_pct"] == pytest.approx(0.0985, abs=0.01)
+
+        assert full_period["change"] == pytest.approx(1.6, abs=0.01)
+        assert full_period["change_pct"] == pytest.approx(1.6, abs=0.01)
+
+        assert abs(full_period["change"]) > abs(single_bar["change"])
+
+    def test_full_period_negative_change(self) -> None:
+        """Full period should correctly show negative returns."""
+        close = pd.Series([100.0, 98.0, 95.0, 96.0, 94.0])
+        result = calculate_price_change(close, period=len(close) - 1)
+
+        assert result["change"] == -6.0
+        assert result["change_pct"] == pytest.approx(-6.0, abs=0.01)
+
+    def test_full_period_with_volatility(self) -> None:
+        """Full period ignores intermediate volatility, only compares endpoints."""
+        close = pd.Series([100.0, 150.0, 80.0, 120.0, 105.0])
+        result = calculate_price_change(close, period=len(close) - 1)
+
+        assert result["change"] == 5.0
+        assert result["change_pct"] == pytest.approx(5.0, abs=0.01)
+
+
 class TestFibonacci:
     """Test Fibonacci retracement levels (not in pandas-ta)."""
 

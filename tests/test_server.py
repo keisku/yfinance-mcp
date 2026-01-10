@@ -702,6 +702,34 @@ class TestTechnicalsActionableFeedback:
         assert top_level_key in parsed
         assert nested_key in parsed[top_level_key]
 
+    @pytest.mark.parametrize("n_bars", [10, 50, 200])
+    def test_price_change_uses_full_period(
+        self, call_toon, mock_ticker_with_history, mock_ohlcv_factory, n_bars
+    ) -> None:
+        """price_change should show full-period change, not single-bar change.
+
+        When users request "1mo" technicals, they expect price_change to show
+        the change over the entire month (first bar to last bar), not just
+        the change in the most recent bar. This was a bug where period=1
+        was used instead of period=len(data)-1.
+        """
+        mock_df = mock_ohlcv_factory(n=n_bars)
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=n_bars)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["price_change"]})
+
+        assert "price_change" in parsed
+        pc = parsed["price_change"]
+        assert "change" in pc
+        assert "change_pct" in pc
+
+        # Verify full-period calculation (first to last bar using Adj Close)
+        adj_close = mock_df["Adj Close"]
+        expected_change = float(adj_close.iloc[-1]) - float(adj_close.iloc[0])
+        expected_pct = (expected_change / float(adj_close.iloc[0])) * 100
+
+        assert pc["change"] == pytest.approx(expected_change, abs=0.1)
+        assert pc["change_pct"] == pytest.approx(expected_pct, abs=0.1)
+
     def test_all_null_rows_excluded(self, call_toon, mock_ticker_with_history) -> None:
         """Rows with all null values should be excluded from data[] to save tokens."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=80)):

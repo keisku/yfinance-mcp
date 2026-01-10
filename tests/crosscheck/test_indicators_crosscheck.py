@@ -639,6 +639,24 @@ class TestPriceChangeCrosscheck:
         assert abs(pc["change"] - expected_change) < 0.0001
         assert abs(pc["change_pct"] - expected_pct) < 0.0001
 
+    def test_price_change_full_period_accuracy(self, sample_ohlcv: pd.DataFrame) -> None:
+        """Full-period price change should compare first and last bars.
+
+        When users request "1mo" technicals, they expect price_change to show
+        the change over the entire month (first bar to last bar), not just
+        the change in the most recent bar.
+        """
+        close = sample_ohlcv["Close"]
+        full_period = len(close) - 1
+
+        pc = indicators.calculate_price_change(close, period=full_period)
+
+        expected_change = float(close.iloc[-1]) - float(close.iloc[0])
+        expected_pct = (expected_change / float(close.iloc[0])) * 100
+
+        assert abs(pc["change"] - expected_change) < 0.0001
+        assert abs(pc["change_pct"] - expected_pct) < 0.0001
+
 
 class TestMathematicalInvariants:
     """Test properties that must always hold regardless of implementation.
