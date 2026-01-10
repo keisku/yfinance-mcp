@@ -1206,24 +1206,19 @@ class TestAutoInterval:
     @pytest.mark.parametrize(
         "start,end,expected_interval",
         [
-            # Coarsest interval where trading_days × ppd >= 100 (TARGET_POINTS/2)
-            # trading_days = calendar_days × 5/7
-            # US markets (390 min): 5m=78, 15m=26, 30m=13, 1h=6.5, 1d=1, 1wk=0.2 ppd
-            ("2024-01-01", "2024-01-01", "5m"),  # 0d → all fail → 5m fallback
-            (
-                "2024-01-01",
-                "2024-01-05",
-                "5m",
-            ),  # 4 × 5/7 × 78 = 223 ≥ 100 → 5m (coarsest that works)
-            ("2024-01-01", "2024-01-09", "15m"),  # 8 × 5/7 × 26 = 149 ≥ 100
-            ("2024-01-01", "2024-01-17", "30m"),  # 16 × 5/7 × 13 = 149 ≥ 100
-            ("2024-01-01", "2024-04-20", "1h"),  # 110 × 5/7 × 6.5 = 511 ≥ 100
-            ("2024-01-01", "2024-05-20", "1d"),  # 140 × 5/7 × 1 = 100 ≥ 100
+            # Explicit date ranges default to daily minimum (no intraday)
+            # Only 1d and 1wk are considered; intraday intervals are skipped
+            ("2024-01-01", "2024-01-01", "1d"),  # 0d → 1d fallback (explicit date range)
+            ("2024-01-01", "2024-01-05", "1d"),  # Short range → 1d (daily floor)
+            ("2024-01-01", "2024-01-09", "1d"),  # Short range → 1d (daily floor)
+            ("2024-01-01", "2024-01-17", "1d"),  # Short range → 1d (daily floor)
+            ("2024-01-01", "2024-04-20", "1d"),  # 110d → 1d (daily floor)
+            ("2024-01-01", "2024-05-20", "1d"),  # 140 × 5/7 × 1 = 100 ≥ 100 → 1d
             ("2024-01-01", "2025-12-02", "1wk"),  # 701 × 5/7 × 0.2 = 100.1 ≥ 100
             ("2020-01-01", "2024-01-01", "1wk"),  # 1461 × 5/7 × 0.2 = 208.7 ≥ 100
             # Edge cases
-            ("2024-01-01", "2024-01-02", "5m"),  # 1 × 5/7 × 78 = 55.7 < 100 → 5m fallback
-            ("2024-01-01", "2024-01-03", "5m"),  # 2 × 5/7 × 78 = 111 ≥ 100 → 5m
+            ("2024-01-01", "2024-01-02", "1d"),  # Short → 1d fallback (explicit date range)
+            ("2024-01-01", "2024-01-03", "1d"),  # Short → 1d fallback (explicit date range)
         ],
     )
     def test_select_interval_dates(self, start, end, expected_interval) -> None:
@@ -1232,32 +1227,57 @@ class TestAutoInterval:
         assert select_interval(start=start, end=end) == expected_interval
 
     def test_select_interval_start_without_end_uses_now(self) -> None:
-        """Start without end should use current timestamp."""
+        """Start without end should use current timestamp and daily floor."""
         from datetime import datetime, timedelta
 
         from yfinance_mcp.helpers import select_interval
 
-        # 30 days ago: 30 × 6.5 = 195 ≥ 100 → 1h
+        # 30 days ago with explicit date range → 1d (daily floor for explicit dates)
         start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-        assert select_interval(start=start) == "1h"
+        assert select_interval(start=start) == "1d"
 
     def test_select_interval_start_overrides_period(self) -> None:
-        """When both start and period provided, start takes precedence."""
+        """When both start and period provided, start takes precedence with daily floor."""
         from yfinance_mcp.helpers import select_interval
 
-        # period=5y would give 1wk, but 30-day date range gives 1h
+        # period=5y would give 1wk, but explicit date range uses daily floor → 1d
         result = select_interval(
             period="5y",
             start="2024-01-01",
             end="2024-01-31",
         )
-        assert result == "1h"
+        assert result == "1d"
 
-    def test_select_interval_negative_span_returns_5m(self) -> None:
-        """End before start (negative span) should return finest interval."""
+    def test_select_interval_negative_span_returns_1d(self) -> None:
+        """End before start (negative span) returns daily fallback for explicit dates."""
         from yfinance_mcp.helpers import select_interval
 
+        # Explicit date range uses daily floor even with negative span
         result = select_interval(start="2024-12-31", end="2024-01-01")
+        assert result == "1d"
+
+    def test_select_interval_explicit_interval_parameter(self) -> None:
+        """Explicit interval parameter acts as floor for date ranges."""
+        from yfinance_mcp.helpers import select_interval
+
+        # With interval="1wk", should use weekly even for short range
+        result = select_interval(start="2024-01-01", end="2024-01-31", interval="1wk")
+        assert result == "1wk"
+
+        # With interval="1d", should use daily
+        result = select_interval(start="2024-01-01", end="2024-01-31", interval="1d")
+        assert result == "1d"
+
+    def test_select_interval_period_still_uses_auto_selection(self) -> None:
+        """Period-based queries (no start/end) still use full auto-selection."""
+        from yfinance_mcp.helpers import select_interval
+
+        # period="1mo" with auto should give 1h (not constrained to daily)
+        result = select_interval(period="1mo", interval="auto")
+        assert result == "1h"
+
+        # period="1d" with auto should give 5m
+        result = select_interval(period="1d", interval="auto")
         assert result == "5m"
 
     @pytest.mark.parametrize(

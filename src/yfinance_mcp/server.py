@@ -305,6 +305,16 @@ TOOLS = [
                     "type": "string",
                     "description": "End date. Defaults to today.",
                 },
+                "interval": {
+                    "type": "string",
+                    "enum": ["auto", "1d", "1wk"],
+                    "default": "auto",
+                    "description": (
+                        "Bar granularity floor. 'auto' selects optimal interval "
+                        "based on date range. '1d' ensures daily bars minimum. "
+                        "'1wk' ensures weekly bars minimum."
+                    ),
+                },
             },
             "required": ["symbol"],
         },
@@ -626,7 +636,10 @@ def _handle_history(args: dict) -> str:
 
     exchange = safe_get(t.info, "exchange") if t else None
     exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
-    interval = select_interval(period, start, end, symbol=symbol, exchange=exchange)
+    interval_param = args.get("interval", "auto")
+    interval = select_interval(
+        period, start, end, symbol=symbol, exchange=exchange, interval=interval_param
+    )
 
     logger.debug(
         "price_fetch symbol=%s start=%s end=%s period=%s interval=%s exchange=%s",

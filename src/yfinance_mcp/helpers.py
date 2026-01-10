@@ -826,18 +826,26 @@ INTERVALS: list[tuple[str, float, int | None]] = get_intervals(DEFAULT_TRADING_M
 MAX_PERIOD_DAYS = TARGET_POINTS * TRADING_DAYS_PER_WEEK
 
 
+INTERVAL_ORDER = ["5m", "15m", "30m", "1h", "1d", "1wk"]
+
+
 def select_interval(
     period: str | None = None,
     start: str | None = None,
     end: str | None = None,
     symbol: str | None = None,
     exchange: str | None = None,
+    interval: str = "auto",
 ) -> str:
     """Select the coarsest interval where bars >= TARGET_POINTS/2.
 
     Iterates from coarsest (1wk) to finest (5m) and picks the first
     interval that produces at least half of TARGET_POINTS bars while
     respecting Yahoo API limits.
+
+    When interval is explicitly provided (not "auto"), it acts as a floor:
+    the returned interval will be at least as coarse as the requested one.
+    This ensures consistent granularity when users need it.
 
     Trading hours are determined by the symbol's exchange (via suffix or
     exchange code). Falls back to US market hours if unknown.
@@ -861,13 +869,37 @@ def select_interval(
 
     min_bars = TARGET_POINTS / 2
 
-    for interval, ppd, max_days in reversed(intervals):
+    # Determine the minimum interval index (floor)
+    # For explicit date ranges with "auto", default to daily to ensure consistent granularity
+    explicit_date_range = start is not None
+    if interval == "auto" and explicit_date_range:
+        interval_floor_idx = INTERVAL_ORDER.index("1d")
+    elif interval != "auto" and interval in INTERVAL_ORDER:
+        interval_floor_idx = INTERVAL_ORDER.index(interval)
+    else:
+        interval_floor_idx = 0
+
+    for itv, ppd, max_days in reversed(intervals):
+        itv_idx = INTERVAL_ORDER.index(itv) if itv in INTERVAL_ORDER else 0
+
         if max_days is not None and calendar_days > max_days:
             continue
-        if trading_days * ppd >= min_bars:
-            return interval
 
-    return intervals[0][0]
+        # Skip intervals finer than the requested floor
+        if itv_idx < interval_floor_idx:
+            continue
+
+        if trading_days * ppd >= min_bars:
+            return itv
+
+    # If no interval met threshold, return the floor interval
+    if interval != "auto":
+        fallback = interval
+    elif explicit_date_range:
+        fallback = "1d"
+    else:
+        fallback = intervals[0][0]
+    return fallback
 
 
 class DateRangeExceededError(Exception):
