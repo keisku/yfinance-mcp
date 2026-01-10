@@ -625,6 +625,7 @@ def _handle_history(args: dict) -> str:
     validate_date_range(period, start, end)
 
     exchange = safe_get(t.info, "exchange") if t else None
+    exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
     interval = select_interval(period, start, end, symbol=symbol, exchange=exchange)
 
     logger.debug(
@@ -664,7 +665,7 @@ def _handle_history(args: dict) -> str:
     # Keep DatetimeIndex - fmt_toon handles formatting
     df.index = pd.to_datetime(df.index)
 
-    return fmt_toon(df, wrapper_key="bars", issues=issues)
+    return fmt_toon(df, wrapper_key="bars", issues=issues, tz=exchange_tz)
 
 
 INDICATOR_CATEGORIES: dict[str, list[str]] = {
@@ -786,6 +787,7 @@ def _handle_technicals(args: dict) -> str:
         inds = ALL_INDICATORS
 
     exchange = safe_get(t.info, "exchange") if t else None
+    exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
     interval = select_interval(period, start, end, symbol=symbol, exchange=exchange)
 
     logger.debug(
@@ -1026,6 +1028,7 @@ def _handle_technicals(args: dict) -> str:
         wrapper_key="data",
         issues=issues if issues else None,
         summaries=summaries if summaries else None,
+        tz=exchange_tz,
     )
 
 

@@ -305,7 +305,7 @@ class TestHistoryTool:
             )
 
         assert "bars" in parsed
-        assert " " in parsed["bars"]["t0"]  # Contains time component
+        assert "T" in parsed["bars"]["t0"]  # Contains time component (ISO 8601 format)
 
     @pytest.mark.parametrize(
         "close,adj_close,check",

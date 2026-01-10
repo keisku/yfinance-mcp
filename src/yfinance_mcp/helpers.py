@@ -9,6 +9,7 @@ import re
 import sys
 import tempfile
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -152,13 +153,15 @@ def fmt_toon(
     wrapper_key: str | None = None,
     issues: dict | None = None,
     summaries: dict | None = None,
+    tz: str | None = None,
 ) -> str:
     """Format DataFrame as TOON for token-efficient LLM responses.
 
     Uses delta-encoded split format for ~56% token reduction vs row-oriented JSON:
     - _: schema hint for LLM comprehension ("ts[i] = t0 + sum(dt[0..i])")
     - cols: column names (excluding timestamp)
-    - t0: first timestamp as ISO string (YYYY-MM-DD or YYYY-MM-DD HH:MM)
+    - t0: first timestamp as ISO 8601 with timezone offset (e.g., "2024-01-15-05:00"
+      for daily, "2024-01-15T09:30-05:00" for intraday)
     - dt: time deltas from previous row (first element is always 0)
     - dt_unit: "day" for daily data, "min" for intraday
     - rows: value tuples in column order
@@ -184,13 +187,27 @@ def fmt_toon(
     elif isinstance(df.index, pd.DatetimeIndex):
         first_ts = df.index[0]
         has_time = first_ts.hour != 0 or first_ts.minute != 0
+
+        # Validate tz is a proper IANA timezone string (e.g., "America/New_York")
+        valid_tz = isinstance(tz, str) and "/" in tz
+
         if has_time:
-            t0 = first_ts.strftime("%Y-%m-%d %H:%M")
+            if valid_tz:
+                localized = first_ts.to_pydatetime().replace(tzinfo=ZoneInfo(tz))
+                t0 = localized.strftime("%Y-%m-%dT%H:%M%z")
+                t0 = t0[:-2] + ":" + t0[-2:]
+            else:
+                t0 = first_ts.strftime("%Y-%m-%dT%H:%M")
             minutes = ((df.index - first_ts).total_seconds() / 60).astype(int)
             dt = [0] + [int(minutes[i] - minutes[i - 1]) for i in range(1, len(minutes))]
             dt_unit = "min"
         else:
-            t0 = first_ts.strftime("%Y-%m-%d")
+            if valid_tz:
+                localized = first_ts.to_pydatetime().replace(tzinfo=ZoneInfo(tz))
+                t0 = localized.strftime("%Y-%m-%dT00:00%z")
+                t0 = t0[:-2] + ":" + t0[-2:]
+            else:
+                t0 = first_ts.strftime("%Y-%m-%d")
             days = (df.index - first_ts).days
             dt = [0] + [int(days[i] - days[i - 1]) for i in range(1, len(days))]
             dt_unit = "day"
