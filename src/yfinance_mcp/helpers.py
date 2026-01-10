@@ -9,10 +9,10 @@ import re
 import sys
 import tempfile
 from datetime import date, timedelta
-from zoneinfo import ZoneInfo
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -158,13 +158,13 @@ def fmt_toon(
     """Format DataFrame as TOON for token-efficient LLM responses.
 
     Uses delta-encoded split format for ~56% token reduction vs row-oriented JSON:
-    - _: schema hint for LLM comprehension ("ts[i] = t0 + sum(dt[0..i])")
-    - cols: column names (excluding timestamp)
-    - t0: first timestamp as ISO 8601 with timezone offset (e.g., "2024-01-15-05:00"
+    - _: schema hint for LLM comprehension ("ts[i] = base_ts + sum(deltas[0..i])")
+    - columns: column names (excluding timestamp)
+    - base_ts: first timestamp as ISO 8601 with timezone offset (e.g., "2024-01-15-05:00"
       for daily, "2024-01-15T09:30-05:00" for intraday)
-    - dt: time deltas from previous row (first element is always 0)
-    - dt_unit: "day" for daily data, "min" for intraday
-    - rows: value tuples in column order
+    - deltas: time deltas from previous row (first element is always 0)
+    - delta_unit: "day" for daily data, "min" for intraday
+    - values: value tuples in column order
 
     If issues is provided, it's included as _issues in the TOON structure.
     If summaries is provided, each key is added at the top level.
@@ -173,16 +173,16 @@ def fmt_toon(
     cols = df.columns.tolist()
 
     # Schema hint for LLM comprehension (adds ~15 tokens, improves interpretability)
-    schema = "ts[i] = t0 + sum(dt[0..i])"
+    schema = "ts[i] = base_ts + sum(deltas[0..i])"
 
     if len(df) == 0:
         data: dict = {
             "_": schema,
-            "cols": cols,
-            "t0": None,
-            "dt": [],
-            "dt_unit": "day",
-            "rows": [],
+            "columns": cols,
+            "base_ts": None,
+            "deltas": [],
+            "delta_unit": "day",
+            "values": [],
         }
     elif isinstance(df.index, pd.DatetimeIndex):
         first_ts = df.index[0]
@@ -211,14 +211,14 @@ def fmt_toon(
             days = (df.index - first_ts).days
             dt = [0] + [int(days[i] - days[i - 1]) for i in range(1, len(days))]
             dt_unit = "day"
-        rows = df.values.tolist()
+        values = df.values.tolist()
         data = {
             "_": schema,
-            "cols": cols,
-            "t0": t0,
-            "dt": dt,
-            "dt_unit": dt_unit,
-            "rows": rows,
+            "columns": cols,
+            "base_ts": t0,
+            "deltas": dt,
+            "delta_unit": dt_unit,
+            "values": values,
         }
     else:
         # Non-DatetimeIndex is unexpected - fail explicitly rather than produce broken data

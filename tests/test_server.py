@@ -22,8 +22,8 @@ from yfinance_mcp.server import (
 
 def split_to_row(data: dict, row_idx: int = 0) -> dict:
     """Reconstruct row dict from delta-encoded split format."""
-    cols = data["cols"]
-    row = data["rows"][row_idx]
+    cols = data["columns"]
+    row = data["values"][row_idx]
     return dict(zip(cols, row))
 
 
@@ -267,11 +267,11 @@ class TestHistoryTool:
             parsed = call_toon("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
-        assert set(parsed["bars"]["cols"]) == {"o", "h", "l", "c", "ac", "v"}
-        assert "t0" in parsed["bars"]
-        assert "dt" in parsed["bars"]
-        assert "rows" in parsed["bars"]
-        assert len(parsed["bars"]["rows"]) > 0
+        assert set(parsed["bars"]["columns"]) == {"o", "h", "l", "c", "ac", "v"}
+        assert "base_ts" in parsed["bars"]
+        assert "deltas" in parsed["bars"]
+        assert "values" in parsed["bars"]
+        assert len(parsed["bars"]["values"]) > 0
 
     @pytest.mark.parametrize(
         "args,description",
@@ -289,7 +289,7 @@ class TestHistoryTool:
             parsed = call_toon("history", {"symbol": "AAPL", **args})
 
         assert "bars" in parsed
-        assert len(parsed["bars"]["rows"]) > 0
+        assert len(parsed["bars"]["values"]) > 0
 
     def test_intraday_datetime_strings(self, call_toon, mock_ticker_with_history) -> None:
         """Short time spans should auto-select intraday interval."""
@@ -305,7 +305,7 @@ class TestHistoryTool:
             )
 
         assert "bars" in parsed
-        assert "T" in parsed["bars"]["t0"]  # Contains time component (ISO 8601 format)
+        assert "T" in parsed["bars"]["base_ts"]  # Contains time component (ISO 8601 format)
 
     @pytest.mark.parametrize(
         "close,adj_close,check",
@@ -344,9 +344,9 @@ class TestHistoryTool:
             )
 
         bars = parsed["bars"]
-        cols = bars["cols"]
-        c_val = bars["rows"][0][cols.index("c")]
-        ac_val = bars["rows"][0][cols.index("ac")]
+        cols = bars["columns"]
+        c_val = bars["values"][0][cols.index("c")]
+        ac_val = bars["values"][0][cols.index("ac")]
 
         if check.get("ac_lt_c"):
             assert ac_val < c_val, "ac should be lower for dividend stocks"
@@ -375,8 +375,8 @@ class TestHistoryTool:
                 "history", {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-15"}
             )
 
-        assert len(parsed["bars"]["rows"]) == n
-        assert any(d > 1 for d in parsed["bars"]["dt"]), "Weekend gaps expected"
+        assert len(parsed["bars"]["values"]) == n
+        assert any(d > 1 for d in parsed["bars"]["deltas"]), "Weekend gaps expected"
 
     def test_adj_close_fallback_shows_warning(self, call_toon, mock_ticker_with_history) -> None:
         """Missing Adj Close column should trigger fallback with _issues warning."""
@@ -391,7 +391,7 @@ class TestHistoryTool:
 
         assert "_issues" in parsed and "ac" in parsed["_issues"]
         assert "using Close" in parsed["_issues"]["ac"]
-        assert "ac" in parsed["bars"]["cols"]
+        assert "ac" in parsed["bars"]["columns"]
 
     def test_empty_history_returns_error(self, call_toon, mock_ticker_with_history) -> None:
         """Empty history data should return error."""
@@ -644,7 +644,7 @@ class TestTechnicalsActionableFeedback:
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
 
         if "data" in parsed:
-            for row_values in parsed["data"]["rows"]:
+            for row_values in parsed["data"]["values"]:
                 # Each row should have at least one non-null value
                 assert any(v is not None for v in row_values), "All-null row should be excluded"
 
