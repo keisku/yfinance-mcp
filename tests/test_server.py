@@ -378,6 +378,70 @@ class TestHistoryTool:
         assert len(parsed["bars"]["values"]) == n
         assert any(d > 1 for d in parsed["bars"]["deltas"]), "Weekend gaps expected"
 
+    def test_interval_field_included(self, call_toon, mock_ticker_with_history) -> None:
+        """History response should include interval field."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history()):
+            parsed = call_toon("history", {"symbol": "AAPL"})
+
+        assert "interval" in parsed["bars"]
+        assert parsed["bars"]["interval"] in ["1d", "1h", "5m", "15m", "30m", "1wk"]
+
+    def test_market_gaps_for_daily_with_weekends(self, call_toon, mock_ticker_with_history) -> None:
+        """Daily data spanning weekends should include market_gaps field."""
+        mock = mock_ticker_with_history()
+        n = 10
+        df = pd.DataFrame(
+            {
+                col: [100 + i for i in range(n)]
+                for col in ["Open", "High", "Low", "Close", "Adj Close"]
+            }
+            | {"Volume": [1000000] * n},
+            index=pd.bdate_range("2024-01-01", periods=n),
+        )
+        mock.history.return_value = df
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon(
+                "history", {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-15"}
+            )
+
+        assert "market_gaps" in parsed["bars"]
+        gaps = parsed["bars"]["market_gaps"]
+        assert len(gaps) > 0
+        for gap_idx in gaps:
+            assert parsed["bars"]["deltas"][gap_idx] > 1
+
+    def test_intraday_market_gaps_for_overnight(self, call_toon, mock_ticker_with_history) -> None:
+        """Intraday data spanning overnight should include market_gaps field."""
+        mock = mock_ticker_with_history()
+        timestamps = pd.to_datetime([
+            "2024-01-15 09:30", "2024-01-15 10:30", "2024-01-15 15:30",
+            "2024-01-16 09:30", "2024-01-16 10:30",
+        ])
+        df = pd.DataFrame(
+            {
+                "Open": [100, 101, 102, 103, 104],
+                "High": [101, 102, 103, 104, 105],
+                "Low": [99, 100, 101, 102, 103],
+                "Close": [100.5, 101.5, 102.5, 103.5, 104.5],
+                "Adj Close": [100.5, 101.5, 102.5, 103.5, 104.5],
+                "Volume": [1000000] * 5,
+            },
+            index=timestamps,
+        )
+        mock.history.return_value = df
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon(
+                "history",
+                {"symbol": "AAPL", "start": "2024-01-15 09:30", "end": "2024-01-16 16:00"},
+            )
+
+        assert "market_gaps" in parsed["bars"]
+        assert parsed["bars"]["delta_unit"] == "min"
+        gaps = parsed["bars"]["market_gaps"]
+        assert 3 in gaps
+
     def test_adj_close_fallback_shows_warning(self, call_toon, mock_ticker_with_history) -> None:
         """Missing Adj Close column should trigger fallback with _issues warning."""
         mock = mock_ticker_with_history()

@@ -154,6 +154,7 @@ def fmt_toon(
     issues: dict | None = None,
     summaries: dict | None = None,
     tz: str | None = None,
+    interval: str | None = None,
 ) -> str:
     """Format DataFrame as TOON for token-efficient LLM responses.
 
@@ -164,6 +165,10 @@ def fmt_toon(
       for daily, "2024-01-15T09:30-05:00" for intraday)
     - deltas: time deltas from previous row (first element is always 0)
     - delta_unit: "day" for daily data, "min" for intraday
+    - interval: nominal data interval (e.g., "5m", "1h", "1d") - deltas may vary due to
+      downsampling or market gaps
+    - market_gaps: indices where deltas represent market close gaps (overnight/weekend),
+      not missing data. Only present for intraday data with gaps.
     - values: value tuples in column order
 
     If issues is provided, it's included as _issues in the TOON structure.
@@ -172,8 +177,14 @@ def fmt_toon(
     df = df.copy()
     cols = df.columns.tolist()
 
-    # Schema hint for LLM comprehension (adds ~15 tokens, improves interpretability)
-    schema = "ts[i] = base_ts + sum(deltas[0..i])"
+    # Schema hint for LLM comprehension
+    schema = "ts[i] = base_ts + sum(deltas[0..i]); large deltas are market gaps"
+
+    # Parse interval to get nominal minutes for gap detection
+    nominal_minutes: int | None = None
+    if interval:
+        interval_map = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1d": 1440, "1wk": 10080}
+        nominal_minutes = interval_map.get(interval)
 
     if len(df) == 0:
         data: dict = {
@@ -184,6 +195,8 @@ def fmt_toon(
             "delta_unit": "day",
             "values": [],
         }
+        if interval:
+            data["interval"] = interval
     elif isinstance(df.index, pd.DatetimeIndex):
         first_ts = df.index[0]
         has_time = first_ts.hour != 0 or first_ts.minute != 0
@@ -191,6 +204,7 @@ def fmt_toon(
         # Validate tz is a proper IANA timezone string (e.g., "America/New_York")
         valid_tz = isinstance(tz, str) and "/" in tz
 
+        market_gaps: list[int] = []
         if has_time:
             if valid_tz:
                 localized = first_ts.to_pydatetime().replace(tzinfo=ZoneInfo(tz))
@@ -201,6 +215,11 @@ def fmt_toon(
             minutes = ((df.index - first_ts).total_seconds() / 60).astype(int)
             dt = [0] + [int(minutes[i] - minutes[i - 1]) for i in range(1, len(minutes))]
             dt_unit = "min"
+
+            # Detect market gaps: deltas > 60 min (overnight/weekend closures)
+            # Gap threshold: 60 min catches all overnight gaps regardless of interval
+            gap_threshold = 60
+            market_gaps = [i for i in range(1, len(dt)) if dt[i] > gap_threshold]
         else:
             if valid_tz:
                 localized = first_ts.to_pydatetime().replace(tzinfo=ZoneInfo(tz))
@@ -211,6 +230,10 @@ def fmt_toon(
             days = (df.index - first_ts).days
             dt = [0] + [int(days[i] - days[i - 1]) for i in range(1, len(days))]
             dt_unit = "day"
+
+            # For daily data, gaps > 1 day indicate weekends/holidays
+            market_gaps = [i for i in range(1, len(dt)) if dt[i] > 1]
+
         values = df.values.tolist()
         data = {
             "_": schema,
@@ -220,6 +243,10 @@ def fmt_toon(
             "delta_unit": dt_unit,
             "values": values,
         }
+        if interval:
+            data["interval"] = interval
+        if market_gaps:
+            data["market_gaps"] = market_gaps
     else:
         # Non-DatetimeIndex is unexpected - fail explicitly rather than produce broken data
         raise TypeError(

@@ -627,7 +627,6 @@ def _handle_history(args: dict) -> str:
     period = args.get("period", "3mo")
     start = args.get("start")
     end = args.get("end")
-
     # Convert custom periods (e.g., "1w", "9mo") to date ranges
     if not start and period:
         period, start, end = period_to_date_range(period)
@@ -678,7 +677,7 @@ def _handle_history(args: dict) -> str:
     # Keep DatetimeIndex - fmt_toon handles formatting
     df.index = pd.to_datetime(df.index)
 
-    return fmt_toon(df, wrapper_key="bars", issues=issues, tz=exchange_tz)
+    return fmt_toon(df, wrapper_key="bars", issues=issues, tz=exchange_tz, interval=interval)
 
 
 INDICATOR_CATEGORIES: dict[str, list[str]] = {
@@ -1044,6 +1043,7 @@ def _handle_technicals(args: dict) -> str:
         issues=issues if issues else None,
         summaries=summaries if summaries else None,
         tz=exchange_tz,
+        interval=interval,
     )
 
 
