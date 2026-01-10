@@ -1340,25 +1340,23 @@ class TestAutoInterval:
         "max_trading_days,expected_count,must_include,must_exclude",
         [
             # max_trading_days compared against calendar_days × 5/7
-            # 1mo=21, 3mo=64, ytd=130, 1y=261, 2y=521, 3y=782, 5y=1304, 10y=2607, max=5214
             (21, 5, ["1d", "5d", "1w", "2w", "1mo"], ["ytd", "1y"]),
             (70, 7, ["1d", "3mo"], ["ytd", "1y"]),
-            (140, 7, ["1d", "ytd"], ["1y", "2y"]),
-            (280, 7, ["1d", "ytd", "1y"], ["2y", "5y"]),
-            (800, 7, ["1d", "ytd", "3y"], ["5y", "10y"]),
-            (1400, 7, ["1d", "ytd", "5y"], ["10y", "max"]),
-            (2800, 7, ["1d", "ytd", "10y"], ["max"]),
-            (5500, 7, ["1d", "ytd", "max"], []),
+            (140, 9, ["1d", "ytd", "6mo"], ["1y", "2y"]),
+            (280, 11, ["1d", "ytd", "1y"], ["2y", "5y"]),
+            (800, 14, ["1d", "ytd", "3y"], ["5y", "10y"]),
+            (1400, 15, ["1d", "ytd", "5y"], ["10y", "max"]),
+            (2800, 16, ["1d", "ytd", "10y"], ["max"]),
+            (5500, 17, ["1d", "ytd", "max"], []),
         ],
     )
     def test_get_valid_periods(
         self, max_trading_days, expected_count, must_include, must_exclude
     ) -> None:
-        from yfinance_mcp.helpers import MAX_PERIOD_OPTIONS, get_valid_periods
+        from yfinance_mcp.helpers import get_valid_periods
 
         periods = get_valid_periods(max_trading_days)
 
-        assert len(periods) <= MAX_PERIOD_OPTIONS
         assert len(periods) == expected_count
 
         for p in must_include:
@@ -1387,8 +1385,8 @@ class TestAutoInterval:
         # MAX_PERIOD_DAYS = 1000 trading days (TARGET_POINTS=200 × 5)
         assert "3y" in periods  # 1095 calendar days = 782 trading days < 1000
         assert "5y" not in periods  # 1825 calendar days = 1304 trading days > 1000
-        assert "ytd" in periods  # always included when valid
-        assert len(periods) == 7  # MAX_PERIOD_OPTIONS
+        assert "ytd" in periods
+        assert len(periods) == 14
 
 
 class TestOHLCResample:

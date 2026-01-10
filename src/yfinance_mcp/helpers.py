@@ -617,56 +617,18 @@ INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "1h"}
 # Periods natively supported by yfinance (others convert to start/end dates)
 YFINANCE_NATIVE_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
 
-MAX_PERIOD_OPTIONS = 7
-
 
 def get_valid_periods(max_trading_days: int | None = None) -> list[str]:
-    """Return up to MAX_PERIOD_OPTIONS period options that fit within max_trading_days.
-
-    Always includes "ytd" if it fits. Selects evenly distributed options.
-    """
+    """Return period options that fit within max_trading_days, sorted by duration."""
     if max_trading_days is None:
         max_trading_days = MAX_PERIOD_DAYS
 
     periods_by_duration = sorted(PERIOD_TO_DAYS.keys(), key=lambda p: PERIOD_TO_DAYS[p])
-    valid = [
+    return [
         p
         for p in periods_by_duration
         if int(PERIOD_TO_DAYS.get(p, 0) * TRADING_DAYS_PER_WEEK / 7) <= max_trading_days
     ]
-
-    if len(valid) <= MAX_PERIOD_OPTIONS:
-        return valid
-
-    # Select evenly distributed options, always including ytd and the longest
-    result = []
-    step = len(valid) / (MAX_PERIOD_OPTIONS - 1)  # -1 to ensure we include last
-
-    for i in range(MAX_PERIOD_OPTIONS - 1):
-        idx = int(i * step)
-        if valid[idx] not in result:
-            result.append(valid[idx])
-
-    # Always include the longest valid period
-    if valid[-1] not in result:
-        result.append(valid[-1])
-
-    # Ensure ytd is included if valid
-    if "ytd" in valid and "ytd" not in result:
-        # Replace the closest duration option with ytd
-        ytd_days = PERIOD_TO_DAYS["ytd"]
-        closest_idx = 0
-        closest_diff = float("inf")
-        for i, p in enumerate(result):
-            if p != result[-1]:  # don't replace the longest
-                diff = abs(PERIOD_TO_DAYS.get(p, 0) - ytd_days)
-                if diff < closest_diff:
-                    closest_diff = diff
-                    closest_idx = i
-        result[closest_idx] = "ytd"
-
-    # Sort by duration
-    return sorted(result, key=lambda p: PERIOD_TO_DAYS.get(p, 0))
 
 
 def period_to_date_range(period: str) -> tuple[str | None, str | None, str | None]:
