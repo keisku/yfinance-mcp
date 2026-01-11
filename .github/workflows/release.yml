@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      beta:
+        description: "Create beta release"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -37,26 +42,51 @@ jobs:
           config: cliff.toml
           args: --bumped-version
 
+      - name: Calculate beta version
+        if: ${{ inputs.beta }}
+        id: beta_version
+        env:
+          BASE_VERSION: ${{ steps.version.outputs.content }}
+        run: |
+          LATEST_BETA=$(git tag -l "${BASE_VERSION}-beta.*" | sort -V | tail -1)
+          if [ -z "$LATEST_BETA" ]; then
+            BETA_NUM=1
+          else
+            BETA_NUM=$((${LATEST_BETA##*-beta.} + 1))
+          fi
+          echo "version=${BASE_VERSION}-beta.${BETA_NUM}" >> $GITHUB_OUTPUT
+
+      - name: Set final version
+        id: final_version
+        run: |
+          if [ "${{ inputs.beta }}" = "true" ]; then
+            echo "version=${{ steps.beta_version.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.version.outputs.content }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate release notes
         uses: orhun/git-cliff-action@v4
         id: notes
         with:
           config: cliff.toml
-          args: --unreleased --strip header --tag ${{ steps.version.outputs.content }}
+          args: --unreleased --strip header --tag ${{ steps.final_version.outputs.version }}
 
       - name: Update CHANGELOG.md
+        if: ${{ !inputs.beta }}
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --unreleased --tag ${{ steps.version.outputs.content }} --prepend CHANGELOG.md
+          args: --unreleased --tag ${{ steps.final_version.outputs.version }} --prepend CHANGELOG.md
 
       - name: Update pyproject.toml version
+        if: ${{ !inputs.beta }}
         run: |
           python3 - <<'EOF'
           import re
           from pathlib import Path
 
-          new_version = "${{ steps.version.outputs.content }}".lstrip("v")
+          new_version = "${{ steps.final_version.outputs.version }}".lstrip("v")
           pyproject = Path("pyproject.toml")
           content = pyproject.read_text()
           updated = re.sub(r'^version = ".*"', f'version = "{new_version}"', content, flags=re.MULTILINE)
@@ -65,16 +95,19 @@ jobs:
           EOF
 
       - name: Install uv
+        if: ${{ !inputs.beta }}
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
 
       - name: Sync uv.lock
+        if: ${{ !inputs.beta }}
         run: uv sync
 
       - name: Commit and tag release
+        if: ${{ !inputs.beta }}
         env:
-          VERSION: ${{ steps.version.outputs.content }}
+          VERSION: ${{ steps.final_version.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -85,11 +118,21 @@ jobs:
           git tag "$VERSION"
           git push origin main --tags
 
+      - name: Create beta tag
+        if: ${{ inputs.beta }}
+        env:
+          VERSION: ${{ steps.final_version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.content }}
-          name: ${{ steps.version.outputs.content }}
+          tag_name: ${{ steps.final_version.outputs.version }}
+          name: ${{ steps.final_version.outputs.version }}
           body: ${{ steps.notes.outputs.content }}
           draft: false
-          prerelease: false
+          prerelease: ${{ inputs.beta }}
