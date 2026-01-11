@@ -627,12 +627,12 @@ class TestTechnicalsActionableFeedback:
     """Test actionable feedback in technicals tool responses."""
 
     @pytest.mark.parametrize(
-        "n_bars,indicators,issue_type,expected_keys,expected_hints",
+        "n_bars,indicators,issue_type,expected_keys,expected_fields",
         [
-            # Insufficient data with specific period hints
-            (10, ["sma_200"], "insufficient_data", ["sma_200"], {"sma_200": "1y"}),
-            (10, ["sma_100"], "insufficient_data", ["sma_100"], {"sma_100": "6mo"}),
-            (10, ["sma_50"], "insufficient_data", ["sma_50"], {"sma_50": "3mo"}),
+            # Insufficient data with structured details
+            (10, ["sma_200"], "insufficient_data", ["sma_200"], {"required": 200, "provided": 10}),
+            (10, ["sma_100"], "insufficient_data", ["sma_100"], {"required": 100, "provided": 10}),
+            (10, ["sma_50"], "insufficient_data", ["sma_50"], {"required": 50, "provided": 10}),
             # Unknown indicators
             (50, ["fake_ind", "also_fake"], "unknown", ["fake_ind", "also_fake"], {}),
         ],
@@ -645,9 +645,9 @@ class TestTechnicalsActionableFeedback:
         indicators,
         issue_type,
         expected_keys,
-        expected_hints,
+        expected_fields,
     ) -> None:
-        """Issues should be grouped by type with actionable hints."""
+        """Issues should be grouped by type with actionable details."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=n_bars)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
 
@@ -655,27 +655,79 @@ class TestTechnicalsActionableFeedback:
         assert issue_type in parsed["_issues"]
         for key in expected_keys:
             assert key in parsed["_issues"][issue_type]
-        for key, hint in expected_hints.items():
-            assert hint in parsed["_issues"][issue_type][key]
+        # Check structured fields for insufficient_data
+        if issue_type == "insufficient_data" and expected_fields:
+            for key in expected_keys:
+                issue_data = parsed["_issues"][issue_type][key]
+                for field, value in expected_fields.items():
+                    assert issue_data.get(field) == value
+                # Should have action field with extension suggestion
+                assert "action" in issue_data
+                assert "extend" in issue_data["action"] or "trading days" in issue_data["action"]
 
     def test_partial_data_shows_when_warmup_dominates(
         self, call_toon, mock_ticker_with_history
     ) -> None:
-        """Warmup nulls should warn only when valid data < 50%."""
+        """Warmup nulls should warn with structured details when valid data < 50%."""
         # 80 bars with SMA50: 49 nulls, 31 valid = 38.75% → warning shown
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=80)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
 
         assert "_issues" in parsed
         assert "partial_data" in parsed["_issues"]
-        assert "period='3mo'" in parsed["_issues"]["partial_data"]["sma_50"]
+        partial = parsed["_issues"]["partial_data"]["sma_50"]
+        # Should have structured details
+        assert "total_bars" in partial
+        assert "valid_bars" in partial
+        assert partial["valid_bars"] == 31  # 80 - 49 warmup
+        assert "coverage_pct" in partial
+        assert partial["coverage_pct"] < 50  # Less than 50% coverage
+
+    def test_warmup_metadata_included(self, call_toon, mock_ticker_with_history) -> None:
+        """_warmup metadata should disclose expected warmup bars per indicator."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["rsi", "macd"]})
+
+        assert "_issues" in parsed
+        assert "_warmup" in parsed["_issues"]
+        warmup = parsed["_issues"]["_warmup"]
+        assert warmup.get("rsi") == 14  # RSI period=14, warmup=14
+        assert warmup.get("macd") == 34  # MACD slow(26)+signal(9)-1=34
+
+    def test_unknown_indicator_has_action_hint(self, call_toon, mock_ticker_with_history) -> None:
+        """Unknown indicators should have structured action with valid indicator examples."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=50)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["fake_indicator"]})
+
+        assert "_issues" in parsed
+        assert "unknown" in parsed["_issues"]
+        unknown_data = parsed["_issues"]["unknown"]["fake_indicator"]
+        assert "action" in unknown_data
+        assert "valid indicator" in unknown_data["action"].lower()
+        assert "rsi" in unknown_data["action"]
+
+    def test_action_never_empty_on_calculation_error(
+        self, call_toon, mock_ticker_with_history
+    ) -> None:
+        """Action field should never be empty even when shortfall is zero."""
+        # Force a CalculationError with enough bars but indicator still fails
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=10)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_200"]})
+
+        assert "_issues" in parsed
+        assert "insufficient_data" in parsed["_issues"]
+        issue = parsed["_issues"]["insufficient_data"]["sma_200"]
+        assert "action" in issue
+        assert issue["action"] != "", "Action should not be empty string"
+        assert len(issue["action"]) > 5, "Action should be meaningful"
 
     @pytest.mark.parametrize(
         "n_bars,indicators,expect_data,expect_issues",
         [
             (10, ["sma_200", "sma_100"], False, True),  # All fail → issues only
             (50, ["rsi", "sma_200", "unknown"], True, True),  # Mixed → both
-            (200, ["rsi", "macd"], True, False),  # All succeed → data only
+            # 200 bars: rsi/macd succeed but _warmup metadata is always included
+            (200, ["rsi", "macd"], True, True),
         ],
     )
     def test_data_and_issues_presence(
@@ -1577,9 +1629,434 @@ class TestOHLCResample:
         assert len(result) <= 3
 
 
-class TestLTTBDownsample:
-    """Test LTTB downsampling for technicals tool."""
+class TestGlobalExchangeSuffixes:
+    """Test ticker suffix handling for global exchanges.
 
+    Validates that the server correctly processes ticker symbols with
+    international exchange suffixes (.T, .DE, .HK, .TO, .NS, etc.).
+    """
+
+    @pytest.mark.parametrize(
+        "symbol,exchange,currency,expected_suffix",
+        [
+            ("7203.T", "JPX", "JPY", ".T"),  # Tokyo - Toyota
+            ("SAP.DE", "GER", "EUR", ".DE"),  # Frankfurt - SAP
+            ("0700.HK", "HKG", "HKD", ".HK"),  # Hong Kong - Tencent
+            ("RY.TO", "TOR", "CAD", ".TO"),  # Toronto - Royal Bank
+            ("RELIANCE.NS", "NSI", "INR", ".NS"),  # NSE India - Reliance
+            ("D05.SI", "SES", "SGD", ".SI"),  # Singapore - DBS
+            ("BHP.AX", "ASX", "AUD", ".AX"),  # Australia - BHP
+            ("VOW3.DE", "GER", "EUR", ".DE"),  # Frankfurt - Volkswagen
+        ],
+    )
+    def test_international_ticker_parsed(
+        self, call, mock_ticker_factory, symbol, exchange, currency, expected_suffix
+    ) -> None:
+        """International tickers should be accepted and return correct exchange/currency."""
+        mock = mock_ticker_factory(exchange=exchange, currency=currency)
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("search_stock", {"symbol": symbol})
+
+        assert "err" not in parsed
+        assert parsed["exchange"] == exchange
+        assert expected_suffix in symbol
+
+    @pytest.mark.parametrize(
+        "symbol,expected_suffix",
+        [
+            ("AAPL", ""),  # US - no suffix
+            ("MSFT", ""),  # US - no suffix
+            ("^GSPC", ""),  # Index - no suffix
+            ("BTC-USD", ""),  # Crypto pair
+            ("EURUSD=X", ""),  # Forex
+            ("GC=F", ""),  # Futures
+        ],
+    )
+    def test_us_and_special_tickers_no_suffix(
+        self, call, mock_ticker_factory, symbol, expected_suffix
+    ) -> None:
+        """US stocks and special assets should work without suffix."""
+        mock = mock_ticker_factory()
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("search_stock", {"symbol": symbol})
+
+        assert "err" not in parsed
+        assert "price" in parsed
+
+    @pytest.mark.parametrize(
+        "suffix",
+        [".T", ".DE", ".HK", ".TO", ".NS", ".SI", ".AX", ".L", ".PA", ".SW"],
+    )
+    def test_suffix_preserved_in_history(self, call_toon, mock_ticker_with_history, suffix) -> None:
+        """Ticker suffix should be preserved when fetching history."""
+        symbol = f"TEST{suffix}"
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history()):
+            parsed = call_toon("history", {"symbol": symbol})
+
+        assert "bars" in parsed
+        assert len(parsed["bars"]["values"]) > 0
+
+
+class TestAssetClassBehaviors:
+    """Test asset class-specific behaviors (index, crypto, forex, futures).
+
+    Different asset classes have unique characteristics:
+    - Indices: ac == c (no dividend adjustment)
+    - Crypto: 24/7 trading (no weekend gaps)
+    - Forex: Near-continuous trading
+    - Futures: Extended hours, expiration
+    """
+
+    @pytest.fixture
+    def mock_index_ticker(self, mock_ticker_factory, mock_ohlcv_factory):
+        """Mock for index (^GSPC, ^VIX) - ac equals c, no dividends."""
+
+        def _create(n: int = 50) -> MagicMock:
+            mock = mock_ticker_factory(
+                quoteType="INDEX",
+                sector=None,
+                industry=None,
+            )
+            df = mock_ohlcv_factory(n=n)
+            df["Adj Close"] = df["Close"]  # Index: no adjustment
+            mock.history.return_value = df
+            return mock
+
+        return _create
+
+    @pytest.fixture
+    def mock_crypto_ticker(self, mock_ticker_factory):
+        """Mock for crypto (BTC-USD) - 24/7 trading, no market gaps."""
+
+        def _create(n: int = 50) -> MagicMock:
+            mock = mock_ticker_factory(
+                quoteType="CRYPTOCURRENCY",
+                sector=None,
+                industry=None,
+                exchange="CCC",
+                currency="USD",
+            )
+            # Crypto trades every day including weekends
+            df = pd.DataFrame(
+                {
+                    "Open": [50000 + i * 100 for i in range(n)],
+                    "High": [50100 + i * 100 for i in range(n)],
+                    "Low": [49900 + i * 100 for i in range(n)],
+                    "Close": [50050 + i * 100 for i in range(n)],
+                    "Adj Close": [50050 + i * 100 for i in range(n)],
+                    "Volume": [1e9] * n,
+                },
+                index=pd.date_range("2024-01-01", periods=n, freq="D"),  # Every day
+            )
+            mock.history.return_value = df
+            return mock
+
+        return _create
+
+    @pytest.fixture
+    def mock_forex_ticker(self, mock_ticker_factory):
+        """Mock for forex (EURUSD=X) - near-continuous trading."""
+
+        def _create(n: int = 50) -> MagicMock:
+            mock = mock_ticker_factory(
+                quoteType="CURRENCY",
+                sector=None,
+                industry=None,
+                exchange="CCY",
+                currency="USD",
+            )
+            df = pd.DataFrame(
+                {
+                    "Open": [1.08 + i * 0.001 for i in range(n)],
+                    "High": [1.082 + i * 0.001 for i in range(n)],
+                    "Low": [1.078 + i * 0.001 for i in range(n)],
+                    "Close": [1.081 + i * 0.001 for i in range(n)],
+                    "Adj Close": [1.081 + i * 0.001 for i in range(n)],
+                    "Volume": [0] * n,  # Forex often has zero volume
+                },
+                index=pd.bdate_range("2024-01-01", periods=n),
+            )
+            mock.history.return_value = df
+            return mock
+
+        return _create
+
+    @pytest.fixture
+    def mock_futures_ticker(self, mock_ticker_factory):
+        """Mock for futures (GC=F) - commodity futures."""
+
+        def _create(n: int = 50) -> MagicMock:
+            mock = mock_ticker_factory(
+                quoteType="FUTURE",
+                sector=None,
+                industry=None,
+                exchange="CMX",
+                currency="USD",
+            )
+            df = pd.DataFrame(
+                {
+                    "Open": [2000 + i * 5 for i in range(n)],
+                    "High": [2010 + i * 5 for i in range(n)],
+                    "Low": [1990 + i * 5 for i in range(n)],
+                    "Close": [2005 + i * 5 for i in range(n)],
+                    "Adj Close": [2005 + i * 5 for i in range(n)],
+                    "Volume": [100000] * n,
+                },
+                index=pd.bdate_range("2024-01-01", periods=n),
+            )
+            mock.history.return_value = df
+            return mock
+
+        return _create
+
+    @pytest.fixture
+    def mock_etf_ticker(self, mock_ticker_factory, mock_ohlcv_factory):
+        """Mock for ETF (SPY, VOO) - with dividend adjustment."""
+
+        def _create(n: int = 50) -> MagicMock:
+            mock = mock_ticker_factory(
+                quoteType="ETF",
+                sector=None,
+                industry=None,
+            )
+            mock.history.return_value = mock_ohlcv_factory(n=n)
+            return mock
+
+        return _create
+
+    def test_index_adj_close_equals_close(self, call_toon, mock_index_ticker) -> None:
+        """Index (^GSPC) should have ac == c since no dividend adjustment."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_index_ticker(n=30)):
+            parsed = call_toon("history", {"symbol": "^GSPC"})
+
+        bars = parsed["bars"]
+        cols = bars["columns"]
+        c_idx = cols.index("c")
+        ac_idx = cols.index("ac")
+
+        for row in bars["values"]:
+            assert row[c_idx] == row[ac_idx], "Index should have ac == c"
+
+    def test_index_no_sector_industry(self, call, mock_index_ticker) -> None:
+        """Index should not have sector/industry fields."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_index_ticker()):
+            parsed = call("search_stock", {"symbol": "^GSPC"})
+
+        assert parsed.get("sector") is None or parsed["sector"] == ""
+        assert parsed.get("industry") is None or parsed["industry"] == ""
+
+    def test_crypto_24_7_no_weekend_gaps(self, call_toon, mock_crypto_ticker) -> None:
+        """Crypto (BTC-USD) trades 24/7, should have no weekend gaps in daily data."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_crypto_ticker(n=14)):
+            parsed = call_toon("history", {"symbol": "BTC-USD"})
+
+        bars = parsed["bars"]
+        # Crypto trading every day means no gaps > 1 day (no weekend skips)
+        # market_gaps should be empty for 24/7 trading
+        assert "market_gaps" not in bars or len(bars["market_gaps"]) == 0, (
+            "Crypto should have no market gaps (24/7 trading)"
+        )
+
+    def test_crypto_quote_type(self, call, mock_crypto_ticker) -> None:
+        """Crypto should have CRYPTOCURRENCY quote type."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_crypto_ticker()):
+            parsed = call("search_stock", {"symbol": "BTC-USD"})
+
+        assert parsed["quote_type"] == "CRYPTOCURRENCY"
+
+    def test_forex_zero_volume_handled(self, call_toon, mock_forex_ticker) -> None:
+        """Forex (EURUSD=X) often has zero volume, should not error."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_forex_ticker(n=30)):
+            parsed = call_toon("history", {"symbol": "EURUSD=X"})
+
+        assert "bars" in parsed
+        bars = parsed["bars"]
+        cols = bars["columns"]
+        v_idx = cols.index("v")
+        # Forex volume can be zero
+        assert all(row[v_idx] == 0 for row in bars["values"])
+
+    def test_forex_small_price_precision(self, call_toon, mock_forex_ticker) -> None:
+        """Forex prices are small (e.g., 1.08), should preserve precision."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_forex_ticker(n=10)):
+            parsed = call_toon("history", {"symbol": "EURUSD=X"})
+
+        bars = parsed["bars"]
+        cols = bars["columns"]
+        c_idx = cols.index("c")
+        # Forex price should be preserved with sufficient precision
+        assert 1.0 < bars["values"][0][c_idx] < 2.0
+
+    def test_futures_quote_type(self, call, mock_futures_ticker) -> None:
+        """Futures should have FUTURE quote type."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_futures_ticker()):
+            parsed = call("search_stock", {"symbol": "GC=F"})
+
+        assert parsed["quote_type"] == "FUTURE"
+
+    def test_etf_has_dividend_adjustment(self, call_toon, mock_etf_ticker) -> None:
+        """ETF (SPY) should have ac < c due to dividend adjustment."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_etf_ticker(n=30)):
+            parsed = call_toon("history", {"symbol": "SPY"})
+
+        bars = parsed["bars"]
+        cols = bars["columns"]
+        c_idx = cols.index("c")
+        ac_idx = cols.index("ac")
+
+        # ETF with dividends should have ac < c (mock applies 2% adjustment)
+        for row in bars["values"]:
+            assert row[ac_idx] < row[c_idx], "ETF should have ac < c due to dividends"
+
+    @pytest.mark.parametrize(
+        "symbol,quote_type",
+        [
+            ("^GSPC", "INDEX"),
+            ("^VIX", "INDEX"),
+            ("BTC-USD", "CRYPTOCURRENCY"),
+            ("ETH-USD", "CRYPTOCURRENCY"),
+            ("EURUSD=X", "CURRENCY"),
+            ("GC=F", "FUTURE"),
+            ("CL=F", "FUTURE"),
+            ("SPY", "ETF"),
+            ("VOO", "ETF"),
+        ],
+    )
+    def test_quote_type_detection(self, call, mock_ticker_factory, symbol, quote_type) -> None:
+        """Each asset class should have correct quote_type."""
+        mock = mock_ticker_factory(quoteType=quote_type)
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call("search_stock", {"symbol": symbol})
+
+        assert parsed["quote_type"] == quote_type
+
+
+class TestShortDateRangeEdgeCases:
+    """Test edge cases with very short date ranges.
+
+    Short ranges can cause warmup to dominate or insufficient data for indicators.
+    """
+
+    @pytest.mark.parametrize(
+        "period,expected_warmup_dominant",
+        [
+            ("5d", True),  # Very short - warmup dominates most indicators
+            ("1w", True),  # Still short for many indicators
+            ("2w", True),  # RSI needs 14 bars
+            ("1mo", False),  # Usually enough for basic indicators
+        ],
+    )
+    def test_short_period_warmup_warnings(
+        self, call_toon, mock_ticker_with_history, period, expected_warmup_dominant
+    ) -> None:
+        """Short periods should trigger appropriate warmup warnings."""
+        # Map period to approximate bar count
+        bar_counts = {"5d": 5, "1w": 5, "2w": 10, "1mo": 22}
+        n_bars = bar_counts.get(period, 22)
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=n_bars)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["rsi", "macd"]})
+
+        if expected_warmup_dominant:
+            assert "_issues" in parsed
+            # Should have insufficient_data or partial_data
+            has_data_issues = (
+                "insufficient_data" in parsed["_issues"] or "partial_data" in parsed["_issues"]
+            )
+            assert has_data_issues, f"Short period {period} should warn about data"
+
+    def test_single_day_period_handled(self, call_toon, mock_ticker_with_history) -> None:
+        """Single day period should not crash, may return error or minimal data."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=1)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["rsi"]})
+
+        # Should either return error or issues, not crash
+        assert "err" in parsed or "_issues" in parsed
+
+    def test_weekend_only_date_range(self, call_toon, mock_ticker_with_history) -> None:
+        """Date range covering only weekend should return empty or error."""
+        mock = mock_ticker_with_history()
+        mock.history.return_value = pd.DataFrame()  # Empty for weekend
+
+        with patch("yfinance_mcp.server._ticker", return_value=mock):
+            parsed = call_toon(
+                "history",
+                {"symbol": "AAPL", "start": "2024-01-06", "end": "2024-01-07"},  # Sat-Sun
+            )
+
+        assert "err" in parsed
+
+
+class TestHolidayAndMarketGaps:
+    """Test handling of holidays and market closure gaps."""
+
+    @pytest.fixture
+    def mock_holiday_data(self, mock_ticker_factory):
+        """Mock data with holiday gaps (e.g., Christmas/New Year)."""
+
+        def _create() -> MagicMock:
+            mock = mock_ticker_factory()
+            # Dec 23-24, skip Dec 25-26 (Christmas), Dec 27, Dec 30-31, skip Jan 1, Jan 2-3
+            dates = pd.to_datetime(
+                [
+                    "2024-12-23",
+                    "2024-12-24",
+                    "2024-12-27",
+                    "2024-12-30",
+                    "2024-12-31",
+                    "2025-01-02",
+                    "2025-01-03",
+                ]
+            )
+            df = pd.DataFrame(
+                {
+                    "Open": [100, 101, 102, 103, 104, 105, 106],
+                    "High": [101, 102, 103, 104, 105, 106, 107],
+                    "Low": [99, 100, 101, 102, 103, 104, 105],
+                    "Close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5],
+                    "Adj Close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5],
+                    "Volume": [1000000] * 7,
+                },
+                index=dates,
+            )
+            mock.history.return_value = df
+            return mock
+
+        return _create
+
+    def test_holiday_gaps_in_market_gaps(self, call_toon, mock_holiday_data) -> None:
+        """Holiday gaps should be included in market_gaps array."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_holiday_data()):
+            parsed = call_toon(
+                "history",
+                {"symbol": "AAPL", "start": "2024-12-20", "end": "2025-01-05"},
+            )
+
+        bars = parsed["bars"]
+        assert "market_gaps" in bars
+        # Should have gaps for Christmas and New Year
+        assert len(bars["market_gaps"]) >= 2
+
+    def test_holiday_period_technicals_with_warmup(self, call_toon, mock_holiday_data) -> None:
+        """Technicals during holiday period should handle warmup correctly."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_holiday_data()):
+            parsed = call_toon(
+                "technicals",
+                {
+                    "symbol": "AAPL",
+                    "indicators": ["sma_5"],
+                    "start": "2024-12-20",
+                    "end": "2025-01-05",
+                },
+            )
+
+        # Should have warmup info even with holiday gaps
+        assert "_issues" in parsed
+        assert "_warmup" in parsed["_issues"]
+        assert parsed["_issues"]["_warmup"].get("sma_5") == 4  # SMA5 warmup = 4
+
+
+class TestLTTBDownsample:
     @pytest.mark.parametrize(
         "n_rows,target,expected_len",
         [

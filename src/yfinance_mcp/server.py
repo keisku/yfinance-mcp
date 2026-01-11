@@ -725,8 +725,77 @@ ALL_METRICS = [
 ]
 
 
-def _get_indicator_requirements(col_name: str) -> tuple[int, str] | None:
-    """Return (required_points, suggested_period) for an indicator column.
+class IndicatorRequirements:
+    """Requirements for a technical indicator including warmup and data needs."""
+
+    def __init__(self, required_bars: int, warmup_bars: int):
+        self.required_bars = required_bars  # minimum bars to compute any value
+        self.warmup_bars = warmup_bars  # initial null values (expected)
+
+    def shortfall(self, available_bars: int) -> int:
+        """How many more bars needed for first valid value."""
+        return max(0, self.required_bars - available_bars)
+
+    def suggest_extension(self, available_bars: int) -> str:
+        """Suggest how to extend the date range."""
+        shortfall = self.shortfall(available_bars)
+        if shortfall <= 0:
+            return ""
+        weeks = (shortfall + 4) // 5  # ~5 trading days per week
+        if weeks <= 1:
+            return f"extend start by {shortfall} trading days"
+        return f"extend start by ~{weeks} weeks ({shortfall} trading days)"
+
+
+# Indicator requirements: (required_bars, warmup_bars)
+# required_bars = minimum total bars to get first valid value
+# warmup_bars = number of initial null values (always = required_bars - 1 for rolling indicators)
+INDICATOR_REQUIREMENTS: dict[str, tuple[int, int]] = {
+    # RSI: uses ewm with min_periods=period, first diff loses 1 row
+    "rsi": (15, 14),
+    # MACD: slow EMA (26) + signal EMA (9) = 35 bars for first histogram value
+    "macd": (35, 34),
+    "macd_signal": (35, 34),
+    "macd_hist": (35, 34),
+    # Bollinger Bands: SMA(20), first 19 values are null
+    "bb_upper": (20, 19),
+    "bb_middle": (20, 19),
+    "bb_lower": (20, 19),
+    "bb_pctb": (20, 19),
+    # Slow Stochastic: k_period(14) + 2*d_period(3) smoothing = 20
+    "stoch_k": (20, 19),
+    "stoch_d": (20, 19),
+    # Fast Stochastic: k_period(14) + d_period(3) = 17
+    "fast_stoch_k": (17, 16),
+    "fast_stoch_d": (17, 16),
+    # CCI: SMA(20) of typical price
+    "cci": (20, 19),
+    # DMI: period(14) * 2 for ADX smoothing
+    "dmi_plus": (28, 27),
+    "dmi_minus": (28, 27),
+    "adx": (28, 27),
+    # Williams %R: rolling window of 14
+    "williams_r": (14, 13),
+    # Ichimoku components have different warmup periods
+    "ichimoku_conversion": (9, 8),
+    "ichimoku_base": (26, 25),
+    "ichimoku_leading_a": (52, 51),  # shifted by base_period
+    "ichimoku_leading_b": (78, 77),  # leading_b_period + base_period
+    "ichimoku_lagging": (1, 0),  # just a shift, no warmup
+    # ATR: EWM with span=14, needs 1 prior close
+    "atr": (15, 14),
+    "atr_pct": (15, 14),
+    # Momentum: diff over 10 periods
+    "momentum": (11, 10),
+    # OBV: cumulative, no warmup (first value uses sign of first diff)
+    "obv": (2, 1),
+    # Trend SMA50
+    "sma50": (50, 49),
+}
+
+
+def _get_indicator_requirements(col_name: str) -> IndicatorRequirements | None:
+    """Return requirements for an indicator column.
 
     Returns None if indicator doesn't have known warmup requirements.
     """
@@ -735,60 +804,14 @@ def _get_indicator_requirements(col_name: str) -> tuple[int, str] | None:
         if col_name.startswith(prefix):
             try:
                 n = int(col_name.split("_")[1])
-                if n <= 20:
-                    return (n, "1mo")
-                elif n <= 50:
-                    return (n, "3mo")
-                elif n <= 100:
-                    return (n, "6mo")
-                else:
-                    return (n, "1y")
+                return IndicatorRequirements(required_bars=n, warmup_bars=n - 1)
             except (ValueError, IndexError):
                 pass
 
-    # Static indicator requirements: (required_points, suggested_period)
-    requirements: dict[str, tuple[int, str]] = {
-        # RSI: period + 1 = 15
-        "rsi": (15, "1mo"),
-        # MACD: slow_period + signal_period = 26 + 9 = 35
-        "macd": (35, "2mo"),
-        "macd_signal": (35, "2mo"),
-        "macd_hist": (35, "2mo"),
-        # Bollinger Bands: period = 20
-        "bb_upper": (20, "1mo"),
-        "bb_middle": (20, "1mo"),
-        "bb_lower": (20, "1mo"),
-        "bb_pctb": (20, "1mo"),
-        # Stochastic: k_period + d_period = 14 + 3 = 17
-        "stoch_k": (17, "1mo"),
-        "stoch_d": (17, "1mo"),
-        "fast_stoch_k": (17, "1mo"),
-        "fast_stoch_d": (17, "1mo"),
-        # CCI: period = 20
-        "cci": (20, "1mo"),
-        # DMI: period * 2 = 14 * 2 = 28
-        "dmi_plus": (28, "2mo"),
-        "dmi_minus": (28, "2mo"),
-        "adx": (28, "2mo"),
-        # Williams %R: period = 14
-        "williams_r": (14, "1mo"),
-        # Ichimoku: leading_b_period + base_period = 52 + 26 = 78
-        "ichimoku_conversion": (9, "1mo"),
-        "ichimoku_base": (26, "2mo"),
-        "ichimoku_leading_a": (52, "3mo"),
-        "ichimoku_leading_b": (78, "6mo"),
-        "ichimoku_lagging": (26, "2mo"),
-        # ATR: period + 1 = 15
-        "atr": (15, "1mo"),
-        "atr_pct": (15, "1mo"),
-        # Momentum: period + 1 = 11
-        "momentum": (11, "1mo"),
-        # OBV: no warmup needed (cumulative)
-        # Trend (SMA50)
-        "sma50": (50, "3mo"),
-    }
-
-    return requirements.get(col_name)
+    req = INDICATOR_REQUIREMENTS.get(col_name)
+    if req:
+        return IndicatorRequirements(required_bars=req[0], warmup_bars=req[1])
+    return None
 
 
 def _handle_technicals(args: dict) -> str:
@@ -831,7 +854,8 @@ def _handle_technicals(args: dict) -> str:
             hint="Use a longer period to get enough data points for indicator calculations.",
         )
     df = normalize_df(df)
-    logger.debug("technicals_data_ready symbol=%s bars=%d", symbol, len(df))
+    total_bars = len(df)
+    logger.debug("technicals_data_ready symbol=%s bars=%d", symbol, total_bars)
 
     # Use Adj Close for indicators (more accurate for long-term), fall back to Close
     if "Adj Close" in df.columns:
@@ -980,48 +1004,89 @@ def _handle_technicals(args: dict) -> str:
                 unknown_indicators.append(ind)
 
         except CalculationError:
-            # Use specific period suggestion from indicator requirements
+            # Indicator couldn't compute at all - provide actionable details
             req = _get_indicator_requirements(ind)
             if req:
-                _, suggested_period = req
-                insufficient_data[ind] = f"try period='{suggested_period}'"
+                shortfall = req.shortfall(total_bars)
+                extension_hint = req.suggest_extension(total_bars)
+                insufficient_data[ind] = {
+                    "required": req.required_bars,
+                    "provided": total_bars,
+                    "shortfall": shortfall,
+                    "action": extension_hint if extension_hint else "check data quality or gaps",
+                }
             else:
-                insufficient_data[ind] = "use longer date range"
+                insufficient_data[ind] = {
+                    "provided": total_bars,
+                    "action": f"need more than {total_bars} bars, extend date range",
+                }
         except (ValueError, TypeError) as e:
             logger.warning("technicals_conversion_error indicator=%s error=%s", ind, e)
-            insufficient_data[ind] = str(e)
+            insufficient_data[ind] = {"error": str(e), "action": "check input data format"}
         except Exception as e:
             error_msg = str(e)
             if "blk ref_locs" in error_msg or "internal" in error_msg.lower():
                 logger.warning("technicals_data_quality indicator=%s error=%s", ind, e)
-                insufficient_data[ind] = "data_quality_issue"
+                insufficient_data[ind] = {
+                    "error": "data_quality_issue",
+                    "action": "try different symbol or date range",
+                }
             else:
                 raise
 
-    # Check for warmup nulls - only warn if valid data is insufficient
-    partial_data: dict[str, str] = {}
+    # Build warmup metadata and partial_data diagnostics
+    warmup_info: dict[str, int] = {}
+    partial_data: dict[str, dict[str, Any]] = {}
     total_rows = len(result_df)
+
     for col in result_df.columns:
+        req = _get_indicator_requirements(col)
+        if req and req.warmup_bars > 0:
+            warmup_info[col] = req.warmup_bars
+
         null_mask = result_df[col].isna()
         if not null_mask.any():
             continue
-        valid_rows = (~null_mask).sum()
-        # Only warn if less than 50% valid data (warmup dominates the response)
-        if valid_rows < total_rows * 0.5:
-            req = _get_indicator_requirements(col)
-            if req:
-                _, suggested_period = req
-                partial_data[col] = f"need more data, try period='{suggested_period}'"
-            else:
-                partial_data[col] = "need more data, use longer date range"
 
-    # Build issues dict
+        null_count = int(null_mask.sum())
+        valid_count = total_rows - null_count
+
+        # Only report partial_data if nulls exceed expected warmup
+        expected_warmup = req.warmup_bars if req else 0
+        if null_count > expected_warmup:
+            # Unexpected nulls beyond warmup period
+            partial_data[col] = {
+                "total_bars": total_rows,
+                "valid_bars": valid_count,
+                "null_bars": null_count,
+                "expected_warmup": expected_warmup,
+                "unexpected_nulls": null_count - expected_warmup,
+                "action": "check for missing price data or gaps in date range",
+            }
+        elif valid_count < total_rows * 0.5 and req:
+            # Warmup dominates the response - suggest longer range
+            partial_data[col] = {
+                "total_bars": total_rows,
+                "valid_bars": valid_count,
+                "warmup_bars": expected_warmup,
+                "coverage_pct": round(valid_count / total_rows * 100, 1),
+                "action": req.suggest_extension(total_bars)
+                if req.shortfall(total_bars) > 0
+                else f"need {expected_warmup * 2} bars for 50% coverage",
+            }
+
+    # Build issues dict with structured data
     if insufficient_data:
         issues["insufficient_data"] = insufficient_data
     if partial_data:
         issues["partial_data"] = partial_data
     if unknown_indicators:
-        issues["unknown"] = {ind: "not recognized" for ind in unknown_indicators}
+        issues["unknown"] = {
+            ind: {"action": "use valid indicator: rsi, macd, bb, stoch, sma_N, ema_N, etc."}
+            for ind in unknown_indicators
+        }
+    if warmup_info:
+        issues["_warmup"] = warmup_info
 
     # Check if all data columns are null (no valid indicator data)
     has_valid_data = False
