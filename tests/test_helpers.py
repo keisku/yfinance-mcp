@@ -477,8 +477,9 @@ class TestFmtToon:
     )
     def test_gap_threshold_boundary(self, fmt_toon, decode, delta_minutes, should_be_gap):
         """Gap detection threshold is 60 minutes (exclusive)."""
-        import pandas as pd
         from datetime import timedelta
+
+        import pandas as pd
 
         base = pd.Timestamp("2024-01-15 09:30")
         timestamps = [base, base + timedelta(minutes=delta_minutes)]

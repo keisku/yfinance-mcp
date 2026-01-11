@@ -414,10 +414,15 @@ class TestHistoryTool:
     def test_intraday_market_gaps_for_overnight(self, call_toon, mock_ticker_with_history) -> None:
         """Intraday data spanning overnight should include market_gaps field."""
         mock = mock_ticker_with_history()
-        timestamps = pd.to_datetime([
-            "2024-01-15 09:30", "2024-01-15 10:30", "2024-01-15 15:30",
-            "2024-01-16 09:30", "2024-01-16 10:30",
-        ])
+        timestamps = pd.to_datetime(
+            [
+                "2024-01-15 09:30",
+                "2024-01-15 10:30",
+                "2024-01-15 15:30",
+                "2024-01-16 09:30",
+                "2024-01-16 10:30",
+            ]
+        )
         df = pd.DataFrame(
             {
                 "Open": [100, 101, 102, 103, 104],

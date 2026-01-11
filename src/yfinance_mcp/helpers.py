@@ -180,12 +180,6 @@ def fmt_toon(
     # Schema hint for LLM comprehension
     schema = "ts[i] = base_ts + sum(deltas[0..i]); large deltas are market gaps"
 
-    # Parse interval to get nominal minutes for gap detection
-    nominal_minutes: int | None = None
-    if interval:
-        interval_map = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1d": 1440, "1wk": 10080}
-        nominal_minutes = interval_map.get(interval)
-
     if len(df) == 0:
         data: dict = {
             "_": schema,
