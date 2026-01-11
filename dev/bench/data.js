@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767965115957,
+  "lastUpdate": 1768089915363,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5406,6 +5406,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0027412611867425082",
             "extra": "mean: 25.48613337209187 msec\nrounds: 43"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "17834d4829b6fb8aa9c53f6e523868ceacd6e6ce",
+          "message": "docs: Fix interval boundary from 130 to 140 days\n\nThe hourly-to-daily interval switch occurs at ~140 calendar days\n(where trading_days × 1 >= TARGET_POINTS/2), not 130 as documented.",
+          "timestamp": "2026-01-11T09:03:56+09:00",
+          "tree_id": "51c94bd564731506c0cdd53a0de05b52b0f7e664",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/17834d4829b6fb8aa9c53f6e523868ceacd6e6ce"
+        },
+        "date": 1768089914919,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 217.6137972058454,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006335313004373177",
+            "extra": "mean: 4.595296864628851 msec\nrounds: 229"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 221.37792382593844,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007835239160261561",
+            "extra": "mean: 4.517162247787021 msec\nrounds: 226"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 219.33010868759308,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010200358122720942",
+            "extra": "mean: 4.559337548245 msec\nrounds: 228"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 82.87510840892602,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012831322288289193",
+            "extra": "mean: 12.06634922352989 msec\nrounds: 85"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 298.29361630782,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006906483209659229",
+            "extra": "mean: 3.352401611464805 msec\nrounds: 314"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 300.85644746478306,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011855194337212862",
+            "extra": "mean: 3.323844339806132 msec\nrounds: 309"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.120322132626836,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0012598047234780889",
+            "extra": "mean: 123.14782389999976 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 42.51069908549918,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00022738671963311863",
+            "extra": "mean: 23.523489886363922 msec\nrounds: 44"
           }
         ]
       }
