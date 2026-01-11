@@ -144,8 +144,8 @@ uv run pip-audit                       # Security scan
 |------------|----------|-----|
 | 1-5 days | 5-minute | 78 bars/day × 2.5 days ≈ 200 |
 | 5-20 days | 15-30 min | 13-26 bars/day × 10 days ≈ 200 |
-| 20-130 days | Hourly | 6.5 bars/day × 30 days ≈ 200 |
-| 130+ days | Daily/Weekly | 1 bar/day × 200 days = 200 |
+| 20-140 days | Hourly | 6.5 bars/day × 30 days ≈ 200 |
+| 140+ days | Daily/Weekly | 1 bar/day × 200 days = 200 |
 
 Configure via `YFINANCE_TARGET_POINTS` (100-400 range):
 
