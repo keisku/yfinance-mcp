@@ -48,13 +48,14 @@ jobs:
         env:
           BASE_VERSION: ${{ steps.version.outputs.content }}
         run: |
-          LATEST_BETA=$(git tag -l "${BASE_VERSION}-beta.*" | sort -V | tail -1)
+          BASE_VERSION_CLEAN=${BASE_VERSION%-beta.*}
+          LATEST_BETA=$(git tag -l "${BASE_VERSION_CLEAN}-beta.*" | sort -V | tail -1)
           if [ -z "$LATEST_BETA" ]; then
             BETA_NUM=1
           else
             BETA_NUM=$((${LATEST_BETA##*-beta.} + 1))
           fi
-          echo "version=${BASE_VERSION}-beta.${BETA_NUM}" >> $GITHUB_OUTPUT
+          echo "version=${BASE_VERSION_CLEAN}-beta.${BETA_NUM}" >> $GITHUB_OUTPUT
 
       - name: Set final version
         id: final_version
