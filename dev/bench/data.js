@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768090169863,
+  "lastUpdate": 1768093514407,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5566,6 +5566,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0005160401384028088",
             "extra": "mean: 23.03104902222262 msec\nrounds: 45"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "f57be56147ecf4c132e924830789290174783d18",
+          "message": "ci(release): Add beta release support\n\nBeta releases create tags without committing to main. Version format\nis v1.2.3-beta.N with auto-incrementing N based on existing tags.\nGitHub releases are marked as prereleases when beta=true.",
+          "timestamp": "2026-01-11T10:02:56+09:00",
+          "tree_id": "59bf6b76b41403d8f518cb1974aebf5851a5e2e7",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/f57be56147ecf4c132e924830789290174783d18"
+        },
+        "date": 1768093513527,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 219.00607303262117,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008899003873213293",
+            "extra": "mean: 4.566083424778129 msec\nrounds: 226"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 219.3278674885834,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000735732442378198",
+            "extra": "mean: 4.5593841377774424 msec\nrounds: 225"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 216.25529387021157,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010724503834189985",
+            "extra": "mean: 4.624164255605058 msec\nrounds: 223"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 82.62547514984372,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001206856113731067",
+            "extra": "mean: 12.102804833333433 msec\nrounds: 84"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 298.4864707950097,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010456896067741508",
+            "extra": "mean: 3.350235598070928 msec\nrounds: 311"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 299.98934703432894,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006279877684190278",
+            "extra": "mean: 3.33345170382189 msec\nrounds: 314"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.261835518910305,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006274975670486902",
+            "extra": "mean: 121.0384784000027 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 43.434774015784576,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00025089829392169064",
+            "extra": "mean: 23.023027577778837 msec\nrounds: 45"
           }
         ]
       }
