@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768099709715,
+  "lastUpdate": 1768099922726,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5726,6 +5726,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00029113434525954954",
             "extra": "mean: 23.09937500000071 msec\nrounds: 44"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "edd007e437eecad474d9aca80c1a84770ffa8879",
+          "message": "fix(ci): Strip existing beta suffix before calculating next beta version\n\ngit-cliff returns a version like v0.5.1-beta.2 when the latest tag is a\nbeta release. The workflow was appending another -beta.N suffix to it,\nresulting in malformed versions like v0.5.1-beta.2-beta.1.",
+          "timestamp": "2026-01-11T11:50:53+09:00",
+          "tree_id": "8ac5eecf302e5fcd89848e2c838d832b345eaf1a",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/edd007e437eecad474d9aca80c1a84770ffa8879"
+        },
+        "date": 1768099922447,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 226.59679493167013,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00006134916089778798",
+            "extra": "mean: 4.413125085469758 msec\nrounds: 234"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 227.84112737501027,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000648642649693436",
+            "extra": "mean: 4.389023226496203 msec\nrounds: 234"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 223.612943060166,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000871568804378353",
+            "extra": "mean: 4.472013052173536 msec\nrounds: 230"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 84.4572763674256,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013757171247162712",
+            "extra": "mean: 11.84030604597724 msec\nrounds: 87"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 304.09185774275306,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00019053448858992846",
+            "extra": "mean: 3.2884800251572384 msec\nrounds: 318"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 310.0085834465999,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005756176497407643",
+            "extra": "mean: 3.2257171362232735 msec\nrounds: 323"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.559481218197352,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006180842415937894",
+            "extra": "mean: 116.82951040000091 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 44.8165023434042,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017662068658659368",
+            "extra": "mean: 22.31320936956548 msec\nrounds: 46"
           }
         ]
       }
