@@ -1,6 +1,6 @@
 [project]
 name = "yfinance-mcp"
-version = "0.4.1"
+version = "0.5.0"
 description = "Yahoo Finance MCP server providing market data and technical analysis tools"
 readme = "README.md"
 license = "MIT"

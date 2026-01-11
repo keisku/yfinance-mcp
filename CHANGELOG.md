@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-11
+
+### Added
+- Add interval and market_gaps fields for time series clarity ([780ef8f](https://github.com/keisku/yfinance-mcp/commit/780ef8f52121b237c7f8fae715e37cec37210f60))
+  TOON-encoded responses now include:
+  - interval: nominal data granularity (e.g., "5m", "1h", "1d")
+  - market_gaps: indices where large deltas represent market closures
+  (overnight, weekends) rather than missing data
+  The schema hint now explicitly notes that large deltas are market gaps,
+  helping LLM clients correctly interpret non-uniform time series data.
+- Include timezone offset in t0 timestamp ([74bea94](https://github.com/keisku/yfinance-mcp/commit/74bea940b416d8de6361519ab8cf235db9068c4e))
+  Add exchange timezone to TOON output as ISO 8601 offset in t0 field.
+  Users can now unambiguously determine the timezone of price data based
+  on the stock exchange location.
+  Format examples:
+  - Intraday: "2024-01-15T09:30-05:00" (NYSE)
+  - Daily: "2024-01-15T00:00+09:00" (Tokyo)
+- Add Streamable HTTP transport support ([c32f6bf](https://github.com/keisku/yfinance-mcp/commit/c32f6bf58be758f22c2edbb606909e516dcf55e5))
+  Add MCP Streamable HTTP transport as an alternative to stdio,
+  selectable via YFINANCE_TRANSPORT environment variable.
+  - Add MCPEndpoint ASGI class wrapping StreamableHTTPSessionManager
+  - Add create_starlette_app() factory with lifecycle callbacks
+  - Export reusable components from __init__.py for yfinance-mcp-aws
+  - Use port 9246 by default (Y=9, A=2, H=4, O=6 → "YAHO")
+  - Add starlette, uvicorn, sse-starlette dependencies
+  New environment variables:
+  - YFINANCE_TRANSPORT: "stdio" (default) or "http"
+  - YFINANCE_HTTP_HOST: HTTP server host (default: 127.0.0.1)
+  - YFINANCE_HTTP_PORT: HTTP server port (default: 9246)
+
+### Changed
+- Rename abbreviated keys to descriptive names ([0ee06a0](https://github.com/keisku/yfinance-mcp/commit/0ee06a0ab9910a2b541d7bb871cee1be36f223c1))
+  Improve TOON format readability by using explicit key names:
+  - cols → columns
+  - t0 → base_ts
+  - dt → deltas
+  - dt_unit → delta_unit
+  - rows → values
+  Update schema hint and tests to match new naming convention.
+
+### Documentation
+- Fix interval boundary from 130 to 140 days ([17834d4](https://github.com/keisku/yfinance-mcp/commit/17834d4829b6fb8aa9c53f6e523868ceacd6e6ce))
+  The hourly-to-daily interval switch occurs at ~140 calendar days
+  (where trading_days × 1 >= TARGET_POINTS/2), not 130 as documented.
+- Organize indicators by category ([90d5353](https://github.com/keisku/yfinance-mcp/commit/90d5353988b654c43158643cbc7efe8d6e8264b3))
+  Group technical indicators into logical categories (Trend, Moving
+  Averages, Momentum, Volatility, Volume, Support/Resistance, Price)
+  in README to improve discoverability.
+  Update price_change description to reflect the fix: now shows period
+  change (first to last bar) instead of single-bar rate of change.
+
+### Fixed
+- Use full-period change for price_change indicator ([6fbb7f3](https://github.com/keisku/yfinance-mcp/commit/6fbb7f30ccd92466dda6ebc97a88fcfda2e305f1))
+  The price_change indicator was incorrectly using period=1 (default),
+  which only compared the last two bars. Users requesting "1mo" technicals
+  expected the full month-over-month change but received single-bar change
+  (~0.05% vs ~0.25%).
+  Now passes period=len(price)-1 to compare first and last bars of the
+  requested period, matching user expectations.
+- Default explicit date ranges to daily bar granularity ([18dd988](https://github.com/keisku/yfinance-mcp/commit/18dd988e4d382c6aa5109e0352188a7794b4eb77))
+  Explicit start/end date requests now default to daily bars minimum,
+  preventing unexpected intraday data that could break downstream logic
+  expecting consistent granularity.
+  - Add interval parameter to select_interval for explicit floor control
+  - Expose interval option in history tool schema (auto/1d/1wk)
+  - Period-based queries retain full auto-selection behavior
+  - Update tests to reflect new default behavior
+- Return all valid periods in schema enum ([144be8a](https://github.com/keisku/yfinance-mcp/commit/144be8adb88ba6e85f9df9d06268d5c4ad744e4e))
+  The MCP schema enum was limited to 7 evenly-distributed periods via
+  MAX_PERIOD_OPTIONS, causing valid periods like "2mo" and "1y" to be
+  rejected by framework validation before reaching the handler.
+  Remove MAX_PERIOD_OPTIONS and the downsampling logic, allowing all
+  periods that fit within max_trading_days to be exposed in the schema.
+- Return null instead of 0 for uncalculable values ([5640482](https://github.com/keisku/yfinance-mcp/commit/56404824dc6c24862db28ef6d6dde580ae541795))
+  Users reported confusion when technicals returned 0 - it was unclear
+  whether 0 meant "actual zero value" or "no data available".
+  Change price_change to return null for change_pct when previous price
+  is 0 (division by zero), making the semantics clear: null means the
+  value cannot be calculated, 0 means an actual zero result.
+
+### Miscellaneous
+- Remove unused nominal_minutes variable ([ea0cbe6](https://github.com/keisku/yfinance-mcp/commit/ea0cbe681fdbe8f24127422be8a7bc85cbfc3705))
+
 ## [0.4.1] - 2026-01-09
 
 ### CI
