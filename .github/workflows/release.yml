@@ -48,8 +48,8 @@ jobs:
         env:
           BASE_VERSION: ${{ steps.version.outputs.content }}
         run: |
-          BASE_VERSION_CLEAN=${BASE_VERSION%-beta.*}
-          LATEST_BETA=$(git tag -l "${BASE_VERSION_CLEAN}-beta.*" | sort -V | tail -1)
+          BASE_VERSION_CLEAN=${BASE_VERSION%%-beta.*}
+          LATEST_BETA=$(git tag -l "${BASE_VERSION_CLEAN}-beta.*" | grep -E "^${BASE_VERSION_CLEAN}-beta\.[0-9]+$" | sort -V | tail -1)
           if [ -z "$LATEST_BETA" ]; then
             BETA_NUM=1
           else
