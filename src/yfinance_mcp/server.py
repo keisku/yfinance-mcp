@@ -335,7 +335,7 @@ TOOLS = [
             "VOLUME: obv (volume trend), volume_profile (price-level activity). "
             "MOVING_AVERAGES: sma_N, ema_N, wma_N. "
             "SUPPORT_RESISTANCE: fibonacci, pivot. "
-            "PRICE: price_change (rate of change)."
+            "PRICE: price_change (period change, first to last bar)."
         ),
         inputSchema={
             "type": "object",

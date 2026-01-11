@@ -73,23 +73,36 @@ Logging:
 
 Available via the `technicals` tool:
 
+**Trend**
 - `trend` - SMA50-based trend direction
-- `rsi` - [Relative Strength Index](https://www.investopedia.com/terms/r/rsi.asp) (14-period)
 - `macd` - [Moving Average Convergence Divergence](https://www.investopedia.com/terms/m/macd.asp)
-- `sma_N`, `ema_N`, `wma_N` - Moving averages (e.g., `sma_20`, `ema_12`)
-- `bb` - [Bollinger Bands](https://www.investopedia.com/terms/b/bollingerbands.asp)
-- `stoch`, `fast_stoch` - [Stochastic Oscillator](https://www.investopedia.com/terms/s/stochasticoscillator.asp)
 - `ichimoku` - [Ichimoku Cloud](https://www.investopedia.com/terms/i/ichimoku-cloud.asp)
-- `atr` - [Average True Range](https://www.investopedia.com/terms/a/atr.asp)
-- `obv` - [On-Balance Volume](https://www.investopedia.com/terms/o/onbalancevolume.asp)
-- `cci` - [Commodity Channel Index](https://www.investopedia.com/terms/c/commoditychannelindex.asp)
 - `dmi` - [Directional Movement Index](https://www.investopedia.com/terms/d/dmi.asp)
+
+**Moving Averages**
+- `sma_N`, `ema_N`, `wma_N` - Moving averages (e.g., `sma_20`, `ema_12`)
+
+**Momentum**
+- `rsi` - [Relative Strength Index](https://www.investopedia.com/terms/r/rsi.asp) (14-period)
+- `stoch`, `fast_stoch` - [Stochastic Oscillator](https://www.investopedia.com/terms/s/stochasticoscillator.asp)
+- `cci` - [Commodity Channel Index](https://www.investopedia.com/terms/c/commoditychannelindex.asp)
 - `williams` - [Williams %R](https://www.investopedia.com/terms/w/williamsr.asp)
 - `momentum` - [Momentum](https://www.investopedia.com/terms/m/momentum.asp) (10-period)
+
+**Volatility**
+- `bb` - [Bollinger Bands](https://www.investopedia.com/terms/b/bollingerbands.asp)
+- `atr` - [Average True Range](https://www.investopedia.com/terms/a/atr.asp)
+
+**Volume**
+- `obv` - [On-Balance Volume](https://www.investopedia.com/terms/o/onbalancevolume.asp)
 - `volume_profile` - [Volume Profile](https://www.investopedia.com/terms/v/volume-analysis.asp)
-- `price_change` - Price change and percentage
+
+**Support/Resistance**
 - `fibonacci` - [Fibonacci Retracement](https://www.investopedia.com/terms/f/fibonacciretracement.asp) levels
 - `pivot` - [Pivot Points](https://www.investopedia.com/terms/p/pivotpoint.asp) (Standard, Fibonacci, Camarilla, Woodie)
+
+**Price**
+- `price_change` - Period change (first to last bar) and percentage
 
 ### Valuation Metrics
 
