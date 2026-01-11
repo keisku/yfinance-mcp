@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768099922726,
+  "lastUpdate": 1768100423604,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5806,6 +5806,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00017662068658659368",
             "extra": "mean: 22.31320936956548 msec\nrounds: 46"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "7307cd726b9493e8b60dcaac07f1b77182d2e8a9",
+          "message": "fix(ci): Prevent malformed beta version strings in release workflow\n\ngit-cliff may return versions with existing -beta.N suffixes. Using\nshortest match (%) only stripped one suffix, and glob matching caught\nmalformed tags. Now uses longest match (%%) and regex filtering to\nensure only valid vX.Y.Z-beta.N tags are considered.",
+          "timestamp": "2026-01-11T11:59:13+09:00",
+          "tree_id": "7d0a2717752eac8fa31059e3a51727f54828eac0",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/7307cd726b9493e8b60dcaac07f1b77182d2e8a9"
+        },
+        "date": 1768100423306,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 218.59345165253444,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007984398926480544",
+            "extra": "mean: 4.574702455357865 msec\nrounds: 224"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 213.99914802658876,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012048466483591956",
+            "extra": "mean: 4.672915800000068 msec\nrounds: 225"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 207.51644477095314,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020515806364383184",
+            "extra": "mean: 4.818895201793539 msec\nrounds: 223"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 79.94392282484361,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000318165224061349",
+            "extra": "mean: 12.508768204820154 msec\nrounds: 83"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 285.01989875334044,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010243767424082763",
+            "extra": "mean: 3.5085269638152936 msec\nrounds: 304"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 274.07646542609115,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015083541245640135",
+            "extra": "mean: 3.6486168137251647 msec\nrounds: 306"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 7.938428588902284,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0022521678365382157",
+            "extra": "mean: 125.96951510000027 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 37.727068581367774,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001003588535659102",
+            "extra": "mean: 26.506167523809918 msec\nrounds: 42"
           }
         ]
       }
