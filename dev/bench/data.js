@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768093514407,
+  "lastUpdate": 1768099709715,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5646,6 +5646,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00025089829392169064",
             "extra": "mean: 23.023027577778837 msec\nrounds: 45"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "c59ea84127d6fa8b9d5602df33b6b48e847fcb1d",
+          "message": "feat(technicals): Add structured _issues with actionable feedback\n\nReplace ambiguous messages like \"try period=2mo\" with structured\ndiagnostics that clients can programmatically interpret:\n\n- insufficient_data: includes required, provided, shortfall, action\n- partial_data: includes total_bars, valid_bars, coverage_pct, action\n- _warmup: explicitly discloses expected warmup bars per indicator\n- unknown: includes action with valid indicator examples\n\nAdd IndicatorRequirements class to centralize warmup/data calculations\nand generate specific suggestions like \"extend start by ~3 weeks\".\n\nExpand test coverage for global exchanges (.T, .DE, .HK, .TO, .NS),\nasset classes (index, crypto, forex, futures, ETF), short date ranges,\nand holiday gaps.",
+          "timestamp": "2026-01-11T11:32:08+09:00",
+          "tree_id": "21c72c7c61b3d5158194ec7d99eebdb97aeb3dbc",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/c59ea84127d6fa8b9d5602df33b6b48e847fcb1d"
+        },
+        "date": 1768099709257,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 218.9783823273242,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008460315536139546",
+            "extra": "mean: 4.566660824561309 msec\nrounds: 228"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 220.21746520848325,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010228085603071081",
+            "extra": "mean: 4.540965899563346 msec\nrounds: 229"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 214.96735234907695,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011643834225954202",
+            "extra": "mean: 4.651869174888192 msec\nrounds: 223"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 83.61626850448465,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015108779378020885",
+            "extra": "mean: 11.959395197674555 msec\nrounds: 86"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 302.6401883275141,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010304101623247713",
+            "extra": "mean: 3.3042538253968115 msec\nrounds: 315"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 302.13808498885595,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00023460025870584053",
+            "extra": "mean: 3.3097449467083364 msec\nrounds: 319"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.275716621819157,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0009156763455332322",
+            "extra": "mean: 120.83545699999831 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 43.29121458913799,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00029113434525954954",
+            "extra": "mean: 23.09937500000071 msec\nrounds: 44"
           }
         ]
       }
