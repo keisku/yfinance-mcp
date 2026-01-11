@@ -2,6 +2,7 @@
 
 import contextlib
 import contextvars
+import inspect
 import logging
 import os
 import re
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta
 from importlib.metadata import version
 from typing import Any
 
+import anyio
 import pandas as pd
 import uvicorn
 import yfinance as yf
@@ -162,6 +164,15 @@ def _reset_cb() -> None:
     _cb["fails"] = 0
     _cb["open"] = False
     _cb["opened_at"] = None
+
+
+async def _maybe_await(func: Any | None) -> None:
+    """Call function and await if it returns an awaitable (coroutine, Task, Future)."""
+    if func is None:
+        return
+    result = func()
+    if inspect.isawaitable(result):
+        await result
 
 
 def reset_circuit_breaker_for_testing() -> None:
@@ -1576,21 +1587,36 @@ class MCPEndpoint:
 
     Args:
         session_manager: The session manager to handle requests.
-        on_request: Optional async callback invoked before each request (e.g., cache sync).
+        on_request: Optional callback invoked before each request.
+        on_response: Optional callback invoked after each request.
+        per_request_task_group: If True, creates a task group per request
+            instead of relying on lifespan. Use for Lambda/serverless.
     """
 
     def __init__(
         self,
         session_manager: StreamableHTTPSessionManager,
         on_request: Any | None = None,
+        on_response: Any | None = None,
+        per_request_task_group: bool = False,
     ) -> None:
         self.session_manager = session_manager
         self.on_request = on_request
+        self.on_response = on_response
+        self.per_request_task_group = per_request_task_group
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if self.on_request:
-            await self.on_request()
-        await self.session_manager.handle_request(scope, receive, send)
+        await _maybe_await(self.on_request)
+        try:
+            if self.per_request_task_group:
+                async with anyio.create_task_group() as tg:
+                    self.session_manager._task_group = tg
+                    await self.session_manager.handle_request(scope, receive, send)
+                self.session_manager._task_group = None
+            else:
+                await self.session_manager.handle_request(scope, receive, send)
+        finally:
+            await _maybe_await(self.on_response)
 
 
 def create_session_manager(
@@ -1608,17 +1634,22 @@ def create_starlette_app(
     session_manager: StreamableHTTPSessionManager | None = None,
     path: str = "/mcp",
     on_request: Any | None = None,
+    on_response: Any | None = None,
     on_startup: Any | None = None,
     on_shutdown: Any | None = None,
+    per_request_task_group: bool = False,
 ) -> Starlette:
     """Create a Starlette app with the MCP endpoint.
 
     Args:
         session_manager: Session manager (created automatically if None).
         path: URL path for the MCP endpoint.
-        on_request: Async callback before each request.
+        on_request: Callback before each request (sync or async).
+        on_response: Callback after each request (sync or async).
         on_startup: Async callback on app startup.
         on_shutdown: Async callback on app shutdown.
+        per_request_task_group: If True, creates a task group per request
+            instead of using session_manager.run() lifespan. Use for serverless.
     """
     if session_manager is None:
         session_manager = create_session_manager()
@@ -1627,14 +1658,23 @@ def create_starlette_app(
     async def lifespan(app: Starlette) -> AsyncIterator[None]:
         if on_startup:
             await on_startup()
-        async with session_manager.run():
+        if per_request_task_group:
             yield
+        else:
+            async with session_manager.run():
+                yield
         if on_shutdown:
             await on_shutdown()
 
+    endpoint = MCPEndpoint(
+        session_manager,
+        on_request=on_request,
+        on_response=on_response,
+        per_request_task_group=per_request_task_group,
+    )
     return Starlette(
         debug=False,
-        routes=[Route(path, endpoint=MCPEndpoint(session_manager, on_request=on_request))],
+        routes=[Route(path, endpoint=endpoint)],
         lifespan=lifespan,
     )
 
