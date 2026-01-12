@@ -40,30 +40,30 @@ jobs:
         id: version
         with:
           config: cliff.toml
-          args: --bumped-version
+          args: --bumped-version --tag-pattern 'v[0-9]+\.[0-9]+\.[0-9]+$'
 
-      - name: Calculate beta version
-        if: ${{ inputs.beta }}
-        id: beta_version
+      - name: Calculate final version
+        id: final_version
         env:
           BASE_VERSION: ${{ steps.version.outputs.content }}
+          IS_BETA: ${{ inputs.beta }}
         run: |
-          BASE_VERSION_CLEAN=${BASE_VERSION%%-beta.*}
-          LATEST_BETA=$(git tag -l "${BASE_VERSION_CLEAN}-beta.*" | grep -E "^${BASE_VERSION_CLEAN}-beta\.[0-9]+$" | sort -V | tail -1)
+          if [ -z "$BASE_VERSION" ]; then
+            echo "::error::Failed to calculate base version from git-cliff"
+            exit 1
+          fi
+
+          if [ "$IS_BETA" != "true" ]; then
+            echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          LATEST_BETA=$(git tag -l "${BASE_VERSION}-beta.*" | sort -V | tail -1)
           if [ -z "$LATEST_BETA" ]; then
-            BETA_NUM=1
+            echo "version=${BASE_VERSION}-beta.1" >> $GITHUB_OUTPUT
           else
             BETA_NUM=$((${LATEST_BETA##*-beta.} + 1))
-          fi
-          echo "version=${BASE_VERSION_CLEAN}-beta.${BETA_NUM}" >> $GITHUB_OUTPUT
-
-      - name: Set final version
-        id: final_version
-        run: |
-          if [ "${{ inputs.beta }}" = "true" ]; then
-            echo "version=${{ steps.beta_version.outputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ steps.version.outputs.content }}" >> $GITHUB_OUTPUT
+            echo "version=${BASE_VERSION}-beta.${BETA_NUM}" >> $GITHUB_OUTPUT
           fi
 
       - name: Generate release notes
