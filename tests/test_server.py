@@ -814,6 +814,43 @@ class TestTechnicalsActionableFeedback:
         # TOON format uses colons for key-value, not JSON's {"key": "value"}
         assert "_issues:" in text or "insufficient_data:" in text
 
+    @pytest.mark.parametrize(
+        "n_bars,indicators,expected_returned,expected_missing",
+        [
+            # Mixed success/failure: rsi (15), macd (35) succeed; sma_200 (200) fails
+            (50, ["rsi", "macd", "sma_200"], {"rsi", "macd"}, {"sma_200"}),
+            # All succeed: no missing key
+            (100, ["rsi", "cci"], {"rsi", "cci"}, None),
+            # Unknown indicator goes to missing
+            (100, ["rsi", "fake_indicator"], {"rsi"}, {"fake_indicator"}),
+            # All fail: returned is empty
+            (10, ["sma_200", "sma_100"], set(), {"sma_200", "sma_100"}),
+        ],
+    )
+    def test_meta_tracks_requested_returned_missing(
+        self,
+        call_toon,
+        mock_ticker_with_history,
+        n_bars,
+        indicators,
+        expected_returned,
+        expected_missing,
+    ) -> None:
+        """_meta should track requested, returned, and missing indicators."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=n_bars)):
+            parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": indicators})
+
+        assert "_meta" in parsed
+        meta = parsed["_meta"]
+
+        assert set(meta["requested"]) == set(indicators)
+        assert set(meta["returned"]) == expected_returned
+
+        if expected_missing:
+            assert set(meta["missing"]) == expected_missing
+        else:
+            assert "missing" not in meta
+
 
 class TestValuationTool:
     """Test valuation tool - valuation metrics and quality score."""

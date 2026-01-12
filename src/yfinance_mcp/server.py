@@ -882,6 +882,7 @@ def _handle_technicals(args: dict) -> str:
     insufficient_data: dict[str, str] = {}
     unknown_indicators: list[str] = []
     summaries: dict[str, Any] = {}  # Single-value results: volume_profile, fibonacci, pivot
+    requested_indicators: list[str] = list(inds)  # Track original request for _meta
 
     for ind in inds:
         try:
@@ -1107,6 +1108,19 @@ def _handle_technicals(args: dict) -> str:
     if warmup_info:
         issues["_warmup"] = warmup_info
 
+    # Build _meta to track requested vs returned indicators
+    # Missing = failed due to insufficient data or unknown indicator
+    failed_indicators = set(insufficient_data.keys()) | set(unknown_indicators)
+    returned_indicators = [ind for ind in requested_indicators if ind not in failed_indicators]
+    missing_indicators = [ind for ind in requested_indicators if ind in failed_indicators]
+
+    meta: dict[str, Any] = {
+        "requested": requested_indicators,
+        "returned": returned_indicators,
+    }
+    if missing_indicators:
+        meta["missing"] = missing_indicators
+
     # Check if all data columns are null (no valid indicator data)
     has_valid_data = False
     for col in result_df.columns:
@@ -1116,17 +1130,12 @@ def _handle_technicals(args: dict) -> str:
 
     if not has_valid_data:
         # Return only issues/summaries when no valid timeseries data
-        if issues or summaries:
-            result: dict[str, Any] = {}
-            if summaries:
-                result.update(summaries)
-            if issues:
-                result["_issues"] = issues
-            return fmt_toon_dict(result)
-        raise DataUnavailableError(
-            "No indicator data could be calculated",
-            hint="Use a longer date range or try different indicators.",
-        )
+        result: dict[str, Any] = {"_meta": meta}
+        if summaries:
+            result.update(summaries)
+        if issues:
+            result["_issues"] = issues
+        return fmt_toon_dict(result)
 
     result_df = lttb_downsample(result_df)
     result_df = result_df.dropna(how="all")  # Drop rows where all values are null
@@ -1137,6 +1146,7 @@ def _handle_technicals(args: dict) -> str:
         wrapper_key="data",
         issues=issues if issues else None,
         summaries=summaries if summaries else None,
+        meta=meta,
         tz=exchange_tz,
         interval=interval,
     )

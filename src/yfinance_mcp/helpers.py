@@ -152,6 +152,7 @@ def fmt_toon(
     wrapper_key: str | None = None,
     issues: dict | None = None,
     summaries: dict | None = None,
+    meta: dict | None = None,
     tz: str | None = None,
     interval: str | None = None,
 ) -> str:
@@ -166,6 +167,7 @@ def fmt_toon(
     Timestamp format: "YYYY-MM-DDTHH:MM" for intraday, "YYYY-MM-DD" for daily.
     If issues is provided, it's included as _issues in the TOON structure.
     If summaries is provided, each key is added at the top level.
+    If meta is provided, it's included as _meta in the TOON structure.
     """
     df = df.copy()
     cols = df.columns.tolist()
@@ -208,6 +210,8 @@ def fmt_toon(
 
     if summaries:
         result.update(summaries)
+    if meta:
+        result["_meta"] = meta
     if issues:
         result["_issues"] = issues
 
