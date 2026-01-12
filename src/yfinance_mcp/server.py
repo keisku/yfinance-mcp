@@ -336,17 +336,14 @@ TOOLS = [
             f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points. "
             f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
             "split into multiple sequential requests. "
-            "TREND: trend (SMA50-based direction), macd (histogram>0 bullish), "
-            "dmi (ADX>25 strong trend), ichimoku (cloud analysis). "
-            "MOMENTUM: rsi (>70 overbought, <30 oversold), "
-            "stoch/fast_stoch (>80 overbought, <20 oversold), "
-            "cci (>100 overbought, <-100 oversold), "
-            "williams (>-20 overbought, <-80 oversold), momentum. "
-            "VOLATILITY: bb (Bollinger Bands), atr. "
-            "VOLUME: obv (volume trend), volume_profile (price-level activity). "
-            "MOVING_AVERAGES: sma_N, ema_N, wma_N. "
-            "SUPPORT_RESISTANCE: fibonacci, pivot. "
-            "PRICE: price_change (period change, first to last bar)."
+            "RESPONSE STRUCTURE: 'data' contains time-series columns; "
+            "summary indicators appear as separate top-level keys. "
+            "TIME-SERIES (in data.columns): trend, macd, dmi, ichimoku, rsi, stoch, "
+            "fast_stoch, cci, williams, momentum, bb, atr, obv, sma_N, ema_N, wma_N. "
+            "SUMMARIES (top-level keys): price_change, fibonacci, pivot, volume_profile. "
+            "SIGNALS: macd (histogram>0 bullish), dmi (ADX>25 strong trend), "
+            "rsi (>70 overbought, <30 oversold), stoch/fast_stoch (>80/>20), "
+            "cci (>100/>-100), williams (>-20/>-80)."
         ),
         inputSchema={
             "type": "object",
@@ -358,9 +355,9 @@ TOOLS = [
                     "default": ["all"],
                     "description": (
                         "Default: ['all']. "
-                        "Options: all, trend, rsi, macd, sma_N, ema_N, wma_N, bb, stoch, "
-                        "fast_stoch, cci, dmi, williams, ichimoku, atr, obv, "
-                        "momentum, volume_profile, price_change, fibonacci, pivot"
+                        "TIME-SERIES (→ data.columns): trend, rsi, macd, bb, stoch, fast_stoch, "
+                        "cci, dmi, williams, ichimoku, atr, obv, momentum, sma_N, ema_N, wma_N. "
+                        "SUMMARIES (→ top-level keys): price_change, fibonacci, pivot, volume_profile."
                     ),
                 },
                 "period": {
@@ -710,6 +707,13 @@ INDICATOR_CATEGORIES: dict[str, list[str]] = {
     "support_resistance": ["fibonacci", "pivot"],
     "price": ["price_change"],
 }
+
+# Indicators that return scalar/summary values (top-level keys in response)
+# vs time-series data (columns in data.rows)
+SUMMARY_INDICATORS = {"price_change", "fibonacci", "pivot", "volume_profile"}
+TIMESERIES_INDICATORS = {
+    ind for inds in INDICATOR_CATEGORIES.values() for ind in inds
+} - SUMMARY_INDICATORS
 
 ALL_INDICATORS = [ind for inds in INDICATOR_CATEGORIES.values() for ind in inds]
 
