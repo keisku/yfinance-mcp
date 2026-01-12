@@ -12,7 +12,6 @@ from datetime import date, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -158,91 +157,45 @@ def fmt_toon(
 ) -> str:
     """Format DataFrame as TOON for token-efficient LLM responses.
 
-    Uses delta-encoded split format for ~56% token reduction vs row-oriented JSON:
-    - _: schema hint for LLM comprehension ("ts[i] = base_ts + sum(deltas[0..i])")
-    - columns: column names (excluding timestamp)
-    - base_ts: first timestamp as ISO 8601 with timezone offset (e.g., "2024-01-15-05:00"
-      for daily, "2024-01-15T09:30-05:00" for intraday)
-    - deltas: time deltas from previous row (first element is always 0)
-    - delta_unit: "day" for daily data, "min" for intraday
-    - interval: nominal data interval (e.g., "5m", "1h", "1d") - deltas may vary due to
-      downsampling or market gaps
-    - market_gaps: indices where deltas represent market close gaps (overnight/weekend),
-      not missing data. Only present for intraday data with gaps.
-    - values: value tuples in column order
+    Uses row-oriented format with ~30% token reduction vs verbose JSON:
+    - tz: IANA timezone string (e.g., "America/New_York") if available
+    - columns: column names with "ts" as first element
+    - interval: nominal data interval (e.g., "5m", "1h", "1d") if provided
+    - rows: array of [timestamp, val1, val2, ...] tuples
 
+    Timestamp format: "YYYY-MM-DDTHH:MM" for intraday, "YYYY-MM-DD" for daily.
     If issues is provided, it's included as _issues in the TOON structure.
     If summaries is provided, each key is added at the top level.
     """
     df = df.copy()
     cols = df.columns.tolist()
 
-    # Schema hint for LLM comprehension
-    schema = "ts[i] = base_ts + sum(deltas[0..i]); large deltas are market gaps"
+    # Validate tz is a proper IANA timezone string (e.g., "America/New_York")
+    valid_tz = isinstance(tz, str) and "/" in tz
 
     if len(df) == 0:
-        data: dict = {
-            "_": schema,
-            "columns": cols,
-            "base_ts": None,
-            "deltas": [],
-            "delta_unit": "day",
-            "values": [],
-        }
+        data: dict = {"columns": ["ts"] + cols, "rows": []}
+        if valid_tz:
+            data["tz"] = tz
         if interval:
             data["interval"] = interval
     elif isinstance(df.index, pd.DatetimeIndex):
         first_ts = df.index[0]
         has_time = first_ts.hour != 0 or first_ts.minute != 0
 
-        # Validate tz is a proper IANA timezone string (e.g., "America/New_York")
-        valid_tz = isinstance(tz, str) and "/" in tz
-
-        market_gaps: list[int] = []
         if has_time:
-            if valid_tz:
-                localized = first_ts.to_pydatetime().replace(tzinfo=ZoneInfo(tz))
-                t0 = localized.strftime("%Y-%m-%dT%H:%M%z")
-                t0 = t0[:-2] + ":" + t0[-2:]
-            else:
-                t0 = first_ts.strftime("%Y-%m-%dT%H:%M")
-            minutes = ((df.index - first_ts).total_seconds() / 60).astype(int)
-            dt = [0] + [int(minutes[i] - minutes[i - 1]) for i in range(1, len(minutes))]
-            dt_unit = "min"
-
-            # Detect market gaps: deltas > 60 min (overnight/weekend closures)
-            # Gap threshold: 60 min catches all overnight gaps regardless of interval
-            gap_threshold = 60
-            market_gaps = [i for i in range(1, len(dt)) if dt[i] > gap_threshold]
+            timestamps = [ts.strftime("%Y-%m-%dT%H:%M") for ts in df.index]
         else:
-            if valid_tz:
-                localized = first_ts.to_pydatetime().replace(tzinfo=ZoneInfo(tz))
-                t0 = localized.strftime("%Y-%m-%dT00:00%z")
-                t0 = t0[:-2] + ":" + t0[-2:]
-            else:
-                t0 = first_ts.strftime("%Y-%m-%d")
-            days = (df.index - first_ts).days
-            dt = [0] + [int(days[i] - days[i - 1]) for i in range(1, len(days))]
-            dt_unit = "day"
+            timestamps = [ts.strftime("%Y-%m-%d") for ts in df.index]
 
-            # For daily data, gaps > 1 day indicate weekends/holidays
-            market_gaps = [i for i in range(1, len(dt)) if dt[i] > 1]
+        rows = [[ts] + list(row) for ts, row in zip(timestamps, df.values.tolist())]
 
-        values = df.values.tolist()
-        data = {
-            "_": schema,
-            "columns": cols,
-            "base_ts": t0,
-            "deltas": dt,
-            "delta_unit": dt_unit,
-            "values": values,
-        }
+        data = {"columns": ["ts"] + cols, "rows": rows}
+        if valid_tz:
+            data["tz"] = tz
         if interval:
             data["interval"] = interval
-        if market_gaps:
-            data["market_gaps"] = market_gaps
     else:
-        # Non-DatetimeIndex is unexpected - fail explicitly rather than produce broken data
         raise TypeError(
             f"fmt_toon expects DatetimeIndex, got {type(df.index).__name__}. "
             "Ensure df.index = pd.to_datetime(df.index) before calling."
@@ -670,7 +623,7 @@ def period_to_date_range(period: str) -> tuple[str | None, str | None, str | Non
     return (None, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
 
 
-TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "200"))
+TARGET_POINTS = int(os.environ.get("YFINANCE_TARGET_POINTS", "150"))
 
 # Trading minutes by exchange (yfinance exchange codes)
 # Calculated as: trading_hours × 60 - lunch_break_minutes

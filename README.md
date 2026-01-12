@@ -54,7 +54,7 @@ Transport:
 - `YFINANCE_HTTP_PORT` (default: `9246`) - HTTP server port (only for `http` transport).
 
 Data:
-- `YFINANCE_TARGET_POINTS` (default: `200`) - Data points per response. [more](#architecture).
+- `YFINANCE_TARGET_POINTS` (default: `150`) - Data points per response. [more](#architecture).
 - `YFINANCE_CACHE_DISABLED` (default: unset) - Set to `1` to disable caching.
 - `YFINANCE_CACHE_DB` (default: `~/.cache/yfinance-mcp/market.duckdb`) - Cache database path.
 - `YFINANCE_INTRADAY_TTL_MINUTES` (default: `30`) - Intraday cache TTL in minutes.
@@ -138,22 +138,22 @@ uv run pip-audit                       # Security scan
 
 ### Architecture
 
-**Data points & tokens** - Each response returns ~200 data points by default, using ~3.3K tokens. This stays near the [1-3K ideal range](https://github.com/adobe-research/NoLiMa) where top LLMs maintain high accuracy. The server auto-selects resolution based on date range:
+**Data points & tokens** - Each response returns ~150 data points by default, using ~3K tokens. This stays within the [1-3K ideal range](https://github.com/adobe-research/NoLiMa) where top LLMs maintain high accuracy. The server auto-selects resolution based on date range:
 
 | Date Range | Interval | Why |
 |------------|----------|-----|
-| 1-5 days | 5-minute | 78 bars/day × 2.5 days ≈ 200 |
-| 5-20 days | 15-30 min | 13-26 bars/day × 10 days ≈ 200 |
-| 20-140 days | Hourly | 6.5 bars/day × 30 days ≈ 200 |
-| 140+ days | Daily/Weekly | 1 bar/day × 200 days = 200 |
+| 1-4 days | 5-minute | 78 bars/day × 2 days ≈ 150 |
+| 4-15 days | 15-30 min | 15 bars/day × 10 days ≈ 150 |
+| 15-100 days | Hourly | 6.5 bars/day × 23 days ≈ 150 |
+| 100+ days | Daily/Weekly | 1 bar/day × 150 days = 150 |
 
-Configure via `YFINANCE_TARGET_POINTS` (100-400 range):
+Configure via `YFINANCE_TARGET_POINTS` (50-500 range):
 
-- 100 points → ~1.6K tokens (quick queries)
-- 200 points → ~3.3K tokens (default, near ideal range)
-- 400 points → ~6.5K tokens (detailed analysis, within [10K practical limit](https://cookbook.openai.com/examples/gpt-5/gpt-5-1-codex-max_prompting_guide))
+- 50 points → ~1K tokens (minimal context)
+- 150 points → ~3K tokens (default, ideal range)
+- 500 points → ~10K tokens (maximum detail, within [10K practical limit](https://cookbook.openai.com/examples/gpt-5/gpt-5-1-codex-max_prompting_guide))
 
-Data uses delta-encoded split format in [TOON](https://github.com/toon-format/toon), achieving ~56% token reduction vs JSON by eliminating repeated keys and delta-encoding dates. Downsampling preserves key features: `history` uses OHLC resampling (support/resistance), `technicals` uses [LTTB](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf) (trend reversals).
+Data uses row-oriented [TOON](https://github.com/toon-format/toon) with column headers declared once, achieving ~30% token reduction vs verbose JSON. Downsampling preserves key features: `history` uses OHLC resampling (support/resistance), `technicals` uses [LTTB](https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf) (trend reversals).
 
 **Caching** - Local cache reduces Yahoo Finance API calls. The cache detects gaps in cached data and fetches only missing ranges.
 

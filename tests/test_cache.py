@@ -135,8 +135,8 @@ class TestFindGaps:
         assert gaps[-1] == (date(2024, 7, 2), date(2025, 1, 1))
 
         merged = fetcher._merge_gaps(gaps)
-        # MAX_PERIOD_DAYS=1400, so 10-year range (3650 days) needs 3 chunks
-        assert len(merged) == 3
+        # MAX_PERIOD_DAYS=750, so 10-year range (~2600 trading days) needs 4 chunks
+        assert len(merged) == 4
 
 
 class TestCacheFillGaps:

@@ -21,9 +21,9 @@ from yfinance_mcp.server import (
 
 
 def split_to_row(data: dict, row_idx: int = 0) -> dict:
-    """Reconstruct row dict from delta-encoded split format."""
+    """Reconstruct row dict from row-oriented format (columns + rows)."""
     cols = data["columns"]
-    row = data["values"][row_idx]
+    row = data["rows"][row_idx]
     return dict(zip(cols, row))
 
 
@@ -262,16 +262,14 @@ class TestHistoryTool:
     """Test price tool - historical OHLCV data."""
 
     def test_returns_bars(self, call_toon, mock_ticker_with_history) -> None:
-        """History should return bars in delta-encoded split format."""
+        """History should return bars in row-oriented format."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history()):
             parsed = call_toon("history", {"symbol": "AAPL"})
 
         assert "bars" in parsed
-        assert set(parsed["bars"]["columns"]) == {"o", "h", "l", "c", "ac", "v"}
-        assert "base_ts" in parsed["bars"]
-        assert "deltas" in parsed["bars"]
-        assert "values" in parsed["bars"]
-        assert len(parsed["bars"]["values"]) > 0
+        assert set(parsed["bars"]["columns"]) == {"ts", "o", "h", "l", "c", "ac", "v"}
+        assert "rows" in parsed["bars"]
+        assert len(parsed["bars"]["rows"]) > 0
 
     @pytest.mark.parametrize(
         "args,description",
@@ -289,7 +287,7 @@ class TestHistoryTool:
             parsed = call_toon("history", {"symbol": "AAPL", **args})
 
         assert "bars" in parsed
-        assert len(parsed["bars"]["values"]) > 0
+        assert len(parsed["bars"]["rows"]) > 0
 
     def test_intraday_datetime_strings(self, call_toon, mock_ticker_with_history) -> None:
         """Short time spans should auto-select intraday interval."""
@@ -305,7 +303,7 @@ class TestHistoryTool:
             )
 
         assert "bars" in parsed
-        assert "T" in parsed["bars"]["base_ts"]  # Contains time component (ISO 8601 format)
+        assert "T" in parsed["bars"]["rows"][0][0]  # First row timestamp contains time component
 
     @pytest.mark.parametrize(
         "close,adj_close,check",
@@ -345,8 +343,8 @@ class TestHistoryTool:
 
         bars = parsed["bars"]
         cols = bars["columns"]
-        c_val = bars["values"][0][cols.index("c")]
-        ac_val = bars["values"][0][cols.index("ac")]
+        c_val = bars["rows"][0][cols.index("c")]
+        ac_val = bars["rows"][0][cols.index("ac")]
 
         if check.get("ac_lt_c"):
             assert ac_val < c_val, "ac should be lower for dividend stocks"
@@ -357,7 +355,7 @@ class TestHistoryTool:
             assert "_issues" not in parsed, "No warning when Adj Close exists"
 
     def test_missing_trading_days_handled(self, call_toon, mock_ticker_with_history) -> None:
-        """Weekends/holidays should not fill gaps; dt array shows skips."""
+        """Weekends/holidays are implicit via missing timestamps in rows."""
         mock = mock_ticker_with_history()
         n = 10
         df = pd.DataFrame(
@@ -375,8 +373,10 @@ class TestHistoryTool:
                 "history", {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-15"}
             )
 
-        assert len(parsed["bars"]["values"]) == n
-        assert any(d > 1 for d in parsed["bars"]["deltas"]), "Weekend gaps expected"
+        assert len(parsed["bars"]["rows"]) == n
+        timestamps = [row[0] for row in parsed["bars"]["rows"]]
+        assert "2024-01-06" not in timestamps, "Saturday should not be in data"
+        assert "2024-01-07" not in timestamps, "Sunday should not be in data"
 
     def test_interval_field_included(self, call_toon, mock_ticker_with_history) -> None:
         """History response should include interval field."""
@@ -386,8 +386,10 @@ class TestHistoryTool:
         assert "interval" in parsed["bars"]
         assert parsed["bars"]["interval"] in ["1d", "1h", "5m", "15m", "30m", "1wk"]
 
-    def test_market_gaps_for_daily_with_weekends(self, call_toon, mock_ticker_with_history) -> None:
-        """Daily data spanning weekends should include market_gaps field."""
+    def test_daily_data_only_includes_trading_days(
+        self, call_toon, mock_ticker_with_history
+    ) -> None:
+        """Daily data spanning weekends should only include trading days."""
         mock = mock_ticker_with_history()
         n = 10
         df = pd.DataFrame(
@@ -405,14 +407,12 @@ class TestHistoryTool:
                 "history", {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-15"}
             )
 
-        assert "market_gaps" in parsed["bars"]
-        gaps = parsed["bars"]["market_gaps"]
-        assert len(gaps) > 0
-        for gap_idx in gaps:
-            assert parsed["bars"]["deltas"][gap_idx] > 1
+        timestamps = [row[0] for row in parsed["bars"]["rows"]]
+        assert len(timestamps) == n
+        assert all("2024-01-06" not in ts for ts in timestamps), "Weekend excluded"
 
-    def test_intraday_market_gaps_for_overnight(self, call_toon, mock_ticker_with_history) -> None:
-        """Intraday data spanning overnight should include market_gaps field."""
+    def test_intraday_data_spans_multiple_days(self, call_toon, mock_ticker_with_history) -> None:
+        """Intraday data spanning overnight should include timestamps from both days."""
         mock = mock_ticker_with_history()
         timestamps = pd.to_datetime(
             [
@@ -442,10 +442,9 @@ class TestHistoryTool:
                 {"symbol": "AAPL", "start": "2024-01-15 09:30", "end": "2024-01-16 16:00"},
             )
 
-        assert "market_gaps" in parsed["bars"]
-        assert parsed["bars"]["delta_unit"] == "min"
-        gaps = parsed["bars"]["market_gaps"]
-        assert 3 in gaps
+        row_timestamps = [row[0] for row in parsed["bars"]["rows"]]
+        assert "2024-01-15T09:30" in row_timestamps
+        assert "2024-01-16T09:30" in row_timestamps
 
     def test_adj_close_fallback_shows_warning(self, call_toon, mock_ticker_with_history) -> None:
         """Missing Adj Close column should trigger fallback with _issues warning."""
@@ -793,8 +792,8 @@ class TestTechnicalsActionableFeedback:
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_50"]})
 
         if "data" in parsed:
-            for row_values in parsed["data"]["values"]:
-                # Each row should have at least one non-null value
+            for row in parsed["data"]["rows"]:
+                row_values = row[1:]  # Skip timestamp
                 assert any(v is not None for v in row_values), "All-null row should be excluded"
 
     def test_all_failed_returns_toon_format(self, mock_ticker_with_history) -> None:
@@ -1452,12 +1451,12 @@ class TestAutoInterval:
     @pytest.mark.parametrize(
         "period,start,end,should_error",
         [
-            # Period-based tests (MAX_PERIOD_DAYS = 1000 trading days for TARGET_POINTS=200)
+            # Period-based tests (MAX_PERIOD_DAYS = 750 trading days for TARGET_POINTS=150)
             # Calendar days converted to trading days via × 5/7
             ("1y", None, None, False),  # 365 × 5/7 = 261 trading days - within limit
             ("2y", None, None, False),  # 730 × 5/7 = 521 trading days - within limit
-            ("3y", None, None, False),  # 1095 × 5/7 = 782 trading days - within limit
-            ("5y", None, None, True),  # 1825 × 5/7 = 1304 trading days - exceeds 1000 limit
+            ("3y", None, None, True),  # 1095 × 5/7 = 782 trading days - exceeds 750 limit
+            ("5y", None, None, True),  # 1825 × 5/7 = 1304 trading days - exceeds limit
             ("10y", None, None, True),  # 3650 × 5/7 = 2607 trading days - exceeds limit
             ("max", None, None, True),  # 7300 × 5/7 = 5214 trading days - exceeds limit
             ("unknown_period", None, None, False),  # defaults to 90 days
@@ -1467,9 +1466,9 @@ class TestAutoInterval:
             (None, "2024-01-01", "2024-06-01", False),  # 152 × 5/7 = 109 trading days - within
             (None, "2024-01-01", "2024-01-01", False),  # same day (0 days)
             (None, "2024-01-01", None, False),  # end defaults to today
-            # Boundary tests (~1000 trading day limit = ~1400 calendar days)
-            (None, "2021-03-29", "2025-01-01", False),  # 1374 × 5/7 = 981 trading days - under
-            (None, "2021-03-01", "2025-01-01", True),  # 1402 × 5/7 = 1001 trading days - exceeds
+            # Boundary tests (~750 trading day limit = ~1050 calendar days)
+            (None, "2022-03-01", "2025-01-01", False),  # 1037 × 5/7 = 740 trading days - under
+            (None, "2022-01-01", "2025-01-01", True),  # 1096 × 5/7 = 783 trading days - exceeds
         ],
     )
     def test_validate_date_range(self, period, start, end, should_error) -> None:
@@ -1551,11 +1550,11 @@ class TestAutoInterval:
 
         periods = get_valid_periods(MAX_PERIOD_DAYS)
 
-        # MAX_PERIOD_DAYS = 1000 trading days (TARGET_POINTS=200 × 5)
-        assert "3y" in periods  # 1095 calendar days = 782 trading days < 1000
-        assert "5y" not in periods  # 1825 calendar days = 1304 trading days > 1000
+        # MAX_PERIOD_DAYS = 750 trading days (TARGET_POINTS=150 × 5)
+        assert "2y" in periods  # 730 calendar days = 521 trading days < 750
+        assert "3y" not in periods  # 1095 calendar days = 782 trading days > 750
         assert "ytd" in periods
-        assert len(periods) == 14
+        assert len(periods) == 13
 
 
 class TestOHLCResample:
@@ -1694,7 +1693,7 @@ class TestGlobalExchangeSuffixes:
             parsed = call_toon("history", {"symbol": symbol})
 
         assert "bars" in parsed
-        assert len(parsed["bars"]["values"]) > 0
+        assert len(parsed["bars"]["rows"]) > 0
 
 
 class TestAssetClassBehaviors:
@@ -1834,7 +1833,7 @@ class TestAssetClassBehaviors:
         c_idx = cols.index("c")
         ac_idx = cols.index("ac")
 
-        for row in bars["values"]:
+        for row in bars["rows"]:
             assert row[c_idx] == row[ac_idx], "Index should have ac == c"
 
     def test_index_no_sector_industry(self, call, mock_index_ticker) -> None:
@@ -1846,16 +1845,12 @@ class TestAssetClassBehaviors:
         assert parsed.get("industry") is None or parsed["industry"] == ""
 
     def test_crypto_24_7_no_weekend_gaps(self, call_toon, mock_crypto_ticker) -> None:
-        """Crypto (BTC-USD) trades 24/7, should have no weekend gaps in daily data."""
+        """Crypto (BTC-USD) trades 24/7, should have data for every day including weekends."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_crypto_ticker(n=14)):
             parsed = call_toon("history", {"symbol": "BTC-USD"})
 
         bars = parsed["bars"]
-        # Crypto trading every day means no gaps > 1 day (no weekend skips)
-        # market_gaps should be empty for 24/7 trading
-        assert "market_gaps" not in bars or len(bars["market_gaps"]) == 0, (
-            "Crypto should have no market gaps (24/7 trading)"
-        )
+        assert len(bars["rows"]) == 14, "Crypto should have data for all 14 days (24/7 trading)"
 
     def test_crypto_quote_type(self, call, mock_crypto_ticker) -> None:
         """Crypto should have CRYPTOCURRENCY quote type."""
@@ -1874,7 +1869,7 @@ class TestAssetClassBehaviors:
         cols = bars["columns"]
         v_idx = cols.index("v")
         # Forex volume can be zero
-        assert all(row[v_idx] == 0 for row in bars["values"])
+        assert all(row[v_idx] == 0 for row in bars["rows"])
 
     def test_forex_small_price_precision(self, call_toon, mock_forex_ticker) -> None:
         """Forex prices are small (e.g., 1.08), should preserve precision."""
@@ -1885,7 +1880,7 @@ class TestAssetClassBehaviors:
         cols = bars["columns"]
         c_idx = cols.index("c")
         # Forex price should be preserved with sufficient precision
-        assert 1.0 < bars["values"][0][c_idx] < 2.0
+        assert 1.0 < bars["rows"][0][c_idx] < 2.0
 
     def test_futures_quote_type(self, call, mock_futures_ticker) -> None:
         """Futures should have FUTURE quote type."""
@@ -1905,7 +1900,7 @@ class TestAssetClassBehaviors:
         ac_idx = cols.index("ac")
 
         # ETF with dividends should have ac < c (mock applies 2% adjustment)
-        for row in bars["values"]:
+        for row in bars["rows"]:
             assert row[ac_idx] < row[c_idx], "ETF should have ac < c due to dividends"
 
     @pytest.mark.parametrize(
@@ -2024,8 +2019,8 @@ class TestHolidayAndMarketGaps:
 
         return _create
 
-    def test_holiday_gaps_in_market_gaps(self, call_toon, mock_holiday_data) -> None:
-        """Holiday gaps should be included in market_gaps array."""
+    def test_holiday_gaps_implicit_in_timestamps(self, call_toon, mock_holiday_data) -> None:
+        """Holiday gaps are implicit via missing dates in timestamps."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_holiday_data()):
             parsed = call_toon(
                 "history",
@@ -2033,9 +2028,9 @@ class TestHolidayAndMarketGaps:
             )
 
         bars = parsed["bars"]
-        assert "market_gaps" in bars
-        # Should have gaps for Christmas and New Year
-        assert len(bars["market_gaps"]) >= 2
+        timestamps = [row[0] for row in bars["rows"]]
+        assert "2024-12-25" not in timestamps, "Christmas should not be in data"
+        assert "2025-01-01" not in timestamps, "New Year should not be in data"
 
     def test_holiday_period_technicals_with_warmup(self, call_toon, mock_holiday_data) -> None:
         """Technicals during holiday period should handle warmup correctly."""

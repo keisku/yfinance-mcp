@@ -221,7 +221,7 @@ class TestResourceManagement:
 
 
 class TestFmtToon:
-    """Tests for fmt_toon function - TOON encoding with interval and market_gaps."""
+    """Tests for fmt_toon function - row-oriented TOON encoding."""
 
     @pytest.fixture
     def decode(self):
@@ -273,119 +273,58 @@ class TestFmtToon:
 
         assert "interval" not in result
 
-    @pytest.mark.parametrize(
-        "timestamps,expected_gap_indices",
-        [
-            pytest.param(
-                ["2024-01-15 09:30", "2024-01-15 15:30", "2024-01-16 09:30"],
-                [2],
-                id="single_overnight_gap",
-            ),
-            pytest.param(
-                [
-                    "2024-01-15 09:30",
-                    "2024-01-15 15:30",
-                    "2024-01-16 09:30",
-                    "2024-01-16 15:30",
-                    "2024-01-17 09:30",
-                ],
-                [2, 4],
-                id="multiple_overnight_gaps",
-            ),
-            pytest.param(
-                [
-                    "2024-01-12 09:30",
-                    "2024-01-12 15:30",
-                    "2024-01-15 09:30",
-                ],
-                [2],
-                id="weekend_gap_fri_to_mon",
-            ),
-        ],
-    )
-    def test_market_gaps_intraday(self, fmt_toon, decode, timestamps, expected_gap_indices):
-        """Intraday data with gaps should populate market_gaps at correct indices."""
-        import pandas as pd
-
-        ts = pd.to_datetime(timestamps)
-        df = pd.DataFrame({"close": list(range(100, 100 + len(ts)))}, index=ts)
-        result = decode(fmt_toon(df, interval="1h"))
-
-        assert "market_gaps" in result
-        for idx in expected_gap_indices:
-            assert idx in result["market_gaps"]
-
-    @pytest.mark.parametrize(
-        "freq,periods",
-        [
-            pytest.param("5min", 10, id="5min_bars"),
-            pytest.param("15min", 8, id="15min_bars"),
-            pytest.param("30min", 6, id="30min_bars"),
-            pytest.param("1h", 4, id="hourly_bars"),
-        ],
-    )
-    def test_no_gaps_single_trading_day(self, fmt_toon, decode, freq, periods):
-        """Single trading day should have no market_gaps regardless of interval."""
+    def test_columns_include_ts_first(self, fmt_toon, decode):
+        """columns should include 'ts' as first element."""
         import pandas as pd
 
         df = pd.DataFrame(
-            {"close": list(range(100, 100 + periods))},
-            index=pd.date_range("2024-01-15 09:30", periods=periods, freq=freq),
+            {"open": [100], "close": [101]},
+            index=pd.date_range("2024-01-01", periods=1, freq="D"),
         )
-        result = decode(fmt_toon(df, interval=freq.replace("min", "m")))
+        result = decode(fmt_toon(df))
 
-        assert "market_gaps" not in result
+        assert result["columns"][0] == "ts"
+        assert result["columns"][1:] == ["open", "close"]
 
-    @pytest.mark.parametrize(
-        "start_date,periods,expected_gap_count",
-        [
-            # Wed Jan 3 -> Tue Jan 16 spans 2 weekends (Jan 6-7, Jan 13-14)
-            pytest.param("2024-01-03", 10, 2, id="two_weekends"),
-            # Wed Jan 3 -> Mon Jan 8 spans 1 weekend (Jan 6-7)
-            pytest.param("2024-01-03", 4, 1, id="one_weekend"),
-            # Fri Jan 5 -> Mon Jan 8 spans 1 weekend
-            pytest.param("2024-01-05", 2, 1, id="fri_to_mon"),
-        ],
-    )
-    def test_market_gaps_daily_weekends(
-        self, fmt_toon, decode, start_date, periods, expected_gap_count
-    ):
-        """Daily data spanning weekends should detect correct number of gaps."""
+    def test_rows_contain_timestamp_and_values(self, fmt_toon, decode):
+        """Each row should be [timestamp, val1, val2, ...]."""
         import pandas as pd
 
         df = pd.DataFrame(
-            {"close": list(range(100, 100 + periods))},
-            index=pd.bdate_range(start_date, periods=periods),
-        )
-        result = decode(fmt_toon(df, interval="1d"))
-
-        assert "market_gaps" in result
-        assert len(result["market_gaps"]) == expected_gap_count
-
-    def test_no_gaps_consecutive_weekdays(self, fmt_toon, decode):
-        """Consecutive weekdays (Mon-Fri) should have no market_gaps."""
-        import pandas as pd
-
-        df = pd.DataFrame(
-            {"close": list(range(100, 105))},
-            index=pd.bdate_range("2024-01-08", periods=5),  # Mon-Fri
-        )
-        result = decode(fmt_toon(df, interval="1d"))
-
-        assert "market_gaps" not in result
-
-    def test_schema_hint_mentions_gaps(self, fmt_toon, decode):
-        """Schema hint should explain that large deltas are market gaps."""
-        import pandas as pd
-
-        df = pd.DataFrame(
-            {"close": [100, 101]},
+            {"open": [100, 101], "close": [102, 103]},
             index=pd.date_range("2024-01-01", periods=2, freq="D"),
         )
         result = decode(fmt_toon(df))
 
-        assert "market gaps" in result["_"]
-        assert "ts[i] = base_ts + sum(deltas[0..i])" in result["_"]
+        assert len(result["rows"]) == 2
+        assert result["rows"][0] == ["2024-01-01", 100, 102]
+        assert result["rows"][1] == ["2024-01-02", 101, 103]
+
+    def test_intraday_timestamp_format(self, fmt_toon, decode):
+        """Intraday data should use YYYY-MM-DDTHH:MM format."""
+        import pandas as pd
+
+        df = pd.DataFrame(
+            {"close": [100, 101]},
+            index=pd.date_range("2024-01-15 09:30", periods=2, freq="30min"),
+        )
+        result = decode(fmt_toon(df))
+
+        assert result["rows"][0][0] == "2024-01-15T09:30"
+        assert result["rows"][1][0] == "2024-01-15T10:00"
+
+    def test_daily_timestamp_format(self, fmt_toon, decode):
+        """Daily data should use YYYY-MM-DD format."""
+        import pandas as pd
+
+        df = pd.DataFrame(
+            {"close": [100, 101]},
+            index=pd.date_range("2024-01-15", periods=2, freq="D"),
+        )
+        result = decode(fmt_toon(df))
+
+        assert result["rows"][0][0] == "2024-01-15"
+        assert result["rows"][1][0] == "2024-01-16"
 
     @pytest.mark.parametrize(
         "interval,expected_interval",
@@ -395,7 +334,7 @@ class TestFmtToon:
         ],
     )
     def test_empty_dataframe(self, fmt_toon, decode, interval, expected_interval):
-        """Empty DataFrame should handle interval correctly."""
+        """Empty DataFrame should return empty rows."""
         import pandas as pd
 
         df = pd.DataFrame(columns=["close"])
@@ -406,31 +345,31 @@ class TestFmtToon:
             assert result["interval"] == expected_interval
         else:
             assert "interval" not in result
-        assert result["deltas"] == []
-        assert result["values"] == []
-        assert "market_gaps" not in result
+        assert result["rows"] == []
+        assert result["columns"] == ["ts", "close"]
 
-    def test_single_row_no_gaps(self, fmt_toon, decode):
-        """Single row DataFrame should have no market_gaps."""
+    def test_single_row(self, fmt_toon, decode):
+        """Single row DataFrame should produce single row output."""
         import pandas as pd
 
         df = pd.DataFrame({"close": [100]}, index=pd.date_range("2024-01-15 09:30", periods=1))
         result = decode(fmt_toon(df, interval="5m"))
 
-        assert "market_gaps" not in result
-        assert result["deltas"] == [0]
+        assert len(result["rows"]) == 1
+        assert result["rows"][0] == ["2024-01-15T09:30", 100]
 
     @pytest.mark.parametrize(
-        "tz,expected_tz_in_base_ts",
+        "tz,should_include_tz",
         [
-            pytest.param("America/New_York", "-05:00", id="new_york"),
-            pytest.param("America/Los_Angeles", "-08:00", id="los_angeles"),
-            pytest.param("Asia/Tokyo", "+09:00", id="tokyo"),
-            pytest.param(None, None, id="no_timezone"),
+            pytest.param("America/New_York", True, id="new_york"),
+            pytest.param("America/Los_Angeles", True, id="los_angeles"),
+            pytest.param("Asia/Tokyo", True, id="tokyo"),
+            pytest.param(None, False, id="no_timezone"),
+            pytest.param("invalid", False, id="invalid_timezone"),
         ],
     )
-    def test_timezone_handling(self, fmt_toon, decode, tz, expected_tz_in_base_ts):
-        """Timezone should be reflected in base_ts for intraday data."""
+    def test_timezone_handling(self, fmt_toon, decode, tz, should_include_tz):
+        """Valid IANA timezone should be included as tz field."""
         import pandas as pd
 
         df = pd.DataFrame(
@@ -439,10 +378,10 @@ class TestFmtToon:
         )
         result = decode(fmt_toon(df, interval="1h", tz=tz))
 
-        if expected_tz_in_base_ts:
-            assert expected_tz_in_base_ts in result["base_ts"]
+        if should_include_tz:
+            assert result["tz"] == tz
         else:
-            assert "T09:30" in result["base_ts"]
+            assert "tz" not in result
 
     def test_wrapper_key_wraps_data(self, fmt_toon, decode):
         """wrapper_key should wrap the TOON data in a nested structure."""
@@ -453,7 +392,8 @@ class TestFmtToon:
 
         assert "bars" in result
         assert result["bars"]["interval"] == "1d"
-        assert "deltas" in result["bars"]
+        assert "rows" in result["bars"]
+        assert result["bars"]["columns"] == ["ts", "close"]
 
     def test_issues_included_when_provided(self, fmt_toon, decode):
         """issues dict should be included as _issues in output."""
@@ -466,28 +406,22 @@ class TestFmtToon:
         assert "_issues" in result
         assert result["_issues"]["ac"] == "Adj Close unavailable"
 
-    @pytest.mark.parametrize(
-        "delta_minutes,should_be_gap",
-        [
-            pytest.param(59, False, id="59min_not_gap"),
-            pytest.param(60, False, id="60min_not_gap"),
-            pytest.param(61, True, id="61min_is_gap"),
-            pytest.param(1080, True, id="18hours_is_gap"),
-        ],
-    )
-    def test_gap_threshold_boundary(self, fmt_toon, decode, delta_minutes, should_be_gap):
-        """Gap detection threshold is 60 minutes (exclusive)."""
-        from datetime import timedelta
-
+    def test_summaries_included_at_top_level(self, fmt_toon, decode):
+        """summaries dict should be merged at top level."""
         import pandas as pd
 
-        base = pd.Timestamp("2024-01-15 09:30")
-        timestamps = [base, base + timedelta(minutes=delta_minutes)]
-        df = pd.DataFrame({"close": [100, 101]}, index=pd.DatetimeIndex(timestamps))
-        result = decode(fmt_toon(df, interval="1h"))
+        df = pd.DataFrame({"close": [100, 101]}, index=pd.date_range("2024-01-01", periods=2))
+        summaries = {"latest": {"close": 101}}
+        result = decode(fmt_toon(df, summaries=summaries))
 
-        if should_be_gap:
-            assert "market_gaps" in result
-            assert 1 in result["market_gaps"]
-        else:
-            assert "market_gaps" not in result
+        assert "latest" in result
+        assert result["latest"]["close"] == 101
+
+    def test_non_datetime_index_raises(self, fmt_toon):
+        """Non-DatetimeIndex should raise TypeError."""
+        import pandas as pd
+
+        df = pd.DataFrame({"close": [100, 101]}, index=[0, 1])
+
+        with pytest.raises(TypeError, match="fmt_toon expects DatetimeIndex"):
+            fmt_toon(df)
