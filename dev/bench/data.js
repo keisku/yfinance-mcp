@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768100423604,
+  "lastUpdate": 1768178367256,
   "repoUrl": "https://github.com/keisku/yfinance-mcp",
   "entries": {
     "Benchmark": [
@@ -5886,6 +5886,86 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.001003588535659102",
             "extra": "mean: 26.506167523809918 msec\nrounds: 42"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "committer": {
+            "email": "keisuke.umegaki.630@gmail.com",
+            "name": "Keisuke Umegaki",
+            "username": "keisku"
+          },
+          "distinct": true,
+          "id": "ea279a16a9f18b8404f4b9089d7a3cf4a406a92f",
+          "message": "refactor(toon): Simplify to row-oriented format\n\nReplace delta-encoded split format with row-oriented tuples for better\nLLM readability. The new format trades modest token overhead for\nexplicit timestamps, eliminating complex delta reconstruction logic.\n\nFormat changes:\n- Remove: base_ts, deltas, delta_unit, market_gaps, schema hint\n- Add: tz field at top level, \"ts\" as first column\n- rows: [timestamp, val1, val2, ...] per row\n\nAlso reduce TARGET_POINTS from 200 to 150 to stay within the ideal\n1-3K token range for LLM accuracy.",
+          "timestamp": "2026-01-12T09:38:02+09:00",
+          "tree_id": "6c385c374575a30d5ad1d5c291ec0138d535cf5d",
+          "url": "https://github.com/keisku/yfinance-mcp/commit/ea279a16a9f18b8404f4b9089d7a3cf4a406a92f"
+        },
+        "date": 1768178366821,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_us_symbol",
+            "value": 221.21713446163156,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000049814024297261713",
+            "extra": "mean: 4.520445500000102 msec\nrounds: 226"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_tokyo_symbol",
+            "value": 220.4510532141398,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010255139199408127",
+            "extra": "mean: 4.536154331858097 msec\nrounds: 226"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_europe_symbol",
+            "value": 217.02570557016932,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00047417293574199265",
+            "extra": "mean: 4.607749102221798 msec\nrounds: 225"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitDaily::test_cache_hit_varied_periods",
+            "value": 83.29619213290583,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00009903161232155985",
+            "extra": "mean: 12.005350717646479 msec\nrounds: 85"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_weekly",
+            "value": 302.78146787958053,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004966184988339534",
+            "extra": "mean: 3.3027120418007576 msec\nrounds: 311"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestCacheHitWeeklyMonthly::test_cache_hit_monthly",
+            "value": 303.3354913547482,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008855245583885149",
+            "extra": "mean: 3.2966798429482447 msec\nrounds: 312"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_daily",
+            "value": 8.340268996777809,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007924203974514283",
+            "extra": "mean: 119.90020949999831 msec\nrounds: 10"
+          },
+          {
+            "name": "benchmarks/test_bench_price.py::TestPortfolioScans::test_portfolio_scan_weekly",
+            "value": 26.756788882981613,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007977517247583842",
+            "extra": "mean: 37.373692500001 msec\nrounds: 28"
           }
         ]
       }
