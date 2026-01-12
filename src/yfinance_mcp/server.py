@@ -355,9 +355,10 @@ TOOLS = [
                     "default": ["all"],
                     "description": (
                         "Default: ['all']. "
-                        "TIME-SERIES (→ data.columns): trend, rsi, macd, bb, stoch, fast_stoch, "
+                        "TIME-SERIES (data.columns): trend, rsi, macd, bb, stoch, fast_stoch, "
                         "cci, dmi, williams, ichimoku, atr, obv, momentum, sma_N, ema_N, wma_N. "
-                        "SUMMARIES (→ top-level keys): price_change, fibonacci, pivot, volume_profile."
+                        "SUMMARIES (top-level keys): price_change, fibonacci, pivot, "
+                        "volume_profile."
                     ),
                 },
                 "period": {
@@ -740,11 +741,11 @@ class IndicatorRequirements:
         """How many more bars needed for first valid value."""
         return max(0, self.required_bars - available_bars)
 
-    def suggest_extension(self, available_bars: int) -> str:
-        """Suggest how to extend the date range."""
+    def extension_hint(self, available_bars: int) -> str | None:
+        """Human-readable hint for extending the date range. Not for programmatic use."""
         shortfall = self.shortfall(available_bars)
         if shortfall <= 0:
-            return ""
+            return None
         weeks = (shortfall + 4) // 5  # ~5 trading days per week
         if weeks <= 1:
             return f"extend start by {shortfall} trading days"
@@ -1008,32 +1009,33 @@ def _handle_technicals(args: dict) -> str:
                 unknown_indicators.append(ind)
 
         except CalculationError:
-            # Indicator couldn't compute at all - provide actionable details
             req = _get_indicator_requirements(ind)
             if req:
                 shortfall = req.shortfall(total_bars)
-                extension_hint = req.suggest_extension(total_bars)
                 insufficient_data[ind] = {
                     "required": req.required_bars,
                     "provided": total_bars,
                     "shortfall": shortfall,
-                    "action": extension_hint if extension_hint else "check data quality or gaps",
+                    "remedy": "extend_date_range",
+                    "extend_days": shortfall if shortfall > 0 else None,
+                    "_hint": req.extension_hint(total_bars),
                 }
             else:
                 insufficient_data[ind] = {
                     "provided": total_bars,
-                    "action": f"need more than {total_bars} bars, extend date range",
+                    "remedy": "extend_date_range",
+                    "extend_days": None,
                 }
         except (ValueError, TypeError) as e:
             logger.warning("technicals_conversion_error indicator=%s error=%s", ind, e)
-            insufficient_data[ind] = {"error": str(e), "action": "check input data format"}
+            insufficient_data[ind] = {"error": str(e), "remedy": "check_input_format"}
         except Exception as e:
             error_msg = str(e)
             if "blk ref_locs" in error_msg or "internal" in error_msg.lower():
                 logger.warning("technicals_data_quality indicator=%s error=%s", ind, e)
                 insufficient_data[ind] = {
                     "error": "data_quality_issue",
-                    "action": "try different symbol or date range",
+                    "remedy": "check_data_gaps",
                 }
             else:
                 raise
@@ -1058,25 +1060,24 @@ def _handle_technicals(args: dict) -> str:
         # Only report partial_data if nulls exceed expected warmup
         expected_warmup = req.warmup_bars if req else 0
         if null_count > expected_warmup:
-            # Unexpected nulls beyond warmup period
             partial_data[col] = {
                 "total_bars": total_rows,
                 "valid_bars": valid_count,
                 "null_bars": null_count,
                 "expected_warmup": expected_warmup,
                 "unexpected_nulls": null_count - expected_warmup,
-                "action": "check for missing price data or gaps in date range",
+                "remedy": "check_data_gaps",
             }
         elif valid_count < total_rows * 0.5 and req:
-            # Warmup dominates the response - suggest longer range
+            shortfall = req.shortfall(total_bars)
             partial_data[col] = {
                 "total_bars": total_rows,
                 "valid_bars": valid_count,
                 "warmup_bars": expected_warmup,
                 "coverage_pct": round(valid_count / total_rows * 100, 1),
-                "action": req.suggest_extension(total_bars)
-                if req.shortfall(total_bars) > 0
-                else f"need {expected_warmup * 2} bars for 50% coverage",
+                "remedy": "extend_date_range",
+                "extend_days": shortfall if shortfall > 0 else expected_warmup * 2,
+                "_hint": req.extension_hint(total_bars),
             }
 
     # Build issues dict with structured data
@@ -1085,10 +1086,7 @@ def _handle_technicals(args: dict) -> str:
     if partial_data:
         issues["partial_data"] = partial_data
     if unknown_indicators:
-        issues["unknown"] = {
-            ind: {"action": "use valid indicator: rsi, macd, bb, stoch, sma_N, ema_N, etc."}
-            for ind in unknown_indicators
-        }
+        issues["unknown"] = {ind: {"remedy": "invalid_indicator"} for ind in unknown_indicators}
     if warmup_info:
         issues["_warmup"] = warmup_info
 

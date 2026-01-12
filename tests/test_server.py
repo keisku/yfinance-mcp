@@ -660,9 +660,8 @@ class TestTechnicalsActionableFeedback:
                 issue_data = parsed["_issues"][issue_type][key]
                 for field, value in expected_fields.items():
                     assert issue_data.get(field) == value
-                # Should have action field with extension suggestion
-                assert "action" in issue_data
-                assert "extend" in issue_data["action"] or "trading days" in issue_data["action"]
+                assert issue_data.get("remedy") == "extend_date_range"
+                assert "extend_days" in issue_data
 
     def test_partial_data_shows_when_warmup_dominates(
         self, call_toon, mock_ticker_with_history
@@ -693,32 +692,29 @@ class TestTechnicalsActionableFeedback:
         assert warmup.get("rsi") == 14  # RSI period=14, warmup=14
         assert warmup.get("macd") == 34  # MACD slow(26)+signal(9)-1=34
 
-    def test_unknown_indicator_has_action_hint(self, call_toon, mock_ticker_with_history) -> None:
-        """Unknown indicators should have structured action with valid indicator examples."""
+    def test_unknown_indicator_has_remedy(self, call_toon, mock_ticker_with_history) -> None:
+        """Unknown indicators should have remedy field for programmatic handling."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=50)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["fake_indicator"]})
 
         assert "_issues" in parsed
         assert "unknown" in parsed["_issues"]
         unknown_data = parsed["_issues"]["unknown"]["fake_indicator"]
-        assert "action" in unknown_data
-        assert "valid indicator" in unknown_data["action"].lower()
-        assert "rsi" in unknown_data["action"]
+        assert unknown_data.get("remedy") == "invalid_indicator"
 
-    def test_action_never_empty_on_calculation_error(
+    def test_remedy_always_present_on_calculation_error(
         self, call_toon, mock_ticker_with_history
     ) -> None:
-        """Action field should never be empty even when shortfall is zero."""
-        # Force a CalculationError with enough bars but indicator still fails
+        """remedy field should always be present for programmatic handling."""
         with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=10)):
             parsed = call_toon("technicals", {"symbol": "AAPL", "indicators": ["sma_200"]})
 
         assert "_issues" in parsed
         assert "insufficient_data" in parsed["_issues"]
         issue = parsed["_issues"]["insufficient_data"]["sma_200"]
-        assert "action" in issue
-        assert issue["action"] != "", "Action should not be empty string"
-        assert len(issue["action"]) > 5, "Action should be meaningful"
+        assert issue.get("remedy") == "extend_date_range"
+        assert "extend_days" in issue
+        assert issue["extend_days"] == 190  # 200 required - 10 provided
 
     @pytest.mark.parametrize(
         "n_bars,indicators,expect_data,expect_issues",
