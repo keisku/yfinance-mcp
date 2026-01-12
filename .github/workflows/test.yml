@@ -56,36 +56,3 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
-
-  benchmark:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Run benchmarks
-        run: uv run pytest benchmarks/ -m benchmark --benchmark-only --benchmark-json=benchmark-results.json --benchmark-warmup=on --benchmark-min-rounds=10
-
-      - name: Clean working directory
-        run: git checkout -- .
-
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: pytest
-          output-file-path: benchmark-results.json
-          alert-threshold: "130%"
-          fail-on-alert: true
-          comment-on-alert: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          summary-always: true
-          auto-push: true

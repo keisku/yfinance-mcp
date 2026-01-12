@@ -42,7 +42,6 @@ dev = [
     "mypy>=1.19.1",
     "ruff>=0.14.10",
     "pip-audit>=2.10.0",
-    "pytest-benchmark>=5.2.3",
     "pandas-ta>=0.4.71b0",
     "hypothesis>=6.148.8",
     "git-cliff>=2.11.0",
@@ -65,5 +64,4 @@ warn_unused_ignores = true
 testpaths = ["tests"]
 markers = [
     "crosscheck: cross-validation tests against pandas-ta (may be slow)",
-    "benchmark: deterministic performance benchmarks",
 ]
