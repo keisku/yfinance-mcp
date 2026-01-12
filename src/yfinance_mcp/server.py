@@ -796,6 +796,14 @@ INDICATOR_REQUIREMENTS: dict[str, tuple[int, int]] = {
     "obv": (2, 1),
     # Trend SMA50
     "sma50": (50, 49),
+    # Input-name aliases for compound indicators (ensures consistent diagnostics)
+    "dmi": (28, 27),
+    "williams": (14, 13),
+    "bb": (20, 19),
+    "stoch": (20, 19),
+    "fast_stoch": (17, 16),
+    "ichimoku": (78, 77),
+    "trend": (50, 49),
 }
 
 
@@ -962,7 +970,16 @@ def _handle_technicals(args: dict) -> str:
                     sma50 = indicators.calculate_sma(price, 50)
                     result_df["sma50"] = sma50.round(2)
                 else:
-                    insufficient_data["trend"] = f"need 50 bars, have {len(df)}"
+                    req = _get_indicator_requirements("trend")
+                    shortfall = req.shortfall(total_bars) if req else None
+                    insufficient_data["trend"] = {
+                        "required": req.required_bars if req else 50,
+                        "provided": total_bars,
+                        "shortfall": shortfall,
+                        "remedy": "extend_date_range",
+                        "extend_days": shortfall,
+                        "_hint": req.extension_hint(total_bars) if req else None,
+                    }
 
             elif ind == "volume_profile":
                 vp = indicators.calculate_volume_profile(price, df["Volume"])

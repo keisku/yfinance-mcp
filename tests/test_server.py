@@ -632,6 +632,13 @@ class TestTechnicalsActionableFeedback:
             (10, ["sma_200"], "insufficient_data", ["sma_200"], {"required": 200, "provided": 10}),
             (10, ["sma_100"], "insufficient_data", ["sma_100"], {"required": 100, "provided": 10}),
             (10, ["sma_50"], "insufficient_data", ["sma_50"], {"required": 50, "provided": 10}),
+            # Compound indicators must also return required/shortfall for consistent diagnostics
+            (10, ["dmi"], "insufficient_data", ["dmi"], {"required": 28, "provided": 10}),
+            (10, ["macd"], "insufficient_data", ["macd"], {"required": 35, "provided": 10}),
+            (10, ["ichimoku"], "insufficient_data", ["ichimoku"], {"required": 78, "provided": 10}),
+            (10, ["stoch"], "insufficient_data", ["stoch"], {"required": 20, "provided": 10}),
+            (10, ["bb"], "insufficient_data", ["bb"], {"required": 20, "provided": 10}),
+            (30, ["trend"], "insufficient_data", ["trend"], {"required": 50, "provided": 30}),
             # Unknown indicators
             (50, ["fake_ind", "also_fake"], "unknown", ["fake_ind", "also_fake"], {}),
         ],
