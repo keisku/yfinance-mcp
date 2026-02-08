@@ -194,6 +194,28 @@ def fmt_toon(
     # Validate tz is a proper IANA timezone string (e.g., "America/New_York")
     valid_tz = isinstance(tz, str) and "/" in tz
 
+    # Normalize timestamps to the declared exchange timezone.
+    #
+    # yfinance sometimes returns intraday DatetimeIndex that is either:
+    # - tz-aware (often UTC), or
+    # - tz-naive but effectively UTC.
+    #
+    # Without normalizing, callers may see UTC-like timestamps (e.g., 14:00) even though
+    # tz=America/New_York is declared.
+    if valid_tz and isinstance(df.index, pd.DatetimeIndex):
+        try:
+            if df.index.tz is not None:
+                df.index = df.index.tz_convert(tz)
+            else:
+                # If tz-naive and intraday-like, assume UTC then convert.
+                first_ts = df.index[0] if len(df.index) else None
+                has_time = first_ts is not None and (first_ts.hour != 0 or first_ts.minute != 0)
+                if has_time:
+                    df.index = df.index.tz_localize("UTC").tz_convert(tz)
+        except Exception:
+            # If conversion fails, keep the original index.
+            pass
+
     if len(df) == 0:
         data: dict = {"columns": ["ts"] + cols, "rows": []}
         if valid_tz:

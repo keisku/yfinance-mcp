@@ -36,6 +36,7 @@ from .errors import (
     ValidationError,
 )
 from .helpers import (
+    INTRADAY_INTERVALS,
     OHLCV_COLS_TO_SHORT,
     TARGET_POINTS,
     DateRangeExceededError,
@@ -664,15 +665,23 @@ def _handle_history(args: dict) -> str:
     period = args.get("period", "3mo")
     start = args.get("start")
     end = args.get("end")
+
+    exchange = safe_get(t.info, "exchange") if t else None
+    exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
+
+    interval_param = args.get("interval", "auto")
+
+    # For intraday intervals, prefer native yfinance periods to avoid partial-day artifacts.
+    # In particular, yfinance's period=5d behaves better than deriving start/end for period=1w.
+    if interval_param in INTRADAY_INTERVALS and period == "1w" and start is None:
+        period = "5d"
+
     # Convert custom periods (e.g., "1w", "9mo") to date ranges
     if not start and period:
         period, start, end = period_to_date_range(period)
 
     validate_date_range(period, start, end)
 
-    exchange = safe_get(t.info, "exchange") if t else None
-    exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
-    interval_param = args.get("interval", "auto")
     interval = select_interval(
         period, start, end, symbol=symbol, exchange=exchange, interval=interval_param
     )
@@ -862,6 +871,12 @@ def _handle_technicals(args: dict) -> str:
     start = args.get("start")
     end = args.get("end")
 
+    interval_arg = args.get("interval", "auto")
+
+    # For intraday intervals, prefer native yfinance periods to avoid partial-day artifacts.
+    if interval_arg in INTRADAY_INTERVALS and period == "1w" and start is None:
+        period = "5d"
+
     # Convert custom periods (e.g., "1w", "9mo") to date ranges
     if not start and period:
         period, start, end = period_to_date_range(period)
@@ -875,7 +890,6 @@ def _handle_technicals(args: dict) -> str:
 
     exchange = safe_get(t.info, "exchange") if t else None
     exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
-    interval_arg = args.get("interval", "auto")
     interval = select_interval(
         period, start, end, symbol=symbol, exchange=exchange, interval=interval_arg
     )
