@@ -41,3 +41,6 @@ benchmarks/results/*.txt
 # Environment
 .env
 .env.local
+
+# uv lockfile (local/dev)
+uv.lock

@@ -1794,14 +1794,24 @@ def main() -> None:
     """Entry point. Transport selected via YFINANCE_TRANSPORT env var."""
     import asyncio
 
-    log_file = os.environ.get("MCP_LOG_FILE") or get_default_log_path()
+    # Display log file setting (actual handler config is in helpers.configure_logging).
+    ylf = os.environ.get("YFINANCE_LOG_FILE")
+    if ylf is None:
+        log_file_display = get_default_log_path()
+    else:
+        v = ylf.strip()
+        if v == "" or v.lower() in ("disabled", "none", "null"):
+            log_file_display = "(disabled)"
+        else:
+            log_file_display = v
+
     transport = os.environ.get("YFINANCE_TRANSPORT", "stdio").lower()
 
     logger.info(
         "server_start transport=%s log_level=%s log_file=%s",
         transport,
         logging.getLevelName(logger.getEffectiveLevel()),
-        log_file,
+        log_file_display,
     )
 
     if transport == "http":

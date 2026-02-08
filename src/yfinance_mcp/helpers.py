@@ -84,9 +84,28 @@ class NDJSONFormatter(logging.Formatter):
 
 
 def configure_logging(request_id_getter: Any = None, stats_getter: Any = None) -> logging.Logger:
-    """Configure logging with platform support and rotation."""
+    """Configure logging with platform support and rotation.
+
+    Env:
+    - YFINANCE_LOG_LEVEL: DEBUG|INFO|WARNING|ERROR|CRITICAL
+    - YFINANCE_LOG_CONSOLE: 1/true/yes to enable console output
+    - YFINANCE_LOG_STREAM: stdout|stderr (default: stderr)
+    - YFINANCE_LOG_FILE:
+        - unset: uses default path (e.g. /tmp/yfinance-mcp.log)
+        - empty string: disable file logging
+        - "disabled": disable file logging (convenient for systemd/journald-only)
+        - otherwise: treated as a file path
+    """
     log_file_env = os.environ.get("YFINANCE_LOG_FILE")
-    log_file = log_file_env if log_file_env is not None else get_default_log_path()
+    if log_file_env is None:
+        log_file = get_default_log_path()
+    else:
+        v = log_file_env.strip()
+        if v == "" or v.lower() in ("disabled", "none", "null"):
+            log_file = None
+        else:
+            log_file = v
+
     log_level = get_log_level()
     enable_console = os.environ.get("YFINANCE_LOG_CONSOLE", "").lower() in ("1", "true", "yes")
 
