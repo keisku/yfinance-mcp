@@ -20,6 +20,10 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.toml
+          ignore-nothing-to-cache: true
 
       - name: Install dependencies
         run: uv sync
@@ -43,6 +47,10 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.13"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.toml
+          ignore-nothing-to-cache: true
 
       - name: Install dependencies
         run: uv sync
