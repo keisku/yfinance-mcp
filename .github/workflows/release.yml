@@ -101,7 +101,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Sync uv.lock
+      - name: Install dependencies
         if: ${{ !inputs.beta }}
         run: uv sync
 
@@ -114,7 +114,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git status
-          git add CHANGELOG.md pyproject.toml uv.lock
+          git add CHANGELOG.md pyproject.toml
           git commit -m "chore(release): $VERSION"
           git tag "$VERSION"
           git push origin main --tags
