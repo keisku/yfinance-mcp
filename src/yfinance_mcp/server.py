@@ -320,12 +320,13 @@ TOOLS = [
                 },
                 "interval": {
                     "type": "string",
-                    "enum": ["auto", "1d", "1wk"],
+                    "enum": ["auto", "5m", "15m", "30m", "1h", "1d", "1wk"],
                     "default": "auto",
                     "description": (
-                        "Bar granularity floor. 'auto' selects optimal interval "
-                        "based on date range. '1d' ensures daily bars minimum. "
-                        "'1wk' ensures weekly bars minimum."
+                        "Bar granularity. 'auto' selects an interval based on date range and "
+                        "YFINANCE_TARGET_POINTS. If explicitly set (e.g. '30m'), the server "
+                        "will use that interval and raise a validation error if the requested "
+                        "date range exceeds the maximum supported by Yahoo for that interval."
                     ),
                 },
             },
@@ -382,12 +383,13 @@ TOOLS = [
                 },
                 "interval": {
                     "type": "string",
-                    "enum": ["auto", "1d", "1wk"],
+                    "enum": ["auto", "5m", "15m", "30m", "1h", "1d", "1wk"],
                     "default": "auto",
                     "description": (
-                        "Granularity floor. 'auto' selects optimal interval based on date range "
-                        "and YFINANCE_TARGET_POINTS. "
-                        "'1d' ensures daily bars minimum. '1wk' ensures weekly."
+                        "Granularity. 'auto' selects an interval based on date range and "
+                        "YFINANCE_TARGET_POINTS. If explicitly set (e.g. '30m'), the server "
+                        "will use that interval and raise a validation error if the requested "
+                        "date range exceeds the maximum supported by Yahoo for that interval."
                     ),
                 },
                 "downsample": {

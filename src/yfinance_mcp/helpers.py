@@ -21,7 +21,7 @@ from toon_format import encode as toon_encode
 from yfinance.const import USER_AGENTS
 
 from . import LOGGER_NAME
-from .errors import MCPError
+from .errors import MCPError, ValidationError
 
 
 def get_default_log_path() -> str:
@@ -834,18 +834,15 @@ def select_interval(
     exchange: str | None = None,
     interval: str = "auto",
 ) -> str:
-    """Select the coarsest interval where bars >= TARGET_POINTS/2.
+    """Select the interval for a request.
 
-    Iterates from coarsest (1wk) to finest (5m) and picks the first
-    interval that produces at least half of TARGET_POINTS bars while
-    respecting Yahoo API limits.
+    - interval="auto": pick an interval that targets ~YFINANCE_TARGET_POINTS.
+    - interval!="auto": use the requested interval as-is (no implicit rounding).
+      If the date range exceeds Yahoo's maximum supported range for that interval,
+      raise ValidationError.
 
-    When interval is explicitly provided (not "auto"), it acts as a floor:
-    the returned interval will be at least as coarse as the requested one.
-    This ensures consistent granularity when users need it.
-
-    Trading hours are determined by the symbol's exchange (via suffix or
-    exchange code). Falls back to US market hours if unknown.
+    Trading hours are determined by the symbol's exchange (via suffix or exchange code).
+    Falls back to US market hours if unknown.
     """
     if start:
         start_date = pd.to_datetime(start)
@@ -855,6 +852,41 @@ def select_interval(
         calendar_days = float(PERIOD_TO_DAYS.get(period, 90))
     else:
         calendar_days = 90.0
+
+    if interval != "auto":
+        if interval not in INTERVAL_ORDER:
+            raise ValidationError(
+                f"Invalid interval: {interval}",
+                details={"interval": interval, "valid": ["auto", *INTERVAL_ORDER]},
+                hint="Use interval='auto' or one of the supported interval strings.",
+            )
+
+        if symbol:
+            trading_minutes = get_trading_minutes(symbol, exchange)
+            intervals = get_intervals(trading_minutes)
+        else:
+            intervals = INTERVALS
+
+        max_days = None
+        for itv, _ppd, md in intervals:
+            if itv == interval:
+                max_days = md
+                break
+
+        if max_days is not None and calendar_days > max_days:
+            requested_days = int(calendar_days)
+            raise ValidationError(
+                f"interval={interval} supports up to {max_days} days; "
+                f"requested {requested_days} days",
+                details={
+                    "interval": interval,
+                    "max_days": max_days,
+                    "requested_days": requested_days,
+                },
+                hint="Reduce the date range or use a coarser interval (e.g., '1h' or '1d').",
+            )
+
+        return interval
 
     trading_days = calendar_days * TRADING_DAYS_PER_WEEK / 7
 

@@ -865,9 +865,24 @@ class TestTechnicalsActionableFeedback:
 
         meta = parsed["_meta"]
         assert meta["interval_requested"] == "1d"
-        assert meta["interval_effective"] in ("1d", "1wk")
+        assert meta["interval_effective"] == "1d"
         assert meta["downsample"] is False
         assert isinstance(meta["target_points"], int)
+
+    def test_explicit_intraday_interval_is_used_as_is(
+        self,
+        call_toon,
+        mock_ticker_with_history,
+    ) -> None:
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
+            parsed = call_toon(
+                "technicals",
+                {"symbol": "AAPL", "indicators": ["rsi"], "period": "1w", "interval": "30m"},
+            )
+
+        meta = parsed["_meta"]
+        assert meta["interval_requested"] == "30m"
+        assert meta["interval_effective"] == "30m"
 
 
 class TestValuationTool:
