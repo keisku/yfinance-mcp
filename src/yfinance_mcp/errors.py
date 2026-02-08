@@ -1,9 +1,9 @@
 """Error codes and structured error handling."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ErrorCode(str, Enum):
+class ErrorCode(StrEnum):
     """Error codes for structured error responses."""
 
     VALIDATION_ERROR = "VALIDATION_ERROR"

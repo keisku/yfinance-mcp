@@ -1,5 +1,3 @@
-import os
-
 from yfinance_mcp.helpers import configure_logging
 
 

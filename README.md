@@ -138,7 +138,9 @@ uv run pip-audit                       # Security scan
 
 ### Architecture
 
-**Data points & tokens** - Each response returns ~150 data points by default, using ~3K tokens. This stays within the [1-3K ideal range](https://github.com/adobe-research/NoLiMa) where top LLMs maintain high accuracy. The server auto-selects resolution based on date range:
+**Data points & tokens** - Each response targets ~150 data points by default (configurable via `YFINANCE_TARGET_POINTS`), using ~3K tokens. This stays within the [1-3K ideal range](https://github.com/adobe-research/NoLiMa) where top LLMs maintain high accuracy.
+
+The server auto-selects a working resolution based on the requested date range *and* the target points budget. Tool-level `interval` should be treated as a **granularity floor** (e.g. `interval=1d` means “never return finer than daily bars”; `interval=auto` lets the server pick the most appropriate granularity).
 
 | Date Range | Interval | Why |
 |------------|----------|-----|

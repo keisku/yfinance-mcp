@@ -851,6 +851,24 @@ class TestTechnicalsActionableFeedback:
         else:
             assert "missing" not in meta
 
+    def test_meta_includes_interval_and_downsample_info(
+        self,
+        call_toon,
+        mock_ticker_with_history,
+    ) -> None:
+        """_meta should include interval request/effective, downsample, and target_points."""
+        with patch("yfinance_mcp.server._ticker", return_value=mock_ticker_with_history(n=100)):
+            parsed = call_toon(
+                "technicals",
+                {"symbol": "AAPL", "indicators": ["rsi"], "interval": "1d", "downsample": False},
+            )
+
+        meta = parsed["_meta"]
+        assert meta["interval_requested"] == "1d"
+        assert meta["interval_effective"] in ("1d", "1wk")
+        assert meta["downsample"] is False
+        assert isinstance(meta["target_points"], int)
+
 
 class TestValuationTool:
     """Test valuation tool - valuation metrics and quality score."""

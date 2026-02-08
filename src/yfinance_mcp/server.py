@@ -292,12 +292,14 @@ TOOLS = [
     Tool(
         name="history",
         description=(
-            f"Historical OHLCV bars. Returns ~{TARGET_POINTS} data points. "
+            f"Historical OHLCV bars. Targets ~{TARGET_POINTS} data points "
+            f"(see YFINANCE_TARGET_POINTS). "
             f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
             "split into multiple sequential requests. "
             "Columns: o/h/l/c (price-only), ac (adjusted close for total return "
             "with dividends/splits), v (volume). "
-            "For indices, ac may equal c if adjustment data unavailable."
+            "For indices, ac may equal c if adjustment data unavailable. "
+            "NOTE: interval is a granularity floor; 'auto' selects an appropriate resolution."
         ),
         inputSchema={
             "type": "object",
@@ -333,7 +335,8 @@ TOOLS = [
     Tool(
         name="technicals",
         description=(
-            f"Technical indicators and signals. Returns ~{TARGET_POINTS} data points. "
+            f"Technical indicators and signals. Targets ~{TARGET_POINTS} points "
+            f"(see YFINANCE_TARGET_POINTS). "
             f"For periods longer than {round(TARGET_POINTS / 52, 1)} years, "
             "split into multiple sequential requests. "
             "RESPONSE STRUCTURE: 'data' contains time-series columns; "
@@ -343,7 +346,10 @@ TOOLS = [
             "SUMMARIES (top-level keys): price_change, fibonacci, pivot, volume_profile. "
             "SIGNALS: macd (histogram>0 bullish), dmi (ADX>25 strong trend), "
             "rsi (>70 overbought, <30 oversold), stoch/fast_stoch (>80/>20), "
-            "cci (>100/>-100), williams (>-20/>-80)."
+            "cci (>100/>-100), williams (>-20/>-80). "
+            "OPTIONS: interval is a granularity floor (auto|1d|1wk). "
+            "downsample=true (default) uses LTTB to target YFINANCE_TARGET_POINTS; "
+            "set downsample=false to return the full series for charting/scripting."
         ),
         inputSchema={
             "type": "object",
@@ -374,8 +380,28 @@ TOOLS = [
                     "type": "string",
                     "description": "End date. Defaults to today.",
                 },
+                "interval": {
+                    "type": "string",
+                    "enum": ["auto", "1d", "1wk"],
+                    "default": "auto",
+                    "description": (
+                        "Granularity floor. 'auto' selects optimal interval based on date range "
+                        "and YFINANCE_TARGET_POINTS. "
+                        "'1d' ensures daily bars minimum. '1wk' ensures weekly."
+                    ),
+                },
+                "downsample": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": (
+                        "Whether to downsample the returned time-series to approximately "
+                        "YFINANCE_TARGET_POINTS using LTTB. "
+                        "Set false for charting / scripting clients that want full series."
+                    ),
+                },
             },
             "required": ["symbol"],
+            "additionalProperties": False,
         },
     ),
     Tool(
@@ -847,15 +873,20 @@ def _handle_technicals(args: dict) -> str:
 
     exchange = safe_get(t.info, "exchange") if t else None
     exchange_tz = safe_get(t.info, "exchangeTimezoneName") if t else None
-    interval = select_interval(period, start, end, symbol=symbol, exchange=exchange)
+    interval_arg = args.get("interval", "auto")
+    interval = select_interval(
+        period, start, end, symbol=symbol, exchange=exchange, interval=interval_arg
+    )
 
     logger.debug(
-        "technicals_fetch symbol=%s period=%s start=%s end=%s interval=%s exchange=%s",
+        "technicals_fetch symbol=%s period=%s start=%s end=%s interval=%s "
+        "interval_arg=%s exchange=%s",
         symbol,
         period,
         start,
         end,
         interval,
+        interval_arg,
         exchange,
     )
 
@@ -1117,6 +1148,10 @@ def _handle_technicals(args: dict) -> str:
     meta: dict[str, Any] = {
         "requested": requested_indicators,
         "returned": returned_indicators,
+        "interval_requested": interval_arg,
+        "interval_effective": interval,
+        "downsample": bool(args.get("downsample", True)),
+        "target_points": TARGET_POINTS,
     }
     if missing_indicators:
         meta["missing"] = missing_indicators
@@ -1137,9 +1172,18 @@ def _handle_technicals(args: dict) -> str:
             result["_issues"] = issues
         return fmt_toon_dict(result)
 
-    result_df = lttb_downsample(result_df)
-    result_df = result_df.dropna(how="all")  # Drop rows where all values are null
-    logger.debug("technicals_downsampled symbol=%s points=%d", symbol, len(result_df))
+    # Downsampling is useful for LLM responses, but it makes time series look "sparse"
+    # (missing dates) for charting clients. Allow callers to disable it.
+    downsample = args.get("downsample", True)
+    if downsample:
+        result_df = lttb_downsample(result_df)
+        result_df = result_df.dropna(how="all")  # Drop rows where all values are null
+        logger.debug("technicals_downsampled symbol=%s points=%d", symbol, len(result_df))
+    else:
+        # Keep full index for charting; callers can handle warmup NaNs.
+        logger.debug(
+            "technicals_downsampled symbol=%s points=%d (disabled)", symbol, len(result_df)
+        )
 
     return fmt_toon(
         result_df,
