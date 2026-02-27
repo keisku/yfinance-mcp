@@ -1,0 +1,23 @@
+[project]
+name = "yfinance-mcp-v1"
+version = "0.1.0"
+description = "Yahoo Finance MCP server"
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=1.26.0",
+    "yfinance>=1.2.0",
+    "pandas>=3.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
