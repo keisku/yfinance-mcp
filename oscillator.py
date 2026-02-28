@@ -1,4 +1,4 @@
-"""Oscillator tool — momentum indicators for a symbol."""
+"""Oscillator tool — momentum oscillators for a symbol."""
 
 import logging
 from datetime import date, timedelta
@@ -38,60 +38,6 @@ def _stochastic(
     return k, d
 
 
-def _macd(
-    close: pd.Series,
-    fast: int = 12,
-    slow: int = 26,
-    signal: int = 9,
-) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """MACD line, signal line, and histogram."""
-    ema_fast = close.ewm(span=fast, min_periods=fast, adjust=False).mean()
-    ema_slow = close.ewm(span=slow, min_periods=slow, adjust=False).mean()
-    macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal, min_periods=signal, adjust=False).mean()
-    hist = macd_line - signal_line
-    return macd_line, signal_line, hist
-
-
-def _adx_dmi(
-    high: pd.Series,
-    low: pd.Series,
-    close: pd.Series,
-    period: int = 14,
-) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """ADX, +DI, and -DI using Wilder's smoothing."""
-    prev_high = high.shift(1)
-    prev_low = low.shift(1)
-    prev_close = close.shift(1)
-
-    tr = pd.concat(
-        [
-            high - low,
-            (high - prev_close).abs(),
-            (low - prev_close).abs(),
-        ],
-        axis=1,
-    ).max(axis=1)
-
-    plus_dm = (high - prev_high).clip(lower=0)
-    minus_dm = (prev_low - low).clip(lower=0)
-    plus_dm[plus_dm <= minus_dm] = 0
-    minus_dm[minus_dm <= plus_dm] = 0
-
-    alpha = 1 / period
-    atr = tr.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
-    smooth_plus = plus_dm.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
-    smooth_minus = minus_dm.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
-
-    plus_di = 100 * smooth_plus / atr
-    minus_di = 100 * smooth_minus / atr
-
-    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
-    adx = dx.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
-
-    return plus_di, minus_di, adx
-
-
 def oscillator(
     symbol: str,
     start: str,
@@ -113,7 +59,9 @@ def oscillator(
     Raises:
         ValueError: If no data is returned.
     """
-    warmup_start = (date.fromisoformat(start) - timedelta(days=WARMUP_CALENDAR_DAYS)).isoformat()
+    warmup_start = (
+        date.fromisoformat(start) - timedelta(days=WARMUP_CALENDAR_DAYS)
+    ).isoformat()
     logger.debug("oscillator %s warmup=%s..%s", symbol, warmup_start, end)
 
     df = fetch_ohlcv(symbol, "1d", warmup_start, end)
@@ -124,20 +72,12 @@ def oscillator(
 
     rsi = _rsi(close)
     stoch_k, stoch_d = _stochastic(high, low, close)
-    macd_line, macd_signal, macd_hist = _macd(close)
-    plus_di, minus_di, adx = _adx_dmi(high, low, close)
 
     indicators = pd.DataFrame(
         {
             "rsi": rsi,
             "stoch_k": stoch_k,
             "stoch_d": stoch_d,
-            "macd": macd_line,
-            "macd_signal": macd_signal,
-            "macd_hist": macd_hist,
-            "plus_di": plus_di,
-            "minus_di": minus_di,
-            "adx": adx,
         },
         index=df.index,
     )
@@ -166,12 +106,6 @@ def oscillator(
         "rsi",
         "stoch_k",
         "stoch_d",
-        "macd",
-        "macd_signal",
-        "macd_hist",
-        "plus_di",
-        "minus_di",
-        "adx",
     ]
     for col in indicator_cols:
         result[col] = [round(v, 2) for v in trimmed[col]]

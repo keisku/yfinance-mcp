@@ -1,6 +1,6 @@
-"""Tests for oscillator tool — implementation-agnostic.
+"""Tests for trend tool — implementation-agnostic.
 
-Tests only the public oscillator() function via mocked OHLCV data.
+Tests only the public trend() function via mocked OHLCV data.
 Assertions target mathematical properties, not internal representations.
 """
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from oscillator import oscillator
+from trend import trend
 
 START = "2025-06-01"
 END = "2025-06-30"
@@ -20,12 +20,15 @@ EXPECTED_KEYS = {
     "interval",
     "tz",
     "t",
-    "rsi",
-    "stoch_k",
-    "stoch_d",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "plus_di",
+    "minus_di",
+    "adx",
 }
 
-BOUNDED_KEYS = ["rsi", "stoch_k", "stoch_d"]
+BOUNDED_KEYS = ["plus_di", "minus_di", "adx"]
 
 
 def _trading_days(start: date, n: int) -> list[date]:
@@ -70,76 +73,86 @@ def _constant_ohlcv() -> pd.DataFrame:
 
 
 class TestOutputStructure:
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_has_all_keys(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         assert set(result.keys()) == EXPECTED_KEYS
 
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_symbol_uppercased(self, mock_fetch):
-        result = oscillator("test", START, END)
+        result = trend("test", START, END)
         assert result["symbol"] == "TEST"
 
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_interval_is_1d(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         assert result["interval"] == "1d"
 
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_arrays_same_length(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         n = len(result["t"])
         assert n > 0
         for key in EXPECTED_KEYS - {"symbol", "interval", "tz", "t"}:
             assert len(result[key]) == n
 
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_timestamps_within_range(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         for t in result["t"]:
             assert t >= START
             assert t <= END
 
 
 class TestBoundedRange:
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_uptrend_bounded(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         for key in BOUNDED_KEYS:
             for v in result[key]:
                 assert 0 <= v <= 100, f"{key}={v} out of [0, 100]"
 
-    @patch("oscillator.fetch_ohlcv", return_value=_downtrend_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_downtrend_ohlcv())
     def test_downtrend_bounded(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         for key in BOUNDED_KEYS:
             for v in result[key]:
                 assert 0 <= v <= 100, f"{key}={v} out of [0, 100]"
 
-    @patch("oscillator.fetch_ohlcv", return_value=_oscillating_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_oscillating_ohlcv())
     def test_oscillating_bounded(self, mock_fetch):
-        result = oscillator("TEST", START, END)
+        result = trend("TEST", START, END)
         for key in BOUNDED_KEYS:
             for v in result[key]:
                 assert 0 <= v <= 100, f"{key}={v} out of [0, 100]"
 
 
 class TestUptrend:
-    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
-    def test_rsi_above_50(self, mock_fetch):
-        result = oscillator("TEST", START, END)
-        assert result["rsi"][-1] > 50
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_macd_positive(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["macd"][-1] > 0
+
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_plus_di_gt_minus_di(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["plus_di"][-1] > result["minus_di"][-1]
 
 
 class TestDowntrend:
-    @patch("oscillator.fetch_ohlcv", return_value=_downtrend_ohlcv())
-    def test_rsi_below_50(self, mock_fetch):
-        result = oscillator("TEST", START, END)
-        assert result["rsi"][-1] < 50
+    @patch("trend.fetch_ohlcv", return_value=_downtrend_ohlcv())
+    def test_macd_negative(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["macd"][-1] < 0
+
+    @patch("trend.fetch_ohlcv", return_value=_downtrend_ohlcv())
+    def test_minus_di_gt_plus_di(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["minus_di"][-1] > result["plus_di"][-1]
 
 
 class TestConstantPrice:
-    @patch("oscillator.fetch_ohlcv", return_value=_constant_ohlcv())
+    @patch("trend.fetch_ohlcv", return_value=_constant_ohlcv())
     def test_raises_value_error(self, mock_fetch):
         with pytest.raises(ValueError):
-            oscillator("TEST", START, END)
+            trend("TEST", START, END)
