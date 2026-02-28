@@ -1,11 +1,14 @@
 """History tool — get OHLCV price history for a symbol."""
 
+import logging
 from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
 import yfinance as yf
 from cache import Cache
+
+logger = logging.getLogger(__name__)
 
 INTRADAY_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "90m", "1h"}
 
@@ -54,6 +57,7 @@ def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, da
 
 def _fetch_api(symbol: str, interval: str, start: str, end: str, *, auto_adjust: bool) -> Any:
     """Call yfinance and return the raw DataFrame."""
+    logger.debug("fetch %s %s %s..%s", symbol, interval, start, end)
     t = yf.Ticker(symbol)
     return t.history(start=start, end=end, interval=interval, auto_adjust=auto_adjust)
 
@@ -146,6 +150,8 @@ def fetch_ohlcv(
 
     cached = cache.cached_dates(symbol, interval, start_date, end_date)
     gaps = _find_gaps(start_date, end_date, cached)
+    if gaps:
+        logger.debug("gaps=%d for %s %s", len(gaps), symbol, interval)
 
     for gap_start, gap_end in gaps:
         fetch_end = (gap_end + timedelta(days=1)).isoformat()
@@ -176,11 +182,15 @@ def fetch_ohlcv(
                     )
                 )
 
+        holidays: list[date] = []
         d = gap_start
         while d <= gap_end:
             if d.weekday() < 5 and d < today and d not in fetched_dates:
                 rows.append((d, 0, 0, 0, 0, -1))
+                holidays.append(d)
             d += timedelta(days=1)
+        if holidays:
+            logger.debug("holidays cached: %s %s %s", symbol, interval, holidays)
 
         cache.put(symbol, interval, rows)
 

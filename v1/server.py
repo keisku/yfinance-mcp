@@ -1,12 +1,15 @@
 """Yahoo Finance MCP Server."""
 
 import json
+import logging
 
 from history import VALID_INTERVALS, history
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 from oscillator import oscillator
+
+logger = logging.getLogger(__name__)
 
 server = Server("yfinance-mcp")
 
@@ -100,6 +103,7 @@ async def list_tools() -> list[Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    logger.debug("tool=%s args=%s", name, arguments)
     handler = HANDLERS.get(name)
     if not handler:
         return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
@@ -108,12 +112,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         result = handler(arguments)
         return [TextContent(type="text", text=json.dumps(result))]
     except (ValueError, KeyError) as e:
+        logger.warning("tool=%s error: %s", name, e)
         return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
     except Exception as e:
+        logger.warning("tool=%s error: %s", name, e)
         return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
 
 async def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 

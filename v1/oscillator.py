@@ -1,10 +1,13 @@
 """Oscillator tool — momentum indicators for a symbol."""
 
+import logging
 from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
 from history import fetch_ohlcv
+
+logger = logging.getLogger(__name__)
 
 WARMUP_CALENDAR_DAYS = 112
 
@@ -111,6 +114,7 @@ def oscillator(
         ValueError: If no data is returned.
     """
     warmup_start = (date.fromisoformat(start) - timedelta(days=WARMUP_CALENDAR_DAYS)).isoformat()
+    logger.debug("oscillator %s warmup=%s..%s", symbol, warmup_start, end)
 
     df = fetch_ohlcv(symbol, "1d", warmup_start, end)
 

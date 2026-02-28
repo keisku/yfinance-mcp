@@ -23,3 +23,11 @@ uv run ruff check --fix . && uv run ruff format .
 
 - Python 3.13+
 - Type hints required for public APIs
+
+## Logging
+
+- Use `logging.getLogger(__name__)` in each module. `logging.basicConfig` is configured once in `server.py`'s `main()`.
+- Levels: `DEBUG` for troubleshooting details, `WARNING` for problem indicators.
+- Keep logs minimal: API calls, cache gaps/holidays, tool invocations, and errors only.
+- No logging in test files.
+- `cache.py` is a data layer — no logs needed. Callers (`history.py`) cover it.
