@@ -55,14 +55,18 @@ def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, da
     return gaps
 
 
-def _fetch_api(symbol: str, interval: str, start: str, end: str, *, auto_adjust: bool) -> Any:
+def _fetch_api(
+    symbol: str, interval: str, start: str, end: str, *, auto_adjust: bool
+) -> Any:
     """Call yfinance and return the raw DataFrame."""
     logger.debug("fetch %s %s %s..%s", symbol, interval, start, end)
     t = yf.Ticker(symbol)
     return t.history(start=start, end=end, interval=interval, auto_adjust=auto_adjust)
 
 
-def _build_response(symbol: str, interval: str, df: Any, *, include_ac: bool) -> dict[str, Any]:
+def _build_response(
+    symbol: str, interval: str, df: Any, *, include_ac: bool
+) -> dict[str, Any]:
     """Build the columnar JSON response from a DataFrame."""
     tz = str(df.index.tz) if df.index.tz else "UTC"
 
@@ -87,7 +91,9 @@ def _build_response(symbol: str, interval: str, df: Any, *, include_ac: bool) ->
     return result
 
 
-def _build_response_from_cache(symbol: str, interval: str, rows: list[tuple]) -> dict[str, Any]:
+def _build_response_from_cache(
+    symbol: str, interval: str, rows: list[tuple]
+) -> dict[str, Any]:
     """Build columnar JSON from cached rows.
 
     Each row is (date, o, h, l, c, v).
@@ -140,7 +146,9 @@ def fetch_ohlcv(
     if adjust or interval in INTRADAY_INTERVALS:
         df = _fetch_api(symbol, interval, start, end, auto_adjust=adjust)
         if df.empty:
-            raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
+            raise ValueError(
+                f"No data for '{symbol}' from {start} to {end} at {interval}"
+            )
         return df
 
     cache = _get_cache()
@@ -198,7 +206,9 @@ def fetch_ohlcv(
     if not all_rows:
         raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
 
-    return pd.DataFrame(all_rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"])
+    return pd.DataFrame(
+        all_rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"]
+    )
 
 
 def history(
