@@ -66,6 +66,7 @@ chore: bump yfinance to 0.2.50
 - Linting: `uv run ruff check --fix`
 - Type hints required for public APIs
 - Tests: pytest with hypothesis for property-based testing
+- No code divider comments (e.g., `# ----`, `# ====`, `# ----...`). Never use them.
 
 ## Testing
 
@@ -73,3 +74,5 @@ chore: bump yfinance to 0.2.50
 uv run pytest              # all tests
 uv run pytest -v --tb=short  # verbose with short traceback
 ```
+
+- Do not use real market data in tests. Use obviously fake values (e.g., `1.0, 2.0, 3.0`) and dummy symbols (e.g., `"TEST"`, `"AAA"`).

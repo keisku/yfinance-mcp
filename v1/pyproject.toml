@@ -8,6 +8,7 @@ dependencies = [
     "mcp>=1.26.0",
     "yfinance>=1.2.0",
     "pandas>=3.0.0",
+    "duckdb>=1.4.4",
 ]
 
 [build-system]
@@ -16,6 +17,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
     "ruff>=0.15.0",
 ]
 

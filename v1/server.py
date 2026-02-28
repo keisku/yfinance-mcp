@@ -33,6 +33,16 @@ TOOLS = [
                     "type": "string",
                     "description": "End date (YYYY-MM-DD)",
                 },
+                "adjust": {
+                    "type": "boolean",
+                    "description": "Return adjusted prices (default: false). "
+                    "Use true for return calculations, performance comparison, "
+                    "backtesting, and technical analysis — adjusted prices "
+                    "account for splits and dividends so returns are continuous. "
+                    "Use false for actual trade prices, support/resistance levels, "
+                    "and order book reference.",
+                    "default": False,
+                },
             },
             "required": ["symbol", "interval", "start", "end"],
         },
@@ -40,7 +50,13 @@ TOOLS = [
 ]
 
 HANDLERS = {
-    "history": lambda args: history(args["symbol"], args["interval"], args["start"], args["end"]),
+    "history": lambda args: history(
+        args["symbol"],
+        args["interval"],
+        args["start"],
+        args["end"],
+        adjust=args.get("adjust", False),
+    ),
 }
 
 
