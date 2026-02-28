@@ -1,8 +1,10 @@
 """History tool — get OHLCV price history for a symbol."""
 
+import logging
 from datetime import date, timedelta
 from typing import Any
 
+import pandas as pd
 import yfinance as yf
 from cache import Cache
 
@@ -53,8 +55,14 @@ def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, da
 
 def _fetch_api(symbol: str, interval: str, start: str, end: str, *, auto_adjust: bool) -> Any:
     """Call yfinance and return the raw DataFrame."""
-    t = yf.Ticker(symbol)
-    return t.history(start=start, end=end, interval=interval, auto_adjust=auto_adjust)
+    logger = logging.getLogger("yfinance")
+    prev_level = logger.level
+    logger.setLevel(logging.CRITICAL)
+    try:
+        t = yf.Ticker(symbol)
+        return t.history(start=start, end=end, interval=interval, auto_adjust=auto_adjust)
+    finally:
+        logger.setLevel(prev_level)
 
 
 def _build_response(symbol: str, interval: str, df: Any, *, include_ac: bool) -> dict[str, Any]:
@@ -100,6 +108,96 @@ def _build_response_from_cache(symbol: str, interval: str, rows: list[tuple]) ->
     }
 
 
+def fetch_ohlcv(
+    symbol: str,
+    interval: str,
+    start: str,
+    end: str,
+    *,
+    adjust: bool = False,
+) -> pd.DataFrame:
+    """Fetch OHLCV data as a DataFrame.
+
+    Uses cache for unadjusted daily+ intervals.  Intraday and adjusted
+    requests always hit the yfinance API.
+
+    Args:
+        symbol: Ticker symbol.
+        interval: Bar granularity (e.g., "1d", "5m").
+        start: Start date (YYYY-MM-DD).
+        end: End date (YYYY-MM-DD).
+        adjust: If True, fetch adjusted prices.
+
+    Returns:
+        DataFrame with Open, High, Low, Close, Volume columns
+        (and Adj Close when adjust=True).
+
+    Raises:
+        ValueError: If interval is invalid or no data is returned.
+    """
+    if interval not in VALID_INTERVALS:
+        raise ValueError(
+            f"Invalid interval '{interval}'. Valid: {', '.join(sorted(VALID_INTERVALS))}"
+        )
+
+    if adjust or interval in INTRADAY_INTERVALS:
+        df = _fetch_api(symbol, interval, start, end, auto_adjust=adjust)
+        if df.empty:
+            raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
+        return df
+
+    cache = _get_cache()
+    start_date = date.fromisoformat(start)
+    end_date = date.fromisoformat(end)
+    today = date.today()
+
+    cached = cache.cached_dates(symbol, interval, start_date, end_date)
+    gaps = _find_gaps(start_date, end_date, cached)
+
+    for gap_start, gap_end in gaps:
+        fetch_end = (gap_end + timedelta(days=1)).isoformat()
+        df = _fetch_api(
+            symbol,
+            interval,
+            gap_start.isoformat(),
+            fetch_end,
+            auto_adjust=False,
+        )
+
+        fetched_dates: set[date] = set()
+        rows: list[tuple] = []
+        if not df.empty:
+            for ts, row in df.iterrows():
+                bar_date = ts.date() if hasattr(ts, "date") else ts
+                if bar_date >= today:
+                    continue
+                fetched_dates.add(bar_date)
+                rows.append(
+                    (
+                        bar_date,
+                        round(float(row["Open"]), 2),
+                        round(float(row["High"]), 2),
+                        round(float(row["Low"]), 2),
+                        round(float(row["Close"]), 2),
+                        int(row["Volume"]),
+                    )
+                )
+
+        d = gap_start
+        while d <= gap_end:
+            if d.weekday() < 5 and d < today and d not in fetched_dates:
+                rows.append((d, 0, 0, 0, 0, -1))
+            d += timedelta(days=1)
+
+        cache.put(symbol, interval, rows)
+
+    all_rows = cache.get(symbol, interval, start_date, end_date)
+    if not all_rows:
+        raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
+
+    return pd.DataFrame(all_rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"])
+
+
 def history(
     symbol: str,
     interval: str,
@@ -125,57 +223,13 @@ def history(
     Raises:
         ValueError: If interval is invalid or no data is returned.
     """
-    if interval not in VALID_INTERVALS:
-        raise ValueError(
-            f"Invalid interval '{interval}'. Valid: {', '.join(sorted(VALID_INTERVALS))}"
-        )
+    df = fetch_ohlcv(symbol, interval, start, end, adjust=adjust)
 
-    # Adjusted mode or intraday: always call API, no caching.
     if adjust or interval in INTRADAY_INTERVALS:
-        df = _fetch_api(symbol, interval, start, end, auto_adjust=adjust)
-        if df.empty:
-            raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
         return _build_response(symbol, interval, df, include_ac=adjust)
 
-    # Unadjusted daily+: use cache with gap detection.
-    cache = _get_cache()
-    start_date = date.fromisoformat(start)
-    end_date = date.fromisoformat(end)
-    today = date.today()
-
-    cached = cache.cached_dates(symbol, interval, start_date, end_date)
-    gaps = _find_gaps(start_date, end_date, cached)
-
-    for gap_start, gap_end in gaps:
-        df = _fetch_api(
-            symbol,
-            interval,
-            gap_start.isoformat(),
-            gap_end.isoformat(),
-            auto_adjust=False,
-        )
-        if df.empty:
-            continue
-
-        rows: list[tuple] = []
-        for ts, row in df.iterrows():
-            bar_date = ts.date() if hasattr(ts, "date") else ts
-            if bar_date >= today:
-                continue  # do not cache today's bar
-            rows.append(
-                (
-                    bar_date,
-                    round(float(row["Open"]), 2),
-                    round(float(row["High"]), 2),
-                    round(float(row["Low"]), 2),
-                    round(float(row["Close"]), 2),
-                    int(row["Volume"]),
-                )
-            )
-        cache.put(symbol, interval, rows)
-
-    all_rows = cache.get(symbol, interval, start_date, end_date)
-    if not all_rows:
-        raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
-
-    return _build_response_from_cache(symbol, interval, all_rows)
+    return _build_response_from_cache(
+        symbol,
+        interval,
+        list(df.itertuples(index=False, name=None)),
+    )

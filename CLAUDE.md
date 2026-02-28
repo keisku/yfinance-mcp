@@ -76,3 +76,4 @@ uv run pytest -v --tb=short  # verbose with short traceback
 ```
 
 - Do not use real market data in tests. Use obviously fake values (e.g., `1.0, 2.0, 3.0`) and dummy symbols (e.g., `"TEST"`, `"AAA"`).
+- Unit tests should be implementation-agnostic: test public functions only, mock external dependencies, and assert on mathematical properties and output structure rather than internal representations.

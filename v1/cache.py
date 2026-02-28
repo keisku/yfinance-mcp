@@ -53,6 +53,7 @@ class Cache:
             return conn.execute(
                 f"SELECT date, o, h, l, c, v FROM read_parquet('{self._pq}') "
                 "WHERE symbol = ? AND interval = ? AND date >= ? AND date <= ? "
+                "AND v != -1 "
                 "ORDER BY date",
                 [symbol.upper(), interval, start, end],
             ).fetchall()

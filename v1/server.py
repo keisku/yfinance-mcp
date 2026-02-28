@@ -6,6 +6,7 @@ from history import VALID_INTERVALS, history
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
+from oscillator import oscillator
 
 server = Server("yfinance-mcp")
 
@@ -47,6 +48,33 @@ TOOLS = [
             "required": ["symbol", "interval", "start", "end"],
         },
     ),
+    Tool(
+        name="oscillator",
+        description=(
+            "Daily momentum oscillators for a symbol. "
+            "Returns RSI(14), Stochastic %K(14)/%D(3), MACD(12,26,9), "
+            "and ADX(14)/DMI. Uses daily bars; warmup data is fetched "
+            "automatically."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": 'Ticker symbol (e.g., "AAPL", "7203.T")',
+                },
+                "start": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD)",
+                },
+                "end": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD)",
+                },
+            },
+            "required": ["symbol", "start", "end"],
+        },
+    ),
 ]
 
 HANDLERS = {
@@ -56,6 +84,11 @@ HANDLERS = {
         args["start"],
         args["end"],
         adjust=args.get("adjust", False),
+    ),
+    "oscillator": lambda args: oscillator(
+        args["symbol"],
+        args["start"],
+        args["end"],
     ),
 }
 
