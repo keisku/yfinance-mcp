@@ -1,6 +1,5 @@
 """History tool — get OHLCV price history for a symbol."""
 
-import logging
 from datetime import date, timedelta
 from typing import Any
 
@@ -55,14 +54,8 @@ def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, da
 
 def _fetch_api(symbol: str, interval: str, start: str, end: str, *, auto_adjust: bool) -> Any:
     """Call yfinance and return the raw DataFrame."""
-    logger = logging.getLogger("yfinance")
-    prev_level = logger.level
-    logger.setLevel(logging.CRITICAL)
-    try:
-        t = yf.Ticker(symbol)
-        return t.history(start=start, end=end, interval=interval, auto_adjust=auto_adjust)
-    finally:
-        logger.setLevel(prev_level)
+    t = yf.Ticker(symbol)
+    return t.history(start=start, end=end, interval=interval, auto_adjust=auto_adjust)
 
 
 def _build_response(symbol: str, interval: str, df: Any, *, include_ac: bool) -> dict[str, Any]:

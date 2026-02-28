@@ -266,3 +266,34 @@ class TestCache:
         cache.put("FOO.X", "1d", [(date(2025, 1, 6), 1.0, 2.0, 0.5, 1.5, 10)])
         result = cache.get("FOO.X", "1d", date(2025, 1, 6), date(2025, 1, 6))
         assert len(result) == 1
+
+    def test_holiday_sentinel_excluded_from_get(self, tmp_path):
+        """Rows with v=-1 (holiday markers) are not returned by get()."""
+        cache = Cache(path=tmp_path / "test.parquet")
+        cache.put(
+            "TEST",
+            "1d",
+            [
+                (date(2025, 1, 6), 1.0, 2.0, 0.5, 1.5, 10),
+                (date(2025, 1, 7), 0, 0, 0, 0, -1),
+                (date(2025, 1, 8), 3.0, 4.0, 2.5, 3.5, 20),
+            ],
+        )
+        result = cache.get("TEST", "1d", date(2025, 1, 6), date(2025, 1, 8))
+        assert len(result) == 2
+        assert result[0][0] == date(2025, 1, 6)
+        assert result[1][0] == date(2025, 1, 8)
+
+    def test_holiday_sentinel_included_in_cached_dates(self, tmp_path):
+        """Holiday markers (v=-1) count as cached so gaps are not re-fetched."""
+        cache = Cache(path=tmp_path / "test.parquet")
+        cache.put(
+            "TEST",
+            "1d",
+            [
+                (date(2025, 1, 6), 1.0, 2.0, 0.5, 1.5, 10),
+                (date(2025, 1, 7), 0, 0, 0, 0, -1),
+            ],
+        )
+        dates = cache.cached_dates("TEST", "1d", date(2025, 1, 6), date(2025, 1, 7))
+        assert dates == {date(2025, 1, 6), date(2025, 1, 7)}
