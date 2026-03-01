@@ -82,8 +82,9 @@ TOOLS = [
         name="trend",
         description=(
             "Daily trend-following indicators for a symbol. "
-            "Returns MACD(12,26,9) and ADX(14)/DMI. "
-            "Uses daily bars; warmup data is fetched automatically."
+            "Returns SMA(20,50,200), EMA(20,50,200), MACD(12,26,9), "
+            "and ADX(14)/DMI. Uses daily bars; warmup data is fetched "
+            "automatically."
         ),
         inputSchema={
             "type": "object",

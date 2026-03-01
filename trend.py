@@ -9,7 +9,21 @@ from history import fetch_ohlcv
 
 logger = logging.getLogger(__name__)
 
-WARMUP_CALENDAR_DAYS = 112
+WARMUP_CALENDAR_DAYS = 300
+
+
+SMA_PERIODS = (20, 50, 200)
+EMA_PERIODS = (20, 50, 200)
+
+
+def _sma(close: pd.Series, period: int) -> pd.Series:
+    """Simple moving average."""
+    return close.rolling(period, min_periods=period).mean()
+
+
+def _ema(close: pd.Series, period: int) -> pd.Series:
+    """Exponential moving average."""
+    return close.ewm(span=period, min_periods=period, adjust=False).mean()
 
 
 def _macd(
@@ -98,11 +112,15 @@ def trend(
     low = df["Low"].astype(float)
     close = df["Close"].astype(float)
 
+    smas = {f"sma_{p}": _sma(close, p) for p in SMA_PERIODS}
+    emas = {f"ema_{p}": _ema(close, p) for p in EMA_PERIODS}
     macd_line, macd_signal, macd_hist = _macd(close)
     plus_di, minus_di, adx = _adx_dmi(high, low, close)
 
     indicators = pd.DataFrame(
         {
+            **smas,
+            **emas,
             "macd": macd_line,
             "macd_signal": macd_signal,
             "macd_hist": macd_hist,
@@ -134,6 +152,8 @@ def trend(
         "t": trimmed["_t"].tolist(),
     }
     indicator_cols = [
+        *smas,
+        *emas,
         "macd",
         "macd_signal",
         "macd_hist",

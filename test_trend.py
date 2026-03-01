@@ -12,14 +12,20 @@ import pytest
 from trend import trend
 
 START = "2025-06-01"
-END = "2025-06-30"
-WARMUP_START = date(2025, 6, 1) - timedelta(days=112)
+END = "2025-07-31"
+WARMUP_START = date(2025, 6, 1) - timedelta(days=300)
 
 EXPECTED_KEYS = {
     "symbol",
     "interval",
     "tz",
     "t",
+    "sma_20",
+    "sma_50",
+    "sma_200",
+    "ema_20",
+    "ema_50",
+    "ema_200",
     "macd",
     "macd_signal",
     "macd_hist",
@@ -57,19 +63,19 @@ def _make_ohlcv(closes: list[float], spread: float = 2.0) -> pd.DataFrame:
 
 
 def _uptrend_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([100.0 + i for i in range(100)])
+    return _make_ohlcv([100.0 + i * 0.5 for i in range(250)])
 
 
 def _downtrend_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([200.0 - i for i in range(100)])
+    return _make_ohlcv([300.0 - i * 0.5 for i in range(250)])
 
 
 def _oscillating_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([100.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(100)])
+    return _make_ohlcv([100.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(250)])
 
 
 def _constant_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([100.0] * 100, spread=0.0)
+    return _make_ohlcv([100.0] * 250, spread=0.0)
 
 
 class TestOutputStructure:
@@ -129,6 +135,16 @@ class TestBoundedRange:
 
 class TestUptrend:
     @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_sma_short_above_long(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["sma_20"][-1] > result["sma_200"][-1]
+
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_ema_short_above_long(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["ema_20"][-1] > result["ema_200"][-1]
+
+    @patch("trend.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_macd_positive(self, mock_fetch):
         result = trend("TEST", START, END)
         assert result["macd"][-1] > 0
@@ -140,6 +156,16 @@ class TestUptrend:
 
 
 class TestDowntrend:
+    @patch("trend.fetch_ohlcv", return_value=_downtrend_ohlcv())
+    def test_sma_short_below_long(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["sma_20"][-1] < result["sma_200"][-1]
+
+    @patch("trend.fetch_ohlcv", return_value=_downtrend_ohlcv())
+    def test_ema_short_below_long(self, mock_fetch):
+        result = trend("TEST", START, END)
+        assert result["ema_20"][-1] < result["ema_200"][-1]
+
     @patch("trend.fetch_ohlcv", return_value=_downtrend_ohlcv())
     def test_macd_negative(self, mock_fetch):
         result = trend("TEST", START, END)

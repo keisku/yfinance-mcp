@@ -40,7 +40,7 @@ Returns daily trend-following indicators for a given symbol and date range. Warm
 | `start`   | string | yes      | Start date (`YYYY-MM-DD`)              |
 | `end`     | string | yes      | End date (`YYYY-MM-DD`)                |
 
-Response columns: `t`, `macd`, `macd_signal`, `macd_hist`, `plus_di`, `minus_di`, `adx`.
+Response columns: `t`, `sma_20`, `sma_50`, `sma_200`, `ema_20`, `ema_50`, `ema_200`, `macd`, `macd_signal`, `macd_hist`, `plus_di`, `minus_di`, `adx`.
 
 ## Setup
 
