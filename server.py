@@ -8,6 +8,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 from oscillator import oscillator
+from trend import trend
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,34 @@ TOOLS = [
         name="oscillator",
         description=(
             "Daily momentum oscillators for a symbol. "
-            "Returns RSI(14), Stochastic %K(14)/%D(3), MACD(12,26,9), "
-            "and ADX(14)/DMI. Uses daily bars; warmup data is fetched "
-            "automatically."
+            "Returns RSI(14) and Stochastic %K(14)/%D(3). "
+            "Uses daily bars; warmup data is fetched automatically."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": 'Ticker symbol (e.g., "AAPL", "7203.T")',
+                },
+                "start": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD)",
+                },
+                "end": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD)",
+                },
+            },
+            "required": ["symbol", "start", "end"],
+        },
+    ),
+    Tool(
+        name="trend",
+        description=(
+            "Daily trend-following indicators for a symbol. "
+            "Returns MACD(12,26,9) and ADX(14)/DMI. "
+            "Uses daily bars; warmup data is fetched automatically."
         ),
         inputSchema={
             "type": "object",
@@ -93,6 +119,11 @@ HANDLERS = {
         args["start"],
         args["end"],
     ),
+    "trend": lambda args: trend(
+        args["symbol"],
+        args["start"],
+        args["end"],
+    ),
 }
 
 
@@ -106,7 +137,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     logger.debug("tool=%s args=%s", name, arguments)
     handler = HANDLERS.get(name)
     if not handler:
-        return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
+        return [
+            TextContent(
+                type="text", text=json.dumps({"error": f"Unknown tool: {name}"})
+            )
+        ]
 
     try:
         result = handler(arguments)
@@ -125,7 +160,9 @@ async def main():
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+        await server.run(
+            read_stream, write_stream, server.create_initialization_options()
+        )
 
 
 if __name__ == "__main__":

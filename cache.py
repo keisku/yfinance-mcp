@@ -29,7 +29,9 @@ class Cache:
         """Escaped path string for embedding in SQL."""
         return str(self._path).replace("'", "''")
 
-    def cached_dates(self, symbol: str, interval: str, start: date, end: date) -> set[date]:
+    def cached_dates(
+        self, symbol: str, interval: str, start: date, end: date
+    ) -> set[date]:
         """Return the set of dates present in cache for the given range."""
         if not self._exists():
             return set()

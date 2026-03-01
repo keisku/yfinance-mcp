@@ -180,7 +180,10 @@ class TestCache:
         """get and cached_dates return empty results when file doesn't exist."""
         cache = Cache(path=tmp_path / "nonexistent.parquet")
         assert cache.get("TEST", "1d", date(2025, 1, 6), date(2025, 1, 10)) == []
-        assert cache.cached_dates("TEST", "1d", date(2025, 1, 6), date(2025, 1, 10)) == set()
+        assert (
+            cache.cached_dates("TEST", "1d", date(2025, 1, 6), date(2025, 1, 10))
+            == set()
+        )
 
     def test_different_symbols_isolated(self, tmp_path):
         """Different symbols are stored and retrieved independently."""
