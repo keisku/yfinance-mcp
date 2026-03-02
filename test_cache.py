@@ -440,3 +440,58 @@ class TestAdjustedCache:
         assert cache.get("NEW", "1d", "2025-02-01", "2025-02-02") is not None
         # OLD is gone.
         assert cache.get("OLD", "1d", "2025-01-01", "2025-01-02") is None
+
+    def test_different_intervals_isolated(self, tmp_path):
+        """Same symbol/range with different intervals are separate entries."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        rows_d = [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")]
+        rows_w = [(_T0, 11.0, 12.0, 10.5, 11.5, 110, "UTC")]
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-07", rows_d)
+        cache.put("TEST", "1wk", "2025-01-06", "2025-01-07", rows_w)
+
+        daily = cache.get("TEST", "1d", "2025-01-06", "2025-01-07")
+        weekly = cache.get("TEST", "1wk", "2025-01-06", "2025-01-07")
+        assert daily is not None and daily[0][1] == pytest.approx(1.0)
+        assert weekly is not None and weekly[0][1] == pytest.approx(11.0)
+
+    def test_symbol_with_dot(self, tmp_path):
+        """Dotted symbol like '7203.T' works correctly."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        cache.put("7203.T", "1d", "2025-01-06", "2025-01-07", _ADJ_ROWS)
+        result = cache.get("7203.T", "1d", "2025-01-06", "2025-01-07")
+        assert result is not None
+        assert len(result) == 2
+
+    @patch("cache.time.time")
+    def test_per_entry_ttl_independence(self, mock_time, tmp_path):
+        """Each entry's TTL is tracked independently."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet", ttl=60)
+
+        # Put A at t=1000.
+        mock_time.return_value = 1000.0
+        cache.put(
+            "AAA",
+            "1d",
+            "2025-01-06",
+            "2025-01-07",
+            [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")],
+        )
+
+        # Put B at t=1040 (40s later).
+        mock_time.return_value = 1040.0
+        cache.put(
+            "BBB",
+            "1d",
+            "2025-02-01",
+            "2025-02-02",
+            [(_T0, 9.0, 9.0, 9.0, 9.0, 99, "UTC")],
+        )
+
+        # At t=1060: A expired (put at 1000, TTL=60), B still valid (put at 1040).
+        mock_time.return_value = 1060.0
+        assert cache.get("AAA", "1d", "2025-01-06", "2025-01-07") is None
+        assert cache.get("BBB", "1d", "2025-02-01", "2025-02-02") is not None
+
+        # At t=1100: B also expired.
+        mock_time.return_value = 1100.0
+        assert cache.get("BBB", "1d", "2025-02-01", "2025-02-02") is None
