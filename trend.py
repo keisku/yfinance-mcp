@@ -106,7 +106,7 @@ def trend(
     ).isoformat()
     logger.debug("trend %s warmup=%s..%s", symbol, warmup_start, end)
 
-    df = fetch_ohlcv(symbol, "1d", warmup_start, end)
+    df = fetch_ohlcv(symbol, "1d", warmup_start, end, adjust=True)
 
     high = df["High"].astype(float)
     low = df["Low"].astype(float)
@@ -136,7 +136,7 @@ def trend(
         mask = df["Date"] >= date.fromisoformat(start)
     else:
         timestamps = [ts.strftime("%Y-%m-%d") for ts in df.index]
-        mask = df.index >= pd.Timestamp(start)
+        mask = df.index >= pd.Timestamp(start, tz=df.index.tz)
     tz = str(df.index.tz) if hasattr(df.index, "tz") and df.index.tz else "UTC"
 
     indicators["_t"] = timestamps

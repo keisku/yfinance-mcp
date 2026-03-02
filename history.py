@@ -1,8 +1,9 @@
 """History tool — get OHLCV price history for a symbol."""
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
@@ -53,6 +54,39 @@ def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, da
         gaps.append((gap_start, last_missing))  # type: ignore[arg-type]
 
     return gaps
+
+
+def _exchange_today(symbol: str) -> date:
+    """Return today's date in the exchange's local timezone."""
+    try:
+        tz_name = yf.Ticker(symbol).fast_info.get("timezone")
+        if tz_name:
+            return datetime.now(ZoneInfo(tz_name)).date()
+    except Exception:
+        pass
+    return date.today()
+
+
+def _is_ohlcv_finalized(symbol: str) -> bool:
+    """Return True if today's regular-session OHLCV data is finalized.
+
+    Yahoo Finance ``marketState`` values and their meanings:
+
+    - ``PREPRE``  – before pre-market opens; today's session has not started.
+    - ``PRE``     – pre-market trading; regular session has not started.
+    - ``REGULAR`` – regular session is active; data still changing.
+    - ``POST``    – after-hours trading; regular-session OHLCV is final.
+    - ``POSTPOST``– all sessions ended for the day.
+    - ``CLOSED``  – market never opened today (weekend / holiday).
+
+    ``POST``, ``POSTPOST``, and ``CLOSED`` all mean regular-session data
+    will not change, so it is safe to cache.
+    """
+    try:
+        state = yf.Ticker(symbol).info.get("marketState", "")
+        return state in ("POST", "POSTPOST", "CLOSED")
+    except Exception:
+        return False
 
 
 def _fetch_api(
@@ -154,12 +188,21 @@ def fetch_ohlcv(
     cache = _get_cache()
     start_date = date.fromisoformat(start)
     end_date = date.fromisoformat(end)
-    today = date.today()
+
+    ex_today = _exchange_today(symbol)
+    # Only query marketState when today falls in the requested range.
+    if start_date <= ex_today < end_date:
+        ohlcv_finalized = _is_ohlcv_finalized(symbol)
+    else:
+        # Today is outside the range; all data is historical.
+        ohlcv_finalized = True
 
     cached = cache.cached_dates(symbol, interval, start_date, end_date)
     gaps = _find_gaps(start_date, end_date, cached)
     if gaps:
         logger.debug("gaps=%d for %s %s", len(gaps), symbol, interval)
+
+    today_rows: list[tuple] = []
 
     for gap_start, gap_end in gaps:
         fetch_end = (gap_end + timedelta(days=1)).isoformat()
@@ -176,24 +219,32 @@ def fetch_ohlcv(
         if not df.empty:
             for ts, row in df.iterrows():
                 bar_date = ts.date() if hasattr(ts, "date") else ts
-                if bar_date >= today:
+                bar_tuple = (
+                    bar_date,
+                    round(float(row["Open"]), 2),
+                    round(float(row["High"]), 2),
+                    round(float(row["Low"]), 2),
+                    round(float(row["Close"]), 2),
+                    int(row["Volume"]),
+                )
+                if bar_date > ex_today:
+                    continue
+                if bar_date == ex_today:
+                    if ohlcv_finalized:
+                        fetched_dates.add(bar_date)
+                        rows.append(bar_tuple)
+                    else:
+                        today_rows.append(bar_tuple)
                     continue
                 fetched_dates.add(bar_date)
-                rows.append(
-                    (
-                        bar_date,
-                        round(float(row["Open"]), 2),
-                        round(float(row["High"]), 2),
-                        round(float(row["Low"]), 2),
-                        round(float(row["Close"]), 2),
-                        int(row["Volume"]),
-                    )
-                )
+                rows.append(bar_tuple)
 
+        # Detect holidays: weekdays with no data that are finalized.
+        holiday_cutoff = ex_today + timedelta(days=1) if ohlcv_finalized else ex_today
         holidays: list[date] = []
         d = gap_start
         while d <= gap_end:
-            if d.weekday() < 5 and d < today and d not in fetched_dates:
+            if d.weekday() < 5 and d < holiday_cutoff and d not in fetched_dates:
                 rows.append((d, 0, 0, 0, 0, -1))
                 holidays.append(d)
             d += timedelta(days=1)
@@ -203,6 +254,7 @@ def fetch_ohlcv(
         cache.put(symbol, interval, rows)
 
     all_rows = cache.get(symbol, interval, start_date, end_date)
+    all_rows.extend(today_rows)
     if not all_rows:
         raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
 
