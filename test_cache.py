@@ -495,3 +495,76 @@ class TestAdjustedCache:
         # At t=1100: B also expired.
         mock_time.return_value = 1100.0
         assert cache.get("BBB", "1d", "2025-02-01", "2025-02-02") is None
+
+    @patch("cache.time.time")
+    def test_expired_entries_evicted_on_get(self, mock_time, tmp_path):
+        """Expired entries are removed from the file when get is called."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet", ttl=60)
+        pq = tmp_path / "adj.parquet"
+
+        mock_time.return_value = 1000.0
+        cache.put(
+            "OLD",
+            "1d",
+            "2025-01-01",
+            "2025-01-02",
+            [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")],
+        )
+        cache.put(
+            "FRESH",
+            "1d",
+            "2025-02-01",
+            "2025-02-02",
+            [(_T0, 9.0, 9.0, 9.0, 9.0, 99, "UTC")],
+        )
+
+        # 120s later, both expired. get triggers eviction.
+        mock_time.return_value = 1120.0
+        assert cache.get("OLD", "1d", "2025-01-01", "2025-01-02") is None
+
+        # File should be deleted since all entries expired.
+        assert not pq.exists()
+
+    @patch("cache.time.time")
+    def test_get_evicts_only_expired(self, mock_time, tmp_path):
+        """get evicts expired entries but keeps fresh ones."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet", ttl=60)
+        pq = tmp_path / "adj.parquet"
+
+        mock_time.return_value = 1000.0
+        cache.put(
+            "OLD",
+            "1d",
+            "2025-01-01",
+            "2025-01-02",
+            [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")],
+        )
+
+        mock_time.return_value = 1050.0
+        cache.put(
+            "FRESH",
+            "1d",
+            "2025-02-01",
+            "2025-02-02",
+            [(_T0, 9.0, 9.0, 9.0, 9.0, 99, "UTC")],
+        )
+
+        # At t=1070: OLD expired (put at 1000), FRESH still valid (put at 1050).
+        mock_time.return_value = 1070.0
+        assert cache.get("OLD", "1d", "2025-01-01", "2025-01-02") is None
+
+        # FRESH survived eviction.
+        assert cache.get("FRESH", "1d", "2025-02-01", "2025-02-02") is not None
+
+        # File still exists (FRESH remains).
+        assert pq.exists()
+
+        # Verify OLD is physically gone by reading with no TTL filter.
+        import duckdb
+
+        conn = duckdb.connect()
+        count = conn.execute(
+            f"SELECT count(*) FROM read_parquet('{pq}') WHERE symbol = 'OLD'",
+        ).fetchone()[0]
+        conn.close()
+        assert count == 0

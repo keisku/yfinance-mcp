@@ -155,21 +155,52 @@ class AdjustedCache:
         """Return cached rows if TTL not expired, else None.
 
         Each row is (ts_epoch, o, h, l, c, v, tz).
+        Expired entries are evicted from the file as a side effect.
         """
         if not self._exists():
             return None
         conn = duckdb.connect()
         try:
+            cutoff = time.time() - self._ttl
             rows = conn.execute(
                 f"SELECT ts, o, h, l, c, v, tz FROM read_parquet('{self._pq}') "
                 "WHERE symbol = ? AND interval = ? AND start_date = ? AND end_date = ? "
                 "AND created_at > ? "
                 "ORDER BY ts",
-                [symbol.upper(), interval, start, end, time.time() - self._ttl],
+                [symbol.upper(), interval, start, end, cutoff],
             ).fetchall()
+            self._evict_expired(conn, cutoff)
             return rows if rows else None
         finally:
             conn.close()
+
+    def _evict_expired(self, conn: duckdb.DuckDBPyConnection, cutoff: float) -> None:
+        """Remove expired entries from the Parquet file."""
+        if not self._exists():
+            return
+        has_expired = conn.execute(
+            f"SELECT 1 FROM read_parquet('{self._pq}') WHERE created_at <= ? LIMIT 1",
+            [cutoff],
+        ).fetchone()
+        if not has_expired:
+            return
+        remaining = conn.execute(
+            f"SELECT count(*) FROM read_parquet('{self._pq}') WHERE created_at > ?",
+            [cutoff],
+        ).fetchone()[0]
+        if remaining > 0:
+            conn.execute(
+                f"""
+                COPY (
+                    SELECT * FROM read_parquet('{self._pq}')
+                    WHERE created_at > ?
+                    ORDER BY symbol, interval, start_date, end_date, ts
+                ) TO '{self._pq}' (FORMAT PARQUET)
+                """,
+                [cutoff],
+            )
+        else:
+            self._path.unlink(missing_ok=True)
 
     def put(
         self, symbol: str, interval: str, start: str, end: str, rows: list[tuple]
