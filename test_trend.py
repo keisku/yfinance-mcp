@@ -13,7 +13,7 @@ from trend import trend
 
 START = "2025-06-01"
 END = "2025-07-31"
-WARMUP_START = date(2025, 6, 1) - timedelta(days=300)
+DATA_START = date(2024, 1, 1)
 
 EXPECTED_KEYS = {
     "symbol",
@@ -37,10 +37,11 @@ EXPECTED_KEYS = {
 BOUNDED_KEYS = ["plus_di", "minus_di", "adx"]
 
 
-def _trading_days(start: date, n: int) -> list[date]:
+def _trading_days() -> list[date]:
     days: list[date] = []
-    d = start
-    while len(days) < n:
+    d = DATA_START
+    end = date.fromisoformat(END)
+    while d <= end:
         if d.weekday() < 5:
             days.append(d)
         d += timedelta(days=1)
@@ -48,8 +49,9 @@ def _trading_days(start: date, n: int) -> list[date]:
 
 
 def _make_ohlcv(closes: list[float], spread: float = 2.0) -> pd.DataFrame:
-    n = len(closes)
-    dates = _trading_days(WARMUP_START, n)
+    dates = _trading_days()
+    n = len(dates)
+    assert len(closes) == n
     return pd.DataFrame(
         {
             "Date": dates,
@@ -62,20 +64,23 @@ def _make_ohlcv(closes: list[float], spread: float = 2.0) -> pd.DataFrame:
     )
 
 
+N = len(_trading_days())
+
+
 def _uptrend_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([100.0 + i * 0.5 for i in range(250)])
+    return _make_ohlcv([100.0 + i * 0.5 for i in range(N)])
 
 
 def _downtrend_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([300.0 - i * 0.5 for i in range(250)])
+    return _make_ohlcv([300.0 - i * 0.5 for i in range(N)])
 
 
 def _oscillating_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([100.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(250)])
+    return _make_ohlcv([100.0 + (3.0 if i % 2 == 0 else -3.0) for i in range(N)])
 
 
 def _constant_ohlcv() -> pd.DataFrame:
-    return _make_ohlcv([100.0] * 250, spread=0.0)
+    return _make_ohlcv([100.0] * N, spread=0.0)
 
 
 class TestOutputStructure:

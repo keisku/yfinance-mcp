@@ -42,6 +42,18 @@ Returns daily trend-following indicators for a given symbol and date range. Warm
 
 Response columns: `t`, `sma_20`, `sma_50`, `sma_200`, `ema_20`, `ema_50`, `ema_200`, `macd`, `macd_signal`, `macd_hist`, `plus_di`, `minus_di`, `adx`.
 
+### `volume`
+
+Returns daily volume moving averages for a given symbol and date range. Warmup data is fetched automatically so indicators are valid from the first returned date.
+
+| Parameter | Type   | Required | Description                            |
+|-----------|--------|----------|----------------------------------------|
+| `symbol`  | string | yes      | Ticker symbol (e.g. `AAPL`, `7203.T`) |
+| `start`   | string | yes      | Start date (`YYYY-MM-DD`)              |
+| `end`     | string | yes      | End date (`YYYY-MM-DD`)                |
+
+Response columns: `t`, `volume`, `vol_sma_5`, `vol_sma_10`, `vol_sma_20`, `vol_sma_50`.
+
 ## Setup
 
 Requires Python 3.13+.

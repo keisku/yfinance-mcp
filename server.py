@@ -9,6 +9,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 from oscillator import oscillator
 from trend import trend
+from volume import volume
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,32 @@ TOOLS = [
             "required": ["symbol", "start", "end"],
         },
     ),
+    Tool(
+        name="volume",
+        description=(
+            "Daily volume moving averages for a symbol. "
+            "Returns raw volume and SMA(5,10,20,50). "
+            "Uses daily bars; warmup data is fetched automatically."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": 'Ticker symbol (e.g., "AAPL", "7203.T")',
+                },
+                "start": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD)",
+                },
+                "end": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD)",
+                },
+            },
+            "required": ["symbol", "start", "end"],
+        },
+    ),
 ]
 
 HANDLERS = {
@@ -121,6 +148,11 @@ HANDLERS = {
         args["end"],
     ),
     "trend": lambda args: trend(
+        args["symbol"],
+        args["start"],
+        args["end"],
+    ),
+    "volume": lambda args: volume(
         args["symbol"],
         args["start"],
         args["end"],
