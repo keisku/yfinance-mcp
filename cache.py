@@ -1,12 +1,17 @@
-"""Parquet cache for unadjusted OHLCV data, using DuckDB as query engine."""
+"""Parquet cache for OHLCV data, using DuckDB as query engine."""
 
 import os
+import time
 from datetime import date
 from pathlib import Path
 
 import duckdb
 
-_DEFAULT_PATH = Path.home() / ".cache" / "yfinance-mcp" / "unadjusted_ohlc.parquet"
+_DEFAULT_CACHE_DIR = Path.home() / ".cache" / "yfinance-mcp"
+
+
+def _cache_dir() -> Path:
+    return Path(os.getenv("YFINANCE_CACHE_DIR", str(_DEFAULT_CACHE_DIR)))
 
 
 class Cache:
@@ -18,7 +23,7 @@ class Cache:
     """
 
     def __init__(self, path: Path | None = None):
-        self._path = path or Path(os.getenv("YFINANCE_CACHE_PATH", _DEFAULT_PATH))
+        self._path = path or _cache_dir() / "unadjusted_ohlc.parquet"
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
     def _exists(self) -> bool:
@@ -113,6 +118,118 @@ class Cache:
                     f"""
                     COPY (
                         SELECT * FROM new_rows ORDER BY symbol, interval, date
+                    ) TO '{self._pq}' (FORMAT PARQUET)
+                    """
+                )
+        finally:
+            conn.close()
+
+    def close(self) -> None:
+        """No-op — DuckDB connections are transient."""
+
+
+class AdjustedCache:
+    """TTL-based Parquet cache for adjusted OHLCV data.
+
+    Uses absolute TTL — entries expire based on creation time,
+    not last access time.  Each entry is keyed by
+    (symbol, interval, start_date, end_date).
+    """
+
+    def __init__(self, path: Path | None = None, ttl: int = 3600):
+        self._path = path or _cache_dir() / "adjusted_ohlc.parquet"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._ttl = ttl
+
+    def _exists(self) -> bool:
+        return self._path.exists() and self._path.stat().st_size > 0
+
+    @property
+    def _pq(self) -> str:
+        """Escaped path string for embedding in SQL."""
+        return str(self._path).replace("'", "''")
+
+    def get(
+        self, symbol: str, interval: str, start: str, end: str
+    ) -> list[tuple] | None:
+        """Return cached rows if TTL not expired, else None.
+
+        Each row is (ts_epoch, o, h, l, c, v, tz).
+        """
+        if not self._exists():
+            return None
+        conn = duckdb.connect()
+        try:
+            rows = conn.execute(
+                f"SELECT ts, o, h, l, c, v, tz FROM read_parquet('{self._pq}') "
+                "WHERE symbol = ? AND interval = ? AND start_date = ? AND end_date = ? "
+                "AND created_at > ? "
+                "ORDER BY ts",
+                [symbol.upper(), interval, start, end, time.time() - self._ttl],
+            ).fetchall()
+            return rows if rows else None
+        finally:
+            conn.close()
+
+    def put(
+        self, symbol: str, interval: str, start: str, end: str, rows: list[tuple]
+    ) -> None:
+        """Store adjusted OHLCV rows with current timestamp.
+
+        Each row is (ts_epoch, o, h, l, c, v, tz).
+        Replaces any existing entry for the same key and evicts expired entries.
+        """
+        if not rows:
+            return
+        symbol = symbol.upper()
+        now = time.time()
+        conn = duckdb.connect()
+        try:
+            conn.execute(
+                """
+                CREATE TABLE new_rows (
+                    symbol     VARCHAR,
+                    interval   VARCHAR,
+                    start_date VARCHAR,
+                    end_date   VARCHAR,
+                    created_at DOUBLE,
+                    ts         DOUBLE,
+                    o          DOUBLE,
+                    h          DOUBLE,
+                    l          DOUBLE,
+                    c          DOUBLE,
+                    v          BIGINT,
+                    tz         VARCHAR
+                )
+                """
+            )
+            conn.executemany(
+                "INSERT INTO new_rows VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(symbol, interval, start, end, now, *r) for r in rows],
+            )
+
+            if self._exists():
+                conn.execute(
+                    f"""
+                    COPY (
+                        SELECT * FROM read_parquet('{self._pq}')
+                        WHERE NOT (
+                            symbol = ? AND interval = ? AND start_date = ? AND end_date = ?
+                        )
+                        AND created_at > ?
+                        UNION ALL
+                        SELECT * FROM new_rows
+                        ORDER BY symbol, interval, start_date, end_date, ts
+                    ) TO '{self._pq}' (FORMAT PARQUET)
+                    """,
+                    [symbol, interval, start, end, now - self._ttl],
+                )
+            else:
+                conn.execute(
+                    f"""
+                    COPY (
+                        SELECT * FROM new_rows
+                        ORDER BY symbol, interval, start_date, end_date, ts
                     ) TO '{self._pq}' (FORMAT PARQUET)
                     """
                 )

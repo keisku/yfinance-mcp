@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
-from cache import Cache
+from cache import AdjustedCache, Cache
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ CACHEABLE_INTERVALS = {"1d", "5d", "1wk", "1mo", "3mo"}
 VALID_INTERVALS = INTRADAY_INTERVALS | CACHEABLE_INTERVALS
 
 _cache: Cache | None = None
+_adjusted_cache: AdjustedCache | None = None
 
 
 def _get_cache() -> Cache:
@@ -25,6 +26,13 @@ def _get_cache() -> Cache:
     if _cache is None:
         _cache = Cache()
     return _cache
+
+
+def _get_adjusted_cache() -> AdjustedCache:
+    global _adjusted_cache
+    if _adjusted_cache is None:
+        _adjusted_cache = AdjustedCache()
+    return _adjusted_cache
 
 
 def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, date]]:
@@ -177,8 +185,52 @@ def fetch_ohlcv(
             f"Invalid interval '{interval}'. Valid: {', '.join(sorted(VALID_INTERVALS))}"
         )
 
-    if adjust or interval in INTRADAY_INTERVALS:
-        df = _fetch_api(symbol, interval, start, end, auto_adjust=adjust)
+    if adjust:
+        adj_cache = _get_adjusted_cache()
+        cached = adj_cache.get(symbol, interval, start, end)
+        if cached is not None:
+            logger.debug(
+                "adjusted cache hit %s %s %s..%s", symbol, interval, start, end
+            )
+            tz_str = cached[0][6]
+            index = pd.to_datetime(
+                [r[0] for r in cached], unit="s", utc=True
+            ).tz_convert(tz_str)
+            return pd.DataFrame(
+                {
+                    "Open": [r[1] for r in cached],
+                    "High": [r[2] for r in cached],
+                    "Low": [r[3] for r in cached],
+                    "Close": [r[4] for r in cached],
+                    "Volume": [r[5] for r in cached],
+                },
+                index=index,
+            )
+
+        df = _fetch_api(symbol, interval, start, end, auto_adjust=True)
+        if df.empty:
+            raise ValueError(
+                f"No data for '{symbol}' from {start} to {end} at {interval}"
+            )
+
+        tz_str = str(df.index.tz) if df.index.tz else "UTC"
+        adj_rows = [
+            (
+                ts.timestamp(),
+                float(row["Open"]),
+                float(row["High"]),
+                float(row["Low"]),
+                float(row["Close"]),
+                int(row["Volume"]),
+                tz_str,
+            )
+            for ts, row in df.iterrows()
+        ]
+        adj_cache.put(symbol, interval, start, end, adj_rows)
+        return df
+
+    if interval in INTRADAY_INTERVALS:
+        df = _fetch_api(symbol, interval, start, end, auto_adjust=False)
         if df.empty:
             raise ValueError(
                 f"No data for '{symbol}' from {start} to {end} at {interval}"

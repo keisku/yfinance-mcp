@@ -1,9 +1,10 @@
 """Tests for gap detection and Parquet cache."""
 
 from datetime import date
+from unittest.mock import patch
 
 import pytest
-from cache import Cache
+from cache import AdjustedCache, Cache
 from history import _find_gaps
 
 
@@ -300,3 +301,142 @@ class TestCache:
         )
         dates = cache.cached_dates("TEST", "1d", date(2025, 1, 6), date(2025, 1, 7))
         assert dates == {date(2025, 1, 6), date(2025, 1, 7)}
+
+
+# Sample rows for AdjustedCache: (ts_epoch, o, h, l, c, v, tz)
+_T0 = 1_000_000.0
+
+_ADJ_ROWS = [
+    (_T0 + 0, 100.0, 105.0, 95.0, 102.0, 5000, "America/New_York"),
+    (_T0 + 86400, 103.0, 108.0, 98.0, 106.0, 6000, "America/New_York"),
+]
+
+
+class TestAdjustedCache:
+    """Tests for the TTL-based AdjustedCache class."""
+
+    def test_put_get_roundtrip(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-08", _ADJ_ROWS)
+
+        result = cache.get("TEST", "1d", "2025-01-06", "2025-01-08")
+        assert result is not None
+        assert len(result) == 2
+        assert result[0][0] == pytest.approx(_T0)
+        assert result[0][1] == pytest.approx(100.0)
+        assert result[1][5] == 6000
+        assert result[0][6] == "America/New_York"
+
+    def test_empty_cache_returns_none(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        assert cache.get("TEST", "1d", "2025-01-06", "2025-01-08") is None
+
+    def test_put_empty_rows(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-08", [])
+        assert not (tmp_path / "adj.parquet").exists()
+
+    def test_different_symbols_isolated(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        rows_a = [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")]
+        rows_b = [(_T0, 11.0, 12.0, 10.5, 11.5, 110, "UTC")]
+        cache.put("AAA", "1d", "2025-01-06", "2025-01-07", rows_a)
+        cache.put("BBB", "1d", "2025-01-06", "2025-01-07", rows_b)
+
+        aaa = cache.get("AAA", "1d", "2025-01-06", "2025-01-07")
+        bbb = cache.get("BBB", "1d", "2025-01-06", "2025-01-07")
+        assert aaa is not None and aaa[0][1] == pytest.approx(1.0)
+        assert bbb is not None and bbb[0][1] == pytest.approx(11.0)
+
+    def test_different_ranges_isolated(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        rows_a = [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")]
+        rows_b = [(_T0, 11.0, 12.0, 10.5, 11.5, 110, "UTC")]
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-07", rows_a)
+        cache.put("TEST", "1d", "2025-02-01", "2025-02-02", rows_b)
+
+        a = cache.get("TEST", "1d", "2025-01-06", "2025-01-07")
+        b = cache.get("TEST", "1d", "2025-02-01", "2025-02-02")
+        assert a is not None and a[0][1] == pytest.approx(1.0)
+        assert b is not None and b[0][1] == pytest.approx(11.0)
+
+    def test_case_insensitive_symbol(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        cache.put("test", "1d", "2025-01-06", "2025-01-07", _ADJ_ROWS)
+        result = cache.get("TEST", "1d", "2025-01-06", "2025-01-07")
+        assert result is not None
+        assert len(result) == 2
+
+    def test_put_replaces_same_key(self, tmp_path):
+        cache = AdjustedCache(path=tmp_path / "adj.parquet")
+        old_rows = [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")]
+        new_rows = [(_T0, 99.0, 99.0, 99.0, 99.0, 99, "UTC")]
+
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-07", old_rows)
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-07", new_rows)
+
+        result = cache.get("TEST", "1d", "2025-01-06", "2025-01-07")
+        assert result is not None
+        assert len(result) == 1
+        assert result[0][1] == pytest.approx(99.0)
+
+    @patch("cache.time.time")
+    def test_ttl_expiry(self, mock_time, tmp_path):
+        """Entry expires after TTL elapses."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet", ttl=60)
+
+        mock_time.return_value = 1000.0
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-07", _ADJ_ROWS)
+
+        # At 1059s (59s later) — still valid.
+        mock_time.return_value = 1059.0
+        assert cache.get("TEST", "1d", "2025-01-06", "2025-01-07") is not None
+
+        # At 1060s (exactly TTL) — expired.
+        mock_time.return_value = 1060.0
+        assert cache.get("TEST", "1d", "2025-01-06", "2025-01-07") is None
+
+    @patch("cache.time.time")
+    def test_ttl_is_absolute_not_sliding(self, mock_time, tmp_path):
+        """Accessing the cache does NOT extend the TTL."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet", ttl=60)
+
+        mock_time.return_value = 1000.0
+        cache.put("TEST", "1d", "2025-01-06", "2025-01-07", _ADJ_ROWS)
+
+        # Access at 1030s — hit, but does NOT reset the timer.
+        mock_time.return_value = 1030.0
+        assert cache.get("TEST", "1d", "2025-01-06", "2025-01-07") is not None
+
+        # At 1060s — expired based on original put time (1000), not last get (1030).
+        mock_time.return_value = 1060.0
+        assert cache.get("TEST", "1d", "2025-01-06", "2025-01-07") is None
+
+    @patch("cache.time.time")
+    def test_expired_entries_evicted_on_put(self, mock_time, tmp_path):
+        """Expired entries for other keys are cleaned up during put."""
+        cache = AdjustedCache(path=tmp_path / "adj.parquet", ttl=60)
+
+        mock_time.return_value = 1000.0
+        cache.put(
+            "OLD",
+            "1d",
+            "2025-01-01",
+            "2025-01-02",
+            [(_T0, 1.0, 2.0, 0.5, 1.5, 10, "UTC")],
+        )
+
+        # 120s later, OLD is expired. Put a new entry — OLD should be evicted.
+        mock_time.return_value = 1120.0
+        cache.put(
+            "NEW",
+            "1d",
+            "2025-02-01",
+            "2025-02-02",
+            [(_T0, 9.0, 9.0, 9.0, 9.0, 99, "UTC")],
+        )
+
+        # NEW is fresh.
+        assert cache.get("NEW", "1d", "2025-02-01", "2025-02-02") is not None
+        # OLD is gone.
+        assert cache.get("OLD", "1d", "2025-01-01", "2025-01-02") is None
