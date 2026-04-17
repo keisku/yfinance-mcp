@@ -110,7 +110,10 @@ TOOLS = [
         name="volume",
         description=(
             "Daily volume moving averages for a symbol. "
-            "Returns raw volume and SMA(5,10,20,50). "
+            "Returns raw volume and SMA(5,10,20,50), plus a current "
+            "short-interest snapshot (shares_short, pct_of_float, "
+            "days_to_cover, prior_month) when available — null for "
+            "tickers that don't report it (non-US equities, ETFs, crypto). "
             "Uses daily bars; warmup data is fetched automatically."
         ),
         inputSchema={

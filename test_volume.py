@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 from volume import volume
 
 START = "2025-06-01"
@@ -24,7 +25,20 @@ EXPECTED_KEYS = {
     "vol_sma_10",
     "vol_sma_20",
     "vol_sma_50",
+    "short_interest",
 }
+
+
+@pytest.fixture(autouse=True)
+def _mock_ticker():
+    """Default: yfinance Ticker returns an empty info dict.
+
+    Individual tests override ``m.return_value.info`` to supply
+    short-interest data, or make ``m`` raise to simulate a fetch failure.
+    """
+    with patch("volume.yf.Ticker") as m:
+        m.return_value.info = {}
+        yield m
 
 
 def _trading_days() -> list[date]:
@@ -96,7 +110,14 @@ class TestOutputStructure:
         result = volume("TEST", START, END)
         n = len(result["t"])
         assert n > 0
-        for key in EXPECTED_KEYS - {"symbol", "interval", "tz", "t"}:
+        series_keys = EXPECTED_KEYS - {
+            "symbol",
+            "interval",
+            "tz",
+            "t",
+            "short_interest",
+        }
+        for key in series_keys:
             assert len(result[key]) == n
 
     @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
@@ -155,3 +176,91 @@ class TestSpikeVolume:
     def test_short_sma_reacts_more(self, mock_fetch):
         result = volume("TEST", START, END)
         assert result["vol_sma_5"][-1] > result["vol_sma_50"][-1]
+
+
+# 2026-03-31 and 2026-02-27 as UTC epochs (seconds).
+_AS_OF_EPOCH = 1774915200
+_PRIOR_AS_OF_EPOCH = 1772150400
+
+_FULL_SHORT_INFO = {
+    "sharesShort": 126771284,
+    "shortPercentOfFloat": 0.0086,
+    "shortRatio": 3.11,
+    "sharesShortPriorMonth": 129553812,
+    "dateShortInterest": _AS_OF_EPOCH,
+    "sharesShortPreviousMonthDate": _PRIOR_AS_OF_EPOCH,
+}
+
+
+class TestShortInterestMissing:
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_none_when_info_empty(self, mock_fetch):
+        result = volume("TEST", START, END)
+        assert result["short_interest"] is None
+
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_none_when_ticker_raises(self, mock_fetch, _mock_ticker):
+        _mock_ticker.side_effect = RuntimeError("network down")
+        result = volume("TEST", START, END)
+        assert result["short_interest"] is None
+
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_none_when_shares_short_missing(self, mock_fetch, _mock_ticker):
+        _mock_ticker.return_value.info = {
+            "shortPercentOfFloat": 0.01,
+            "shortRatio": 2.5,
+        }
+        result = volume("TEST", START, END)
+        assert result["short_interest"] is None
+
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_skips_network_for_non_us_tickers(self, mock_fetch, _mock_ticker):
+        """Tickers with a '.' exchange suffix short-circuit before the info call."""
+        _mock_ticker.return_value.info = dict(_FULL_SHORT_INFO)
+        for sym in ("7203.T", "0700.HK", "BP.L"):
+            _mock_ticker.reset_mock()
+            result = volume(sym, START, END)
+            assert result["short_interest"] is None
+            _mock_ticker.assert_not_called()
+
+
+class TestShortInterestPresent:
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_full_snapshot(self, mock_fetch, _mock_ticker):
+        _mock_ticker.return_value.info = dict(_FULL_SHORT_INFO)
+        si = volume("TEST", START, END)["short_interest"]
+        assert si["shares_short"] == 126771284
+        assert si["pct_of_float"] == 0.0086
+        assert si["days_to_cover"] == 3.11
+        assert si["as_of"] == "2026-03-31"
+        assert si["prior_month"] == {
+            "as_of": "2026-02-27",
+            "shares_short": 129553812,
+        }
+
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_no_prior_month(self, mock_fetch, _mock_ticker):
+        _mock_ticker.return_value.info = {
+            "sharesShort": 100,
+            "shortPercentOfFloat": 0.01,
+            "shortRatio": 2.0,
+            "dateShortInterest": _AS_OF_EPOCH,
+        }
+        si = volume("TEST", START, END)["short_interest"]
+        assert si["shares_short"] == 100
+        assert "prior_month" not in si
+
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_invalid_epoch_yields_none_date(self, mock_fetch, _mock_ticker):
+        _mock_ticker.return_value.info = {
+            "sharesShort": 100,
+            "dateShortInterest": "not-an-epoch",
+        }
+        si = volume("TEST", START, END)["short_interest"]
+        assert si["as_of"] is None
+
+    @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
+    def test_called_with_symbol(self, mock_fetch, _mock_ticker):
+        _mock_ticker.return_value.info = dict(_FULL_SHORT_INFO)
+        volume("aapl", START, END)
+        _mock_ticker.assert_any_call("aapl")

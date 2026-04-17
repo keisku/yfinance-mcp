@@ -1,10 +1,11 @@
 """Volume tool — volume moving averages for a symbol."""
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
+import yfinance as yf
 from history import fetch_ohlcv
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,55 @@ SMA_PERIODS = (5, 10, 20, 50)
 def _sma(series: pd.Series, period: int) -> pd.Series:
     """Simple moving average."""
     return series.rolling(period, min_periods=period).mean()
+
+
+def _epoch_to_iso_date(ts: Any) -> str | None:
+    """Convert a Unix epoch timestamp (seconds, UTC) to YYYY-MM-DD."""
+    if ts is None:
+        return None
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).date().isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _fetch_short_interest(symbol: str) -> dict[str, Any] | None:
+    """Fetch a short-interest snapshot from yfinance info.
+
+    Returns None for tickers that do not report short interest
+    (non-US equities, most ETFs, crypto).
+    """
+    # Yahoo Finance sources short interest from FINRA, which only covers
+    # US-listed equities. yfinance convention uses "." as an exchange
+    # suffix (e.g. ".T", ".HK", ".L"), so skip the network call.
+    if "." in symbol:
+        return None
+
+    try:
+        info = yf.Ticker(symbol).info
+    except Exception as e:
+        logger.warning("short interest fetch failed for %s: %s", symbol, e)
+        return None
+
+    shares_short = info.get("sharesShort")
+    if shares_short is None:
+        return None
+
+    snapshot: dict[str, Any] = {
+        "as_of": _epoch_to_iso_date(info.get("dateShortInterest")),
+        "shares_short": int(shares_short),
+        "pct_of_float": info.get("shortPercentOfFloat"),
+        "days_to_cover": info.get("shortRatio"),
+    }
+
+    prior = info.get("sharesShortPriorMonth")
+    if prior is not None:
+        snapshot["prior_month"] = {
+            "as_of": _epoch_to_iso_date(info.get("sharesShortPreviousMonthDate")),
+            "shares_short": int(prior),
+        }
+
+    return snapshot
 
 
 def volume(
@@ -35,7 +85,9 @@ def volume(
         end: End date (YYYY-MM-DD).
 
     Returns:
-        Columnar dict with symbol, interval, tz, t, volume, and volume SMA values.
+        Columnar dict with symbol, interval, tz, t, volume, volume SMA values,
+        and a ``short_interest`` snapshot (or ``None`` when the ticker does
+        not report short interest, e.g. non-US equities, ETFs, crypto).
 
     Raises:
         ValueError: If no data is returned.
@@ -79,5 +131,7 @@ def volume(
     }
     for col in smas:
         result[col] = [round(v, 2) for v in trimmed[col]]
+
+    result["short_interest"] = _fetch_short_interest(symbol)
 
     return result
