@@ -1,15 +1,19 @@
 """Oscillator tool — momentum indicators for a symbol."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import Any
 
 import pandas as pd
+import yfinance as yf
 from history import fetch_ohlcv
 
 logger = logging.getLogger(__name__)
 
 WARMUP_CALENDAR_DAYS = 112
+
+OPTION_CHAIN_MAX_WORKERS = 8
 
 
 def _rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -38,6 +42,64 @@ def _stochastic(
     return k, d
 
 
+def _fetch_put_call_ratio(symbol: str) -> dict[str, Any] | None:
+    """Aggregate Put/Call Ratio across all listed expirations.
+
+    Returns None for tickers with no listed options (non-US equities,
+    most indexes, crypto) or when every expiration fetch fails.
+    """
+    # yfinance option chains exist only for US-listed equities/ETFs.
+    # An exchange suffix (e.g. ".T", ".HK", ".L") reliably rules out options.
+    if "." in symbol:
+        return None
+
+    try:
+        ticker = yf.Ticker(symbol)
+        expirations = ticker.options
+    except Exception as e:
+        logger.warning("put/call ratio fetch failed for %s: %s", symbol, e)
+        return None
+
+    if not expirations:
+        return None
+
+    def _fetch_one(exp: str) -> Any:
+        try:
+            return ticker.option_chain(exp)
+        except Exception as e:
+            logger.warning("option chain fetch failed for %s %s: %s", symbol, exp, e)
+            return None
+
+    with ThreadPoolExecutor(max_workers=OPTION_CHAIN_MAX_WORKERS) as pool:
+        chains = list(pool.map(_fetch_one, expirations))
+
+    call_vol = put_vol = 0
+    call_oi = put_oi = 0
+    counted = 0
+    for chain in chains:
+        if chain is None:
+            continue
+        call_vol += int(chain.calls["volume"].fillna(0).sum())
+        put_vol += int(chain.puts["volume"].fillna(0).sum())
+        call_oi += int(chain.calls["openInterest"].fillna(0).sum())
+        put_oi += int(chain.puts["openInterest"].fillna(0).sum())
+        counted += 1
+
+    if counted == 0:
+        return None
+
+    return {
+        "as_of": date.today().isoformat(),
+        "volume_based": round(put_vol / call_vol, 4) if call_vol else None,
+        "oi_based": round(put_oi / call_oi, 4) if call_oi else None,
+        "call_volume": call_vol,
+        "put_volume": put_vol,
+        "call_oi": call_oi,
+        "put_oi": put_oi,
+        "expirations": counted,
+    }
+
+
 def oscillator(
     symbol: str,
     start: str,
@@ -54,7 +116,9 @@ def oscillator(
         end: End date (YYYY-MM-DD).
 
     Returns:
-        Columnar dict with symbol, interval, tz, t, and oscillator values.
+        Columnar dict with symbol, interval, tz, t, oscillator values,
+        and a ``put_call_ratio`` snapshot (or ``None`` for tickers
+        without listed options — non-US equities, indexes, crypto).
 
     Raises:
         ValueError: If no data is returned.
@@ -109,5 +173,7 @@ def oscillator(
     ]
     for col in indicator_cols:
         result[col] = [round(v, 2) for v in trimmed[col]]
+
+    result["put_call_ratio"] = _fetch_put_call_ratio(symbol)
 
     return result

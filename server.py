@@ -57,7 +57,10 @@ TOOLS = [
         name="oscillator",
         description=(
             "Daily momentum oscillators for a symbol. "
-            "Returns RSI(14) and Stochastic %K(14)/%D(3). "
+            "Returns RSI(14) and Stochastic %K(14)/%D(3), plus a current "
+            "put_call_ratio snapshot aggregated across all listed "
+            "expirations (volume_based, oi_based) — null for tickers "
+            "without listed options (non-US equities, indexes, crypto). "
             "Uses daily bars; warmup data is fetched automatically."
         ),
         inputSchema={

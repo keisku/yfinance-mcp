@@ -5,7 +5,8 @@ Assertions target mathematical properties, not internal representations.
 """
 
 from datetime import date, timedelta
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -23,9 +24,33 @@ EXPECTED_KEYS = {
     "rsi",
     "stoch_k",
     "stoch_d",
+    "put_call_ratio",
 }
 
 BOUNDED_KEYS = ["rsi", "stoch_k", "stoch_d"]
+
+
+@pytest.fixture(autouse=True)
+def _mock_ticker():
+    """Default: yfinance Ticker reports no listed options.
+
+    Individual tests override ``_mock_ticker.return_value`` to supply
+    option-chain data, or set ``side_effect`` to simulate failures.
+    """
+    with patch("oscillator.yf.Ticker") as m:
+        default = MagicMock()
+        default.options = ()
+        m.return_value = default
+        yield m
+
+
+def _make_chain(
+    call_vol: float, put_vol: float, call_oi: float, put_oi: float
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        calls=pd.DataFrame({"volume": [call_vol], "openInterest": [call_oi]}),
+        puts=pd.DataFrame({"volume": [put_vol], "openInterest": [put_oi]}),
+    )
 
 
 def _trading_days() -> list[date]:
@@ -95,7 +120,14 @@ class TestOutputStructure:
         result = oscillator("TEST", START, END)
         n = len(result["t"])
         assert n > 0
-        for key in EXPECTED_KEYS - {"symbol", "interval", "tz", "t"}:
+        series_keys = EXPECTED_KEYS - {
+            "symbol",
+            "interval",
+            "tz",
+            "t",
+            "put_call_ratio",
+        }
+        for key in series_keys:
             assert len(result[key]) == n
 
     @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
@@ -148,3 +180,66 @@ class TestConstantPrice:
     def test_raises_value_error(self, mock_fetch):
         with pytest.raises(ValueError):
             oscillator("TEST", START, END)
+
+
+class TestPutCallRatio:
+    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_skips_network_for_non_us_tickers(self, mock_fetch, _mock_ticker):
+        """'.' suffix short-circuits before any yfinance call — cost guarantee."""
+        for sym in ("7203.T", "0700.HK", "BP.L"):
+            _mock_ticker.reset_mock()
+            result = oscillator(sym, START, END)
+            assert result["put_call_ratio"] is None
+            _mock_ticker.assert_not_called()
+
+    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_aggregates_across_expirations(self, mock_fetch, _mock_ticker):
+        tkr = MagicMock()
+        tkr.options = ("2026-04-17", "2026-04-24")
+        tkr.option_chain.side_effect = lambda exp: {
+            "2026-04-17": _make_chain(100, 50, 200, 100),
+            "2026-04-24": _make_chain(200, 40, 300, 120),
+        }[exp]
+        _mock_ticker.return_value = tkr
+
+        pcr = oscillator("TEST", START, END)["put_call_ratio"]
+        assert pcr["call_volume"] == 300
+        assert pcr["put_volume"] == 90
+        assert pcr["call_oi"] == 500
+        assert pcr["put_oi"] == 220
+        assert pcr["volume_based"] == round(90 / 300, 4)
+        assert pcr["oi_based"] == round(220 / 500, 4)
+        assert pcr["expirations"] == 2
+        assert pcr["as_of"] == date.today().isoformat()
+
+    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_partial_chain_failure_counts_successes(self, mock_fetch, _mock_ticker):
+        tkr = MagicMock()
+        tkr.options = ("2026-04-17", "2026-04-24", "2026-05-01")
+
+        def _side(exp: str):
+            if exp == "2026-04-24":
+                raise RuntimeError("flaky")
+            return {
+                "2026-04-17": _make_chain(100, 50, 200, 100),
+                "2026-05-01": _make_chain(200, 60, 300, 120),
+            }[exp]
+
+        tkr.option_chain.side_effect = _side
+        _mock_ticker.return_value = tkr
+
+        pcr = oscillator("TEST", START, END)["put_call_ratio"]
+        assert pcr["expirations"] == 2
+        assert pcr["call_volume"] == 300
+        assert pcr["put_volume"] == 110
+
+    @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
+    def test_zero_call_volume_yields_none_volume_ratio(self, mock_fetch, _mock_ticker):
+        tkr = MagicMock()
+        tkr.options = ("2026-04-17",)
+        tkr.option_chain.return_value = _make_chain(0, 10, 100, 50)
+        _mock_ticker.return_value = tkr
+
+        pcr = oscillator("TEST", START, END)["put_call_ratio"]
+        assert pcr["volume_based"] is None
+        assert pcr["oi_based"] == round(50 / 100, 4)
