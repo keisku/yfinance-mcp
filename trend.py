@@ -131,13 +131,9 @@ def trend(
         index=df.index,
     )
 
-    if "Date" in df.columns:
-        timestamps = [d.isoformat() for d in df["Date"]]
-        mask = df["Date"] >= date.fromisoformat(start)
-    else:
-        timestamps = [ts.strftime("%Y-%m-%d") for ts in df.index]
-        mask = df.index >= pd.Timestamp(start, tz=df.index.tz)
-    tz = str(df.index.tz) if hasattr(df.index, "tz") and df.index.tz else "UTC"
+    timestamps = [ts.strftime("%Y-%m-%d") for ts in df.index]
+    mask = df.index >= pd.Timestamp(start, tz=df.index.tz)
+    tz = str(df.index.tz)
 
     indicators["_t"] = timestamps
     trimmed = indicators.loc[mask].dropna()

@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -64,14 +65,26 @@ def _find_gaps(start: date, end: date, cached: set[date]) -> list[tuple[date, da
     return gaps
 
 
-def _exchange_today(symbol: str) -> date:
-    """Return today's date in the exchange's local timezone."""
+@lru_cache(maxsize=512)
+def _exchange_tz(symbol: str) -> str | None:
+    """Return the IANA timezone of the symbol's exchange, or None if unresolved."""
     try:
         tz_name = yf.Ticker(symbol).fast_info.get("timezone")
         if tz_name:
-            return datetime.now(ZoneInfo(tz_name)).date()
+            return str(tz_name)
     except Exception:
         pass
+    return None
+
+
+def _exchange_today(symbol: str) -> date:
+    """Return today's date in the exchange's local timezone."""
+    tz_name = _exchange_tz(symbol)
+    if tz_name:
+        try:
+            return datetime.now(ZoneInfo(tz_name)).date()
+        except Exception:
+            pass
     return date.today()
 
 
@@ -131,26 +144,6 @@ def _build_response(
     if include_ac and "Adj Close" in df.columns:
         result["ac"] = [round(v, 2) for v in df["Adj Close"]]
     return result
-
-
-def _build_response_from_cache(
-    symbol: str, interval: str, rows: list[tuple]
-) -> dict[str, Any]:
-    """Build columnar JSON from cached rows.
-
-    Each row is (date, o, h, l, c, v).
-    """
-    return {
-        "symbol": symbol.upper(),
-        "interval": interval,
-        "tz": "UTC",
-        "t": [r[0].strftime("%Y-%m-%d") for r in rows],
-        "o": [round(r[1], 2) for r in rows],
-        "h": [round(r[2], 2) for r in rows],
-        "l": [round(r[3], 2) for r in rows],
-        "c": [round(r[4], 2) for r in rows],
-        "v": [int(r[5]) for r in rows],
-    }
 
 
 def fetch_ohlcv(
@@ -310,8 +303,20 @@ def fetch_ohlcv(
     if not all_rows:
         raise ValueError(f"No data for '{symbol}' from {start} to {end} at {interval}")
 
+    tz_str = _exchange_tz(symbol) or "UTC"
+    index = pd.DatetimeIndex(
+        [pd.Timestamp(r[0], tz=tz_str) for r in all_rows],
+        name="Date",
+    )
     return pd.DataFrame(
-        all_rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"]
+        {
+            "Open": [r[1] for r in all_rows],
+            "High": [r[2] for r in all_rows],
+            "Low": [r[3] for r in all_rows],
+            "Close": [r[4] for r in all_rows],
+            "Volume": [r[5] for r in all_rows],
+        },
+        index=index,
     )
 
 
@@ -341,12 +346,4 @@ def history(
         ValueError: If interval is invalid or no data is returned.
     """
     df = fetch_ohlcv(symbol, interval, start, end, adjust=adjust)
-
-    if adjust or interval in INTRADAY_INTERVALS:
-        return _build_response(symbol, interval, df, include_ac=adjust)
-
-    return _build_response_from_cache(
-        symbol,
-        interval,
-        list(df.itertuples(index=False, name=None)),
-    )
+    return _build_response(symbol, interval, df, include_ac=adjust)

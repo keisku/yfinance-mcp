@@ -52,15 +52,16 @@ def _make_ohlcv(closes: list[float], spread: float = 2.0) -> pd.DataFrame:
     dates = _trading_days()
     n = len(dates)
     assert len(closes) == n
+    index = pd.DatetimeIndex([pd.Timestamp(d, tz="UTC") for d in dates], name="Date")
     return pd.DataFrame(
         {
-            "Date": dates,
             "Open": [c - 0.5 for c in closes],
             "High": [c + spread for c in closes],
             "Low": [c - spread for c in closes],
             "Close": closes,
             "Volume": [1000] * n,
-        }
+        },
+        index=index,
     )
 
 

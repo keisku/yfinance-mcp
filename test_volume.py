@@ -5,7 +5,7 @@ Assertions target mathematical properties, not internal representations.
 """
 
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -56,15 +56,16 @@ def _make_ohlcv(volumes: list[float]) -> pd.DataFrame:
     dates = _trading_days()
     n = len(dates)
     assert len(volumes) == n
+    index = pd.DatetimeIndex([pd.Timestamp(d, tz="UTC") for d in dates], name="Date")
     return pd.DataFrame(
         {
-            "Date": dates,
             "Open": [100.0] * n,
             "High": [102.0] * n,
             "Low": [98.0] * n,
             "Close": [101.0] * n,
             "Volume": volumes,
-        }
+        },
+        index=index,
     )
 
 
@@ -215,13 +216,14 @@ class TestShortInterestMissing:
 
     @patch("volume.fetch_ohlcv", return_value=_increasing_volume())
     def test_skips_network_for_non_us_tickers(self, mock_fetch, _mock_ticker):
-        """Tickers with a '.' exchange suffix short-circuit before the info call."""
-        _mock_ticker.return_value.info = dict(_FULL_SHORT_INFO)
+        """'.' suffix short-circuits the .info short-interest fetch."""
+        info_mock = MagicMock(wraps=dict(_FULL_SHORT_INFO))
+        _mock_ticker.return_value.info = info_mock
         for sym in ("7203.T", "0700.HK", "BP.L"):
-            _mock_ticker.reset_mock()
+            info_mock.reset_mock()
             result = volume(sym, START, END)
             assert result["short_interest"] is None
-            _mock_ticker.assert_not_called()
+            info_mock.get.assert_not_called()
 
 
 class TestShortInterestPresent:

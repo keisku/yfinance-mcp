@@ -5,8 +5,20 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+import history as history_mod
 from cache import Cache
-from history import _exchange_today, _is_ohlcv_finalized, fetch_ohlcv
+from history import (
+    _exchange_today,
+    _exchange_tz,
+    _is_ohlcv_finalized,
+    fetch_ohlcv,
+    history,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_exchange_tz_cache():
+    _exchange_tz.cache_clear()
 
 
 def _make_api_df(bars: list[tuple]) -> pd.DataFrame:
@@ -55,6 +67,25 @@ class TestIsOhlcvFinalized:
     def test_exception_returns_false(self, mock_cls):
         mock_cls.side_effect = Exception("network error")
         assert _is_ohlcv_finalized("TEST") is False
+
+
+class TestExchangeTz:
+    """_exchange_tz returns the IANA tz string and is process-cached."""
+
+    @patch("history.yf.Ticker")
+    def test_returns_tz_from_fast_info(self, mock_cls):
+        mock_cls.return_value.fast_info = {"timezone": "Asia/Tokyo"}
+        assert _exchange_tz("7974.T") == "Asia/Tokyo"
+
+    @patch("history.yf.Ticker")
+    def test_returns_none_when_missing(self, mock_cls):
+        mock_cls.return_value.fast_info = {}
+        assert _exchange_tz("X") is None
+
+    @patch("history.yf.Ticker")
+    def test_returns_none_on_exception(self, mock_cls):
+        mock_cls.side_effect = RuntimeError("network down")
+        assert _exchange_tz("X") is None
 
 
 class TestExchangeToday:
@@ -175,6 +206,27 @@ class TestFetchOhlcvHistoricalRange:
         assert len(df) == 1
         # _is_ohlcv_finalized should NOT have been called.
         mock_fin.assert_not_called()
+
+
+class TestHistoryTzReporting:
+    """Regression: ``_build_response_from_cache`` used to hardcode ``tz: 'UTC'``,
+    mislabeling daily bars from non-UTC exchanges (Tokyo, London, etc.).
+    """
+
+    @patch("history._is_ohlcv_finalized", return_value=True)
+    @patch("history._exchange_today", return_value=EX_TODAY)
+    @patch("history._fetch_api")
+    @patch("history.yf.Ticker")
+    def test_cache_path_returns_exchange_tz(
+        self, mock_ticker_cls, mock_api, _et, _fin, tmp_path, monkeypatch
+    ):
+        cache = Cache(path=tmp_path / "test.parquet")
+        monkeypatch.setattr(history_mod, "_get_cache", lambda: cache)
+        mock_ticker_cls.return_value.fast_info = {"timezone": "Asia/Tokyo"}
+        mock_api.return_value = _make_api_df([PREV_BAR])
+
+        result = history("7974.T", "1d", "2026-02-27", "2026-02-28")
+        assert result["tz"] == "Asia/Tokyo"
 
 
 class TestFetchOhlcvFutureBarSkipped:

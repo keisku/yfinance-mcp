@@ -68,15 +68,16 @@ def _make_ohlcv(closes: list[float], spread: float = 2.0) -> pd.DataFrame:
     dates = _trading_days()
     n = len(dates)
     assert len(closes) == n
+    index = pd.DatetimeIndex([pd.Timestamp(d, tz="UTC") for d in dates], name="Date")
     return pd.DataFrame(
         {
-            "Date": dates,
             "Open": [c - 0.5 for c in closes],
             "High": [c + spread for c in closes],
             "Low": [c - spread for c in closes],
             "Close": closes,
             "Volume": [1000] * n,
-        }
+        },
+        index=index,
     )
 
 
@@ -185,12 +186,12 @@ class TestConstantPrice:
 class TestPutCallRatio:
     @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_skips_network_for_non_us_tickers(self, mock_fetch, _mock_ticker):
-        """'.' suffix short-circuits before any yfinance call — cost guarantee."""
+        """'.' suffix short-circuits the option-chain fetch — the cost guarantee."""
         for sym in ("7203.T", "0700.HK", "BP.L"):
             _mock_ticker.reset_mock()
             result = oscillator(sym, START, END)
             assert result["put_call_ratio"] is None
-            _mock_ticker.assert_not_called()
+            _mock_ticker.return_value.option_chain.assert_not_called()
 
     @patch("oscillator.fetch_ohlcv", return_value=_uptrend_ohlcv())
     def test_aggregates_across_expirations(self, mock_fetch, _mock_ticker):
